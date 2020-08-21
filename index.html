@@ -1,0 +1,37 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Paste</title>
+<!-- <script>
+function doSubmit() {
+	var contents = document.getElementById("code").value;
+	if (contents.length == 0) {
+		alert("No code written!");
+		return;
+	}
+
+	var xhr = new XMLHttpRequest();
+	// xhr.onreadystatechange = function() {
+	// 	if (xhr.readyState == 4) {
+	// 		alert(xhr.responseText);
+	// 	}
+	// };
+	xhr.open("POST", "/paste");
+	xhr.responseType = "text";
+	xhr.send(contents);
+}
+</script> -->
+</head>
+<body>
+<h3>Paste server for <code>#haskell</code></h3>
+
+More text more text<br><br>
+
+<form method="POST" action="/paste">
+<textarea id="code" name="code" style="width:500px; height:20em"></textarea><br>
+<input type="submit" value="Submit">
+</form>
+<!-- <button onclick="doSubmit()">Submit</button> -->
+</body>
+</html>

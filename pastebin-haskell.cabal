@@ -1,0 +1,19 @@
+cabal-version:       >=1.10
+name:                pastebin-haskell
+version:             0.1.0.0
+author:              Tom Smeding
+maintainer:          tom.smeding@gmail.com
+build-type:          Simple
+extra-source-files:  index.html response.html read.html
+
+executable pastebin-haskell
+  main-is:             Main.hs
+  other-modules:       Embed, EmbedRuntime
+  -- other-extensions:
+  build-depends:       base >=4.13 && <4.14,
+                       bytestring, containers, stm,
+                       random,
+                       snap-server, snap-core,
+                       file-embed
+  -- hs-source-dirs:
+  default-language:    Haskell2010
