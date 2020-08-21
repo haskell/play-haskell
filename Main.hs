@@ -11,9 +11,13 @@ import qualified Data.ByteString.Char8 as Char8
 import Data.ByteString (ByteString)
 import Data.Char
 import Data.FileEmbed
+import Data.Foldable (toList)
 import Data.IORef
+import Data.List (intercalate)
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict (Map)
+import qualified Data.Sequence as Seq
+import Data.Sequence (Seq)
 import Data.Word
 import Snap.Core
 import Snap.Http.Server
@@ -75,10 +79,8 @@ alphabet = Char8.pack (['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'])
 maxKeyLength :: Int
 maxKeyLength = 8
 
-type AtomicState = TVar State
-type KeyType = Short.ShortByteString
-type ContentsType = ByteString
-data State = State (Map KeyType ContentsType) StdGen
+maxMemoryUsage :: Int
+maxMemoryUsage = 128 * 1024 * 1024
 
 genKey :: StdGen -> (KeyType, StdGen)
 genKey gen =
@@ -90,29 +92,80 @@ genKey gen =
                 $ bs
     in (bs', gen')
 
-genKeySatisfying :: StdGen
-                 -> (KeyType -> Bool)
-                 -> (KeyType, StdGen)
+genKeySatisfying :: StdGen -> (KeyType -> Bool) -> (KeyType, StdGen)
 genKeySatisfying gen predicate =
     let (key, gen') = genKey gen
     in if predicate key then (key, gen') else genKey gen'
+
+type AtomicState = TVar State
+type KeyType = Short.ShortByteString
+type ContentsType = ByteString
+
+data State = State
+    { sPasteMap :: Map KeyType ContentsType
+    , sHistory :: Seq KeyType
+    , sRandGen :: StdGen
+    , sTotalSize :: Int }
+
+newState :: StdGen -> State
+newState randgen =
+    State { sPasteMap = mempty
+          , sHistory = mempty
+          , sRandGen = randgen
+          , sTotalSize = 0 }
+
+sizeOverheadPerPaste :: Int
+sizeOverheadPerPaste =
+    -- These are complete guesstimates!
+    -- 3*keysize bytes overhead for history
+    -- keysize bytes contents for history
+    -- 3*keysize bytes overhead for pasteMap
+    -- keysize bytes contents for pasteMap
+    8 * maxKeyLength
+
+purgeOldPastes :: State -> State
+purgeOldPastes state
+  | sTotalSize state + sizeOverheadPerPaste * Map.size (sPasteMap state)
+        > maxMemoryUsage
+  , old Seq.:<| rest <- sHistory state
+  = let oldLength = maybe 0 BS.length (Map.lookup old (sPasteMap state))
+    in purgeOldPastes $
+        state { sPasteMap = Map.delete old (sPasteMap state)
+              , sHistory = rest
+              , sTotalSize = sTotalSize state - oldLength }
+  | otherwise
+  = state
 
 storePaste :: IORef AtomicState -> ContentsType -> IO KeyType
 storePaste stref contents = do
     var <- readIORef stref
     atomically $ do
-        State mp gen <- readTVar var
-        let (key, gen') = genKeySatisfying gen (`Map.notMember` mp)
+        state@State { sPasteMap = mp } <- readTVar var
+        let (key, gen') = genKeySatisfying (sRandGen state) (`Map.notMember` mp)
             mp' = Map.insert key contents mp
-        writeTVar var (State mp' gen')
+            state' = state { sPasteMap = mp'
+                           , sRandGen = gen'
+                           , sHistory = sHistory state Seq.|> key
+                           , sTotalSize = sTotalSize state + BS.length contents }
+            state'' = purgeOldPastes state'
+        writeTVar var state''
         return key
 
 getPaste :: IORef AtomicState -> KeyType -> IO (Maybe ContentsType)
 getPaste stref key = do
     var <- readIORef stref
-    atomically $ do
-        State mp _ <- readTVar var
-        return (Map.lookup key mp)
+    atomically $ Map.lookup key . sPasteMap <$> readTVar var
+
+diagnostics :: IORef AtomicState -> IO ()
+diagnostics stref = do
+    state <- readIORef stref >>= (atomically . readTVar)
+    putStrLn $
+        "diagnostics: "
+            ++ show (Map.size (sPasteMap state)) ++ " pastes, "
+            ++ show (sTotalSize state + Map.size (sPasteMap state) * sizeOverheadPerPaste) ++ " memory used"
+            -- ++ ": " ++ intercalate " " (map (Char8.unpack . Short.fromShort)
+            --                                 (toList (sHistory state)))
+    return ()
 
 pasteResponse :: KeyType -> Lazy.ByteString
 pasteResponse key =
@@ -168,6 +221,7 @@ handleRequest stref POST path
       case mbody of
           Just [body] -> do
               key <- liftIO $ storePaste stref body
+              liftIO $ diagnostics stref
               writeLBS (pasteResponse key)
           Nothing -> error400 "No paste given"
 handleRequest _ _ _ = error404 "Page not found"
@@ -190,5 +244,5 @@ config =
 main :: IO ()
 main = do
     randgen <- newStdGen
-    stref <- newTVarIO (State mempty randgen) >>= newIORef
+    stref <- newTVarIO (newState randgen) >>= newIORef
     httpServe config (server stref)
