@@ -3,10 +3,48 @@
 <head>
 <meta charset="utf-8">
 <title>Paste read</title>
+<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.2/styles/default.min.css" defer>
+<script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.2/highlight.min.js" defer></script>
+<script charset="UTF-8" src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.2/languages/haskell.min.js" defer></script>
+<script>
+var wantHighlighting = false;
+var loaded = false;
+
+if ("localStorage" in window) {
+	wantHighlighting = localStorage.getItem("highlighting") == "1";
+}
+
+function doToggleHighlighting() {
+	wantHighlighting = !wantHighlighting;
+	if (loaded) applyHighlighting(wantHighlighting);
+}
+
+function applyHighlighting(yes) {
+	if ("localStorage" in window) {
+		localStorage.setItem("highlighting", yes ? "1" : "0");
+	}
+
+	if (yes) {
+		hljs.highlightBlock(document.getElementById("code"));
+	} else {
+		location.href = location.href;
+	}
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+	loaded = true;
+	if (wantHighlighting) applyHighlighting(true);
+});
+</script>
 </head>
 <body>
+<div style="float: right">
+	<a href="javascript:doToggleHighlighting()" style="font-size: small">[toggle highlighting]</a>
+</div>
+
 <h3>This is paste <code>[[[INSERT_KEY]]]</code></h3>
 
-<pre>[[[INSERT_CONTENTS]]]</pre>
+<pre><code id="code" class="haskell">[[[INSERT_CONTENTS]]]</code></pre>
+
 </body>
 </html>
