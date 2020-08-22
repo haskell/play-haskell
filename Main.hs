@@ -10,23 +10,19 @@ import qualified Data.ByteString.Short as Short
 import qualified Data.ByteString.Char8 as Char8
 import Data.ByteString (ByteString)
 import Data.Char
-import Data.FileEmbed
-import Data.Foldable (toList)
 import Data.IORef
-import Data.List (intercalate)
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict (Map)
 import qualified Data.Sequence as Seq
 import Data.Sequence (Seq)
 import Data.Word
-import Snap.Core
+import Snap.Core hiding (path, method)
 import Snap.Http.Server
 import System.IO
-import System.IO.Unsafe
 import System.Random
 
-import qualified Embed as Embed
--- import qualified EmbedRuntime as Embed
+-- import qualified Embed as Embed
+import qualified EmbedRuntime as Embed
 
 
 findSubString :: String -> String -> Int
@@ -223,6 +219,7 @@ handleRequest stref POST path
               key <- liftIO $ storePaste stref body
               liftIO $ diagnostics stref
               writeLBS (pasteResponse key)
+          Just _ -> error400 "Multiple code parameters given"
           Nothing -> error400 "No paste given"
 handleRequest _ _ _ = error404 "Page not found"
 
