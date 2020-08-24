@@ -8,3 +8,8 @@
 
 This is a simple pastebin service built for the `#haskell` channel on Freenode.
 There is little documentation except the, of course, self-documenting code.
+
+
+## Page reloading
+
+The server reloads the HTML pages in memory upon receipt of SIGUSR1.

@@ -19,17 +19,11 @@ import Data.Word
 import Snap.Core hiding (path, method)
 import Snap.Http.Server
 import System.IO
+import qualified System.Posix.Signals as Signal
 import System.Random
 
--- import qualified Embed as Embed
-import qualified EmbedRuntime as Embed
+import Pages
 
-
-findSubString :: String -> String -> Int
-findSubString [] _ = error "findSubString: no such substring"
-findSubString large small
-  | take (length small) large == small = 0
-  | otherwise = 1 + findSubString (tail large) small
 
 htmlEscape :: ByteString -> Builder.Builder
 htmlEscape bs
@@ -38,33 +32,6 @@ htmlEscape bs
               ,Builder.byteString (Char8.pack "&lt;")
               ,htmlEscape (BS.drop (idx + 1) bs)]
   | otherwise = Builder.byteString bs
-
-indexHTML :: ByteString
-indexHTML = Embed.indexHTML
-
-responseHTML :: (ByteString, ByteString, ByteString)
-responseHTML =
-    let marker1 = "[[[INSERT_KEY]]]"
-        marker2 = "[[[INSERT_KEY2]]]"
-        idx1 = findSubString fileContents marker1
-        idx2 = idx1 + findSubString (drop idx1 fileContents) marker2
-    in (Char8.pack (take idx1 fileContents)
-       ,Char8.pack (drop (idx1 + length marker1) (take idx2 fileContents))
-       ,Char8.pack (drop (idx2 + length marker2) fileContents))
-  where
-    fileContents = Char8.unpack Embed.responseHTML
-
-pasteReadHTML :: (ByteString, ByteString, ByteString)
-pasteReadHTML =
-    let marker1 = "[[[INSERT_KEY]]]"
-        marker2 = "[[[INSERT_CONTENTS]]]"
-        idx1 = findSubString fileContents marker1
-        idx2 = idx1 + findSubString (drop idx1 fileContents) marker2
-    in (Char8.pack (take idx1 fileContents)
-       ,Char8.pack (drop (idx1 + length marker1) (take idx2 fileContents))
-       ,Char8.pack (drop (idx2 + length marker2) fileContents))
-  where
-    fileContents = Char8.unpack Embed.readHTML
 
 maxUploadSize :: Word64
 maxUploadSize = 32 * 1024 * 1024
@@ -101,14 +68,20 @@ data State = State
     { sPasteMap :: Map KeyType ContentsType
     , sHistory :: Seq KeyType
     , sRandGen :: StdGen
-    , sTotalSize :: Int }
+    , sTotalSize :: Int
+    , sPages :: Pages }
 
-newState :: StdGen -> State
-newState randgen =
+newState :: StdGen -> Pages -> State
+newState randgen pages =
     State { sPasteMap = mempty
           , sHistory = mempty
           , sRandGen = randgen
-          , sTotalSize = 0 }
+          , sTotalSize = 0
+          , sPages = pages }
+
+stateGetPage :: (Pages -> a) -> IORef AtomicState -> IO a
+stateGetPage f stref =
+    f . sPages <$> (readIORef stref >>= atomically . readTVar)
 
 sizeOverheadPerPaste :: Int
 sizeOverheadPerPaste =
@@ -163,20 +136,20 @@ diagnostics stref = do
             --                                 (toList (sHistory state)))
     return ()
 
-pasteResponse :: KeyType -> Lazy.ByteString
-pasteResponse key =
-    let (pre, mid, post) = responseHTML
-    in Builder.toLazyByteString $ mconcat
+pasteResponse :: IORef AtomicState -> KeyType -> IO Lazy.ByteString
+pasteResponse stref key = do
+    (pre, mid, post) <- stateGetPage pResponse stref
+    return $ Builder.toLazyByteString $ mconcat
         [Builder.byteString pre
         ,Builder.shortByteString key
         ,Builder.byteString mid
         ,Builder.shortByteString key
         ,Builder.byteString post]
 
-pasteReadResponse :: KeyType -> ContentsType -> Lazy.ByteString
-pasteReadResponse key contents =
-    let (pre, mid, post) = pasteReadHTML
-    in Builder.toLazyByteString $ mconcat
+pasteReadResponse :: IORef AtomicState -> KeyType -> ContentsType -> IO Lazy.ByteString
+pasteReadResponse stref key contents = do
+    (pre, mid, post) <- stateGetPage pPasteRead stref
+    return $ Builder.toLazyByteString $ mconcat
         [Builder.byteString pre
         ,Builder.shortByteString key
         ,Builder.byteString mid
@@ -204,11 +177,11 @@ error404 msg = do
 handleRequest :: IORef AtomicState -> Method -> ByteString -> Snap ()
 handleRequest stref GET path
   | path == Char8.pack "/" = do
-      writeBS indexHTML
+      liftIO (stateGetPage pIndex stref) >>= writeBS
   | Just key <- parsePasteGet path = do
       res <- liftIO $ getPaste stref key
       case res of
-          Just contents -> writeLBS (pasteReadResponse key contents)
+          Just contents -> liftIO (pasteReadResponse stref key contents) >>= writeLBS
           Nothing -> error404 "Paste not found"
 handleRequest stref POST path
   | path == Char8.pack "/paste" = do
@@ -218,10 +191,19 @@ handleRequest stref POST path
           Just [body] -> do
               key <- liftIO $ storePaste stref body
               liftIO $ diagnostics stref
-              writeLBS (pasteResponse key)
+              liftIO (pasteResponse stref key) >>= writeLBS
           Just _ -> error400 "Multiple code parameters given"
           Nothing -> error400 "No paste given"
 handleRequest _ _ _ = error404 "Page not found"
+
+installPageReloader :: IORef AtomicState -> IO ()
+installPageReloader stref = do
+    let handler = do
+            pages <- pagesFromDisk
+            var <- readIORef stref
+            atomically $ modifyTVar var $ \state -> state { sPages = pages }
+            putStrLn "Reloaded pages"
+    void $ Signal.installHandler Signal.sigUSR1 (Signal.Catch handler) Nothing
 
 server :: IORef AtomicState -> Snap ()
 server stref = do
@@ -241,5 +223,7 @@ config =
 main :: IO ()
 main = do
     randgen <- newStdGen
-    stref <- newTVarIO (newState randgen) >>= newIORef
+    pages <- pagesFromDisk
+    stref <- newTVarIO (newState randgen pages) >>= newIORef
+    installPageReloader stref
     httpServe config (server stref)
