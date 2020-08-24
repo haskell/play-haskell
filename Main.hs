@@ -1,6 +1,10 @@
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE TypeApplications #-}
 module Main (main) where
 
+import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.STM
+import Control.Exception (finally)
 import Control.Monad
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.ByteString as BS
@@ -10,6 +14,7 @@ import qualified Data.ByteString.Short as Short
 import qualified Data.ByteString.Char8 as Char8
 import Data.ByteString (ByteString)
 import Data.Char
+import Data.Foldable (toList)
 import Data.IORef
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict (Map)
@@ -17,11 +22,15 @@ import qualified Data.Sequence as Seq
 import Data.Sequence (Seq)
 import Snap.Core hiding (path, method)
 import Snap.Http.Server
+import System.Environment (getArgs)
+import System.Exit (die)
 import System.IO
 import qualified System.Posix.Signals as Signal
 import System.Random
 
+import Mutex
 import Pages
+import Persist
 
 
 htmlEscape :: ByteString -> Builder.Builder
@@ -68,15 +77,17 @@ data State = State
     , sHistory :: Seq KeyType
     , sRandGen :: StdGen
     , sTotalSize :: Int
-    , sPages :: Pages }
+    , sPages :: Pages
+    , sModifyCookie :: Int }
 
-newState :: StdGen -> Pages -> State
-newState randgen pages =
-    State { sPasteMap = mempty
-          , sHistory = mempty
+newState :: StdGen -> Pages -> [(Short.ShortByteString, ByteString)] -> State
+newState randgen pages persistedPastes =
+    State { sPasteMap = Map.fromList persistedPastes
+          , sHistory = Seq.fromList (map fst persistedPastes)
           , sRandGen = randgen
-          , sTotalSize = 0
-          , sPages = pages }
+          , sTotalSize = sum (map (BS.length . snd) persistedPastes)
+          , sPages = pages
+          , sModifyCookie = 0 }
 
 stateGetPage :: (Pages -> a) -> IORef AtomicState -> IO a
 stateGetPage f stref =
@@ -100,7 +111,8 @@ purgeOldPastes state
     in purgeOldPastes $
         state { sPasteMap = Map.delete old (sPasteMap state)
               , sHistory = rest
-              , sTotalSize = sTotalSize state - oldLength }
+              , sTotalSize = sTotalSize state - oldLength
+              , sModifyCookie = sModifyCookie state + 1 }
   | otherwise
   = state
 
@@ -114,7 +126,8 @@ storePaste stref contents = do
             state' = state { sPasteMap = mp'
                            , sRandGen = gen'
                            , sHistory = sHistory state Seq.|> key
-                           , sTotalSize = sTotalSize state + BS.length contents }
+                           , sTotalSize = sTotalSize state + BS.length contents
+                           , sModifyCookie = sModifyCookie state + 1 }
             state'' = purgeOldPastes state'
         writeTVar var state''
         return key
@@ -194,6 +207,13 @@ handleRequest stref POST path
           Nothing -> error400 "No paste given"
 handleRequest _ _ _ = error404 "Page not found"
 
+persistToDisk :: State -> IO ()
+persistToDisk state = do
+    let pastes = [(key, sPasteMap state Map.! key)
+                 | key <- toList (sHistory state)]
+    Lazy.writeFile "pastes.txt" $
+        Builder.toLazyByteString (persist pastes)
+
 installPageReloader :: IORef AtomicState -> IO ()
 installPageReloader stref = do
     let handler = do
@@ -202,6 +222,17 @@ installPageReloader stref = do
             atomically $ modifyTVar var $ \state -> state { sPages = pages }
             putStrLn "Reloaded pages"
     void $ Signal.installHandler Signal.sigUSR1 (Signal.Catch handler) Nothing
+
+startPersistThread :: IORef AtomicState -> Mutex -> IO ()
+startPersistThread stref persistMutex = void $ forkIO $ loop (-1)
+  where
+    loop prevCookie = do
+        threadDelay (3 * 3600 * 1000 * 1000)
+        state <- readIORef stref >>= atomically . readTVar
+        let cookie = sModifyCookie state
+        when (cookie /= prevCookie) $
+            withLock persistMutex (persistToDisk state)
+        loop cookie
 
 server :: IORef AtomicState -> Snap ()
 server stref = do
@@ -220,8 +251,33 @@ config =
 
 main :: IO ()
 main = do
+    pasteList <- getArgs >>= \case
+        [fname] -> do
+            (list, rest) <- parse @[(Short.ShortByteString, ByteString)]
+                                <$> BS.readFile fname
+            when (BS.length rest /= 0) $ die $ "Cannot parse file '" ++ fname ++ "'"
+            return list
+        [] -> return []
+        _ -> die $ unlines $
+                ["Usage:"
+                ,"  ./pastebin-haskell"
+                ,"        -- Starts server from clean state"
+                ,"  ./pastebin-haskell <pastes.txt>"
+                ,"        -- Starts server with initial pastes from persisted file"]
+
+    -- Create state
     randgen <- newStdGen
     pages <- pagesFromDisk
-    stref <- newTVarIO (newState randgen pages) >>= newIORef
+    stref <- newTVarIO (newState randgen pages pasteList) >>= newIORef
+
+    persistMutex <- newMutex
+
+    -- Reload pages from disk on SIGUSR1
     installPageReloader stref
-    httpServe config (server stref)
+    -- Persist pastes to disk once in a while
+    startPersistThread stref persistMutex
+
+    -- Run server; after ^C perform an extra persist to disk
+    httpServe config (server stref) `finally`
+        (withLock persistMutex $
+            readIORef stref >>= atomically . readTVar >>= persistToDisk)

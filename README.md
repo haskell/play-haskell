@@ -13,3 +13,7 @@ There is little documentation except the, of course, self-documenting code.
 ## Page reloading
 
 The server reloads the HTML pages in memory upon receipt of SIGUSR1.
+
+## Persisting
+
+Every once in a while, and on orderly server shutdown, current pastes are written to `pastes.txt`.
