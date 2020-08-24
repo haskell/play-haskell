@@ -3,39 +3,29 @@
 <head>
 <meta charset="utf-8">
 <title>Paste</title>
-<!-- <script>
-function doSubmit() {
-	var contents = document.getElementById("code").value;
-	if (contents.length == 0) {
-		alert("No code written!");
-		return;
-	}
-
-	var xhr = new XMLHttpRequest();
-	// xhr.onreadystatechange = function() {
-	// 	if (xhr.readyState == 4) {
-	// 		alert(xhr.responseText);
-	// 	}
-	// };
-	xhr.open("POST", "/paste");
-	xhr.responseType = "text";
-	xhr.send(contents);
+<style>
+body {
+	font-family: sans-serif;
 }
-</script> -->
+
+p {
+	max-width: 800px;
+}
+</style>
 </head>
 <body>
 <h3>Paste server for <code>#haskell</code></h3>
 
+<p>
 Help us help you: put in your code along with a brief description about what you are trying to do and how it failed (such as error messages).
 For installation and project management questions, include stack.yaml, *.cabal, cabal.project files (if you have any of those, of course).
 If you have 5 minutes to spare, please enjoy <a target="_blank" href="https://www.chiark.greenend.org.uk/~sgtatham/bugs.html">this classic read</a> first; while it is about bug reports, asking good questions is a quite similar process.
-<br><br>
+</p>
 
 <form method="POST" action="/paste">
-<textarea id="code" name="code" style="width:500px; height:20em"></textarea><br>
+<textarea id="code" name="code" style="width:700px; height:20em"></textarea><br>
 <input type="submit" value="Submit">
 </form>
-<!-- <button onclick="doSubmit()">Submit</button> -->
 <br>
 <br>
 <small><i>Open source: <a href="https://github.com/tomsmeding/pastebin-haskell">github</a></i></small>
