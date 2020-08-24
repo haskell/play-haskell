@@ -1,4 +1,4 @@
-module Main where
+module Main (main) where
 
 import Control.Concurrent.STM
 import Control.Monad
@@ -15,7 +15,6 @@ import qualified Data.Map.Strict as Map
 import Data.Map.Strict (Map)
 import qualified Data.Sequence as Seq
 import Data.Sequence (Seq)
-import Data.Word
 import Snap.Core hiding (path, method)
 import Snap.Http.Server
 import System.IO
@@ -32,9 +31,6 @@ htmlEscape bs
               ,Builder.byteString (Char8.pack "&lt;")
               ,htmlEscape (BS.drop (idx + 1) bs)]
   | otherwise = Builder.byteString bs
-
-maxUploadSize :: Word64
-maxUploadSize = 32 * 1024 * 1024
 
 alphabet :: ByteString
 alphabet = Char8.pack (['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'])
@@ -136,16 +132,6 @@ diagnostics stref = do
             --                                 (toList (sHistory state)))
     return ()
 
-pasteResponse :: IORef AtomicState -> KeyType -> IO Lazy.ByteString
-pasteResponse stref key = do
-    (pre, mid, post) <- stateGetPage pResponse stref
-    return $ Builder.toLazyByteString $ mconcat
-        [Builder.byteString pre
-        ,Builder.shortByteString key
-        ,Builder.byteString mid
-        ,Builder.shortByteString key
-        ,Builder.byteString post]
-
 pasteReadResponse :: IORef AtomicState -> KeyType -> ContentsType -> IO Lazy.ByteString
 pasteReadResponse stref key contents = do
     (pre, mid, post) <- stateGetPage pPasteRead stref
@@ -192,13 +178,12 @@ handleRequest stref GET path
           Nothing -> error404 "Paste not found"
 handleRequest stref POST path
   | path == Char8.pack "/paste" = do
-      -- readRequestBody maxUploadSize
       mbody <- rqPostParam (Char8.pack "code") <$> getRequest
       case mbody of
           Just [body] -> do
               key <- liftIO $ storePaste stref body
               liftIO $ diagnostics stref
-              liftIO (pasteResponse stref key) >>= writeLBS
+              redirect' (Char8.pack "/paste/" `BS.append` Short.fromShort key) 303
           Just _ -> error400 "Multiple code parameters given"
           Nothing -> error400 "No paste given"
 handleRequest _ _ _ = error404 "Page not found"
