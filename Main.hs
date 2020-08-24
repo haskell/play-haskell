@@ -41,6 +41,9 @@ maxKeyLength = 8
 maxMemoryUsage :: Int
 maxMemoryUsage = 128 * 1024 * 1024
 
+maxPasteSize :: Int
+maxPasteSize = 4 * 1024 * 1024
+
 genKey :: StdGen -> (KeyType, StdGen)
 genKey gen =
     let (bs, gen') = genShortByteString maxKeyLength gen
@@ -180,10 +183,13 @@ handleRequest stref POST path
   | path == Char8.pack "/paste" = do
       mbody <- rqPostParam (Char8.pack "code") <$> getRequest
       case mbody of
-          Just [body] -> do
-              key <- liftIO $ storePaste stref body
-              liftIO $ diagnostics stref
-              redirect' (Char8.pack "/paste/" `BS.append` Short.fromShort key) 303
+          Just [body]
+            | BS.length body <= maxPasteSize -> do
+                key <- liftIO $ storePaste stref body
+                liftIO $ diagnostics stref
+                redirect' (Char8.pack "/paste/" `BS.append` Short.fromShort key) 303
+            | otherwise -> do
+                error400 "Paste too large"
           Just _ -> error400 "Multiple code parameters given"
           Nothing -> error400 "No paste given"
 handleRequest _ _ _ = error404 "Page not found"
