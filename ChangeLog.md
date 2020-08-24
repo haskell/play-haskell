@@ -1,5 +1,15 @@
 # Revision history for kaas
 
+## 0.2.1.0 -- 2020-08-24
+
+* Interface:
+  * Some CSS
+  * Bundle highlight.js with only Haskell support for lighter webpage
+  * Skip paste response page and immediately redirect to the paste itself
+* Server:
+  * Maximum paste size of 4MB
+  * Persist pastes to disk for seamless server restarts
+
 ## 0.2.0.0 -- 2020-08-24
 
 * Version bounds for dependencies

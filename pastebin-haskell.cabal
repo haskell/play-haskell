@@ -1,7 +1,7 @@
 cabal-version:       >=1.10
 name:                pastebin-haskell
 synopsis:            Pastebin service in Haskell
-version:             0.2.0.0
+version:             0.2.1.0
 license:             MIT
 license-file:        LICENSE
 author:              Tom Smeding
