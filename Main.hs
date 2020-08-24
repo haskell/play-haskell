@@ -174,10 +174,17 @@ error404 msg = do
     putResponse $ setResponseCode 404 emptyResponse
     writeBS (Char8.pack msg)
 
+staticFile :: String -> FilePath -> Snap ()
+staticFile mime path = do
+    modifyResponse $ setContentType (Char8.pack mime)
+    sendFile path
+
 handleRequest :: IORef AtomicState -> Method -> ByteString -> Snap ()
 handleRequest stref GET path
   | path == Char8.pack "/" = do
       liftIO (stateGetPage pIndex stref) >>= writeBS
+  | path == Char8.pack "/highlight.pack.js" = staticFile "text/javascript" "highlight.pack.js"
+  | path == Char8.pack "/highlight.pack.css" = staticFile "text/css" "highlight.pack.css"
   | Just key <- parsePasteGet path = do
       res <- liftIO $ getPaste stref key
       case res of

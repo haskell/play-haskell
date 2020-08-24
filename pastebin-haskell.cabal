@@ -8,7 +8,7 @@ author:              Tom Smeding
 maintainer:          tom.smeding@gmail.com
 build-type:          Simple
 homepage:            https://github.com/tomsmeding/pastebin-haskell
-extra-source-files:  index.html response.html read.html
+extra-source-files:  index.html response.html read.html highlight.pack.css highlight.pack.js
 extra-source-files:  ChangeLog.md
 
 executable pastebin-haskell
