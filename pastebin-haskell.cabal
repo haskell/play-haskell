@@ -1,7 +1,7 @@
 cabal-version:       >=1.10
 name:                pastebin-haskell
 synopsis:            Pastebin service in Haskell
-version:             0.1.0.0
+version:             0.2.0.0
 license:             MIT
 license-file:        LICENSE
 author:              Tom Smeding
@@ -9,6 +9,7 @@ maintainer:          tom.smeding@gmail.com
 build-type:          Simple
 homepage:            https://github.com/tomsmeding/pastebin-haskell
 extra-source-files:  index.html response.html read.html
+extra-source-files:  ChangeLog.md
 
 executable pastebin-haskell
   main-is:             Main.hs
