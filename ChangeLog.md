@@ -1,5 +1,9 @@
 # Revision history for kaas
 
+## 0.2.2.0 -- 2020-08-25
+
+* Paste link is now not `/paste/abcdefgh` but `/abcdefgh` for conciseness
+
 ## 0.2.1.0 -- 2020-08-24
 
 * Interface:
