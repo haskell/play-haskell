@@ -44,8 +44,8 @@ htmlEscape bs
 alphabet :: ByteString
 alphabet = Char8.pack (['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'])
 
-maxKeyLength :: Int
-maxKeyLength = 8
+minKeyLength, maxKeyLength :: Int
+(minKeyLength, maxKeyLength) = (8, 8)
 
 maxMemoryUsage :: Int
 maxMemoryUsage = 128 * 1024 * 1024
@@ -160,9 +160,9 @@ pasteReadResponse stref key contents = do
 
 parsePasteGet :: ByteString -> Maybe KeyType
 parsePasteGet bs = do
-    guard (BS.length bs <= 7 + maxKeyLength)
-    guard (BS.take 7 bs == Char8.pack "/paste/")
-    let key = BS.drop 7 bs
+    guard (1 + minKeyLength <= BS.length bs && BS.length bs <= 1 + maxKeyLength)
+    guard (BS.head bs == fromIntegral (ord '/'))
+    let key = BS.drop 1 bs
     guard (fromIntegral (ord '/') `BS.notElem` key)
     return (Short.toShort key)
 
@@ -187,6 +187,8 @@ handleRequest stref GET path
       liftIO (stateGetPage pIndex stref) >>= writeBS
   | path == Char8.pack "/highlight.pack.js" = staticFile "text/javascript" "highlight.pack.js"
   | path == Char8.pack "/highlight.pack.css" = staticFile "text/css" "highlight.pack.css"
+  | BS.take 7 path == Char8.pack "/paste/" =
+      redirect' (BS.drop 6 path) 301  -- moved permanently
   | Just key <- parsePasteGet path = do
       res <- liftIO $ getPaste stref key
       case res of
@@ -200,7 +202,7 @@ handleRequest stref POST path
             | BS.length body <= maxPasteSize -> do
                 key <- liftIO $ storePaste stref body
                 liftIO $ diagnostics stref
-                redirect' (Char8.pack "/paste/" `BS.append` Short.fromShort key) 303
+                redirect' (Char8.pack "/" `BS.append` Short.fromShort key) 303 -- see other
             | otherwise -> do
                 error400 "Paste too large"
           Just _ -> error400 "Multiple code parameters given"
