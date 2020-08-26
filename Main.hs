@@ -51,7 +51,7 @@ maxMemoryUsage :: Int
 maxMemoryUsage = 128 * 1024 * 1024
 
 maxPasteSize :: Int
-maxPasteSize = 4 * 1024 * 1024
+maxPasteSize = 64 * 1024
 
 genKey :: StdGen -> (KeyType, StdGen)
 genKey gen =
