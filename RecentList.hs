@@ -14,6 +14,9 @@ new :: [a] -> STM (RecentList a)
 new l = RecentList <$> newTVar (length l - 1)
                    <*> (A.listArray (0, length l - 1) <$> traverse newTVar l)
 
+size :: RecentList a -> Int
+size (RecentList _ arrv) = snd (A.bounds arrv) + 1
+
 add :: RecentList a -> a -> STM ()
 add (RecentList vcursor arrv) value = do
     cursor <- readTVar vcursor
