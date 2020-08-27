@@ -1,5 +1,11 @@
 # Revision history for pastebin-haskell
 
+## 0.2.3.0 -- 2020-08-27
+
+* Smaller paste size limit (64 KiB)
+* Use SQLite for storage instead of in-memory map: better reliability
+* Source-IP rate limiting (at most 5 pastes per 20 seconds)
+
 ## 0.2.2.0 -- 2020-08-25
 
 * Paste link is now not `/paste/abcdefgh` but `/abcdefgh` for conciseness
