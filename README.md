@@ -14,6 +14,6 @@ There is little documentation except the, of course, self-documenting code.
 
 The server reloads the HTML pages in memory upon receipt of SIGUSR1.
 
-## Persisting
+## Storage
 
-Every once in a while, and on orderly server shutdown, current pastes are written to `pastes.txt`.
+Pastes are stored in an SQLite database in the file `pastes.db`.
