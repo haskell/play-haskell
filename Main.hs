@@ -14,12 +14,15 @@ import Data.Char
 import Data.String (fromString)
 import Snap.Core hiding (path, method)
 import Snap.Http.Server
+import System.Environment (getArgs)
+import System.Exit (exitFailure)
 import System.IO
 import qualified System.Posix.Signals as Signal
 import System.Random
 
 import qualified DB
 import DB (Database, KeyType, ContentsType)
+import SpamDetect
 import Pages
 
 
@@ -50,13 +53,20 @@ genKey gen =
                 $ bs
     in (bs', gen')
 
-type AtomicState = TVar State
+data Options = Options { oProxied :: Bool }
 
-data Context = Context { cDB :: Database }
+defaultOptions :: Options
+defaultOptions = Options False
+
+data Context = Context
+    { cDB :: Database
+    , cSpam :: SpamDetect ByteString }
 
 data State = State
     { sRandGen :: StdGen
     , sPages :: Pages }
+
+type AtomicState = TVar State
 
 newState :: StdGen -> Pages -> State
 newState randgen pages =
@@ -135,18 +145,22 @@ handleRequest context stvar GET path
           Nothing -> httpError 404 "Paste not found"
 handleRequest context stvar POST path
   | path == Char8.pack "/paste" = do
-      mbody <- rqPostParam (Char8.pack "code") <$> getRequest
-      case mbody of
-          Just [body]
-            | BS.length body <= maxPasteSize -> do
-                mkey <- liftIO $ genStorePaste context stvar body
-                case mkey of
-                    Right key -> redirect' (Char8.pack "/" `BS.append` Short.fromShort key) 303 -- see other
-                    Left err -> httpError 500 err
-            | otherwise -> do
-                httpError 400 "Paste too large"
-          Just _ -> httpError 400 "Multiple code parameters given"
-          Nothing -> httpError 400 "No paste given"
+      req <- getRequest
+      let clientaddr = rqClientAddr req
+      isSpam <- liftIO $ recordCheckSpam (cSpam context) clientaddr
+      if isSpam
+          then httpError 429 "Please slow down a bit, you're rate limited"
+          else case rqPostParam (Char8.pack "code") req of
+                  Just [body]
+                    | BS.length body <= maxPasteSize -> do
+                        mkey <- liftIO $ genStorePaste context stvar body
+                        case mkey of
+                            Right key -> redirect' (Char8.pack "/" `BS.append` Short.fromShort key) 303 -- see other
+                            Left err -> httpError 500 err
+                    | otherwise -> do
+                        httpError 400 "Paste too large"
+                  Just _ -> httpError 400 "Multiple code parameters given"
+                  Nothing -> httpError 400 "No paste given"
 handleRequest _ _ _ _ = httpError 404 "Page not found"
 
 installPageReloader :: AtomicState -> IO ()
@@ -157,8 +171,11 @@ installPageReloader stvar = do
             putStrLn "Reloaded pages"
     void $ Signal.installHandler Signal.sigUSR1 (Signal.Catch handler) Nothing
 
-server :: Context -> AtomicState -> Snap ()
-server context stvar = do
+server :: Options -> Context -> AtomicState -> Snap ()
+server options context stvar = do
+    -- If we're proxied, set the source IP from the X-Forwarded-For header.
+    when (oProxied options) ipHeaderFilter
+
     req <- getRequest
     let path = rqContextPath req `BS.append` rqPathInfo req
         method = rqMethod req
@@ -173,16 +190,31 @@ config =
        $ defaultConfig
 
 main :: IO ()
-main = DB.withDatabase $ \db -> do
-    let context = Context db
+main = do
+    options <- getArgs >>= \case
+        ["--proxied"] -> return (defaultOptions { oProxied = True })
+        [] -> return defaultOptions
+        _ -> do
+            hPutStr stderr $ unlines $
+                ["Usage:"
+                ,"  ./pastebin-haskell [--proxied]"
+                ,""
+                ,"  --proxied   Assumes the server is running behind a proxy that sets"
+                ,"              X-Forwarded-For instead of the source IP of a request"
+                ,"              for rate limiting."]
+            exitFailure
 
-    -- Create state
-    randgen <- newStdGen
-    pages <- pagesFromDisk
-    stvar <- newTVarIO (newState randgen pages)
+    DB.withDatabase $ \db -> do
+        spam <- initSpamDetect
+        let context = Context db spam
 
-    -- Reload pages from disk on SIGUSR1
-    installPageReloader stvar
+        -- Create state
+        randgen <- newStdGen
+        pages <- pagesFromDisk
+        stvar <- newTVarIO (newState randgen pages)
 
-    -- Run server
-    httpServe config (server context stvar)
+        -- Reload pages from disk on SIGUSR1
+        installPageReloader stvar
+
+        -- Run server
+        httpServe config (server options context stvar)
