@@ -60,7 +60,7 @@ schema :: [Query]
 schemaVersion :: Int
 (schema, schemaVersion) =
     (["CREATE TABLE meta (version INTEGER);"
-     ,"CREATE TABLE pastes (key BLOB PRIMARY KEY, value BLOB);\n"]
+     ,"CREATE TABLE pastes (key BLOB PRIMARY KEY, value BLOB);"]
     ,1)
 
 databaseVersion :: Database -> IO (Maybe Int)
