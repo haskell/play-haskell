@@ -1,3 +1,0 @@
-- CSS
-- Pasting multiple files
-  - <hyiltiz> tomsmeding: I think the simplest interface may be: show single paste box with two buttons one to post another to "add another paste" which shows another paste box.
