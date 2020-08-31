@@ -11,7 +11,11 @@ import qualified Data.ByteString.Short as Short
 import qualified Data.ByteString.Char8 as Char8
 import Data.ByteString (ByteString)
 import Data.Char
+import qualified Data.Map.Strict as Map
+import Data.Map.Strict (Map)
+import Data.Maybe (maybeToList, fromMaybe)
 import Data.String (fromString)
+import Data.Time.Clock.POSIX (POSIXTime)
 import Snap.Core hiding (path, method)
 import Snap.Http.Server
 import System.Environment (getArgs)
@@ -41,7 +45,7 @@ minKeyLength, maxKeyLength :: Int
 (minKeyLength, maxKeyLength) = (8, 8)
 
 maxPasteSize :: Int
-maxPasteSize = 64 * 1024
+maxPasteSize = 128 * 1024
 
 genKey :: StdGen -> (KeyType, StdGen)
 genKey gen =
@@ -97,17 +101,17 @@ genStorePaste context stvar contents =
                 Just DB.ErrFull -> return (Left "Too many pastes submitted, please notify tomsmeding")
     in loop (0 :: Int)
 
-getPaste :: Context -> Short.ShortByteString -> IO (Maybe ByteString)
+getPaste :: Context -> KeyType -> IO (Maybe (Maybe POSIXTime, ContentsType))
 getPaste context = DB.getPaste (cDB context)
 
-pasteReadResponse :: AtomicState -> KeyType -> ContentsType -> IO Lazy.ByteString
-pasteReadResponse stvar key contents = do
+pasteReadResponse :: AtomicState -> KeyType -> Maybe POSIXTime -> ContentsType -> IO Lazy.ByteString
+pasteReadResponse stvar key mdate files = do
     (pre, mid, post) <- stateGetPage pPasteRead stvar
     return $ Builder.toLazyByteString $ mconcat
         [Builder.byteString pre
         ,Builder.shortByteString key
         ,Builder.byteString mid
-        ,htmlEscape contents
+        ,htmlEscape (BS.concat [Char8.pack "<" `BS.append` fromMaybe BS.empty mfn `BS.append` Char8.pack ">" `BS.append` c | (mfn, c) <- files])
         ,Builder.byteString post]
 
 parsePasteGet :: ByteString -> Maybe KeyType
@@ -130,6 +134,22 @@ staticFile mime path = do
         . setHeader (fromString "Cache-Control") (Char8.pack "public max-age=3600")
     sendFile path
 
+collectFilesFromPost :: Map ByteString [ByteString] -> ContentsType
+collectFilesFromPost mp =
+    let params = [(key, value) | (key, value:_) <- Map.assocs mp]
+        codes = Map.fromList $ collectPrefixed (Char8.pack "code") params
+        names = Map.fromList $ collectPrefixed (Char8.pack "name") params
+        names' = Map.map (\bs -> if BS.null bs then Nothing else Just bs) names
+    in Map.elems $ Map.intersectionWith (,) names' codes
+  where
+    collectPrefixed :: ByteString -> [(ByteString, a)] -> [(Int, a)]
+    collectPrefixed prefix pairs =
+        [(idx, value)
+        | (key, value) <- pairs
+        , BS.take 4 key == prefix
+        , (idx, rest) <- maybeToList (Char8.readInt (BS.drop 4 key))
+        , BS.null rest]
+
 handleRequest :: Context -> AtomicState -> Method -> ByteString -> Snap ()
 handleRequest context stvar GET path
   | path == Char8.pack "/" = do
@@ -141,7 +161,7 @@ handleRequest context stvar GET path
   | Just key <- parsePasteGet path = do
       res <- liftIO $ getPaste context key
       case res of
-          Just contents -> liftIO (pasteReadResponse stvar key contents) >>= writeLBS
+          Just (mdate, contents) -> liftIO (pasteReadResponse stvar key mdate contents) >>= writeLBS
           Nothing -> httpError 404 "Paste not found"
 handleRequest context stvar POST path
   | path == Char8.pack "/paste" = do
@@ -150,17 +170,16 @@ handleRequest context stvar POST path
       isSpam <- liftIO $ recordCheckSpam (cSpam context) clientaddr
       if isSpam
           then httpError 429 "Please slow down a bit, you're rate limited"
-          else case rqPostParam (Char8.pack "code") req of
-                  Just [body]
-                    | BS.length body <= maxPasteSize -> do
-                        mkey <- liftIO $ genStorePaste context stvar body
-                        case mkey of
-                            Right key -> redirect' (Char8.pack "/" `BS.append` Short.fromShort key) 303 -- see other
-                            Left err -> httpError 500 err
-                    | otherwise -> do
-                        httpError 400 "Paste too large"
-                  Just _ -> httpError 400 "Multiple code parameters given"
-                  Nothing -> httpError 400 "No paste given"
+          else case collectFilesFromPost (rqPostParams req) of
+                   [] -> httpError 400 "No paste given"
+                   files
+                     | sum (map (BS.length . snd) files) <= maxPasteSize -> do
+                         mkey <- liftIO $ genStorePaste context stvar files
+                         case mkey of
+                             Right key -> redirect' (Char8.pack "/" `BS.append` Short.fromShort key) 303 -- see other
+                             Left err -> httpError 500 err
+                     | otherwise -> do
+                         httpError 400 "Paste too large"
 handleRequest _ _ _ _ = httpError 404 "Page not found"
 
 installPageReloader :: AtomicState -> IO ()

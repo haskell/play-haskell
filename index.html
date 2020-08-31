@@ -11,7 +11,66 @@ body {
 p {
 	max-width: 800px;
 }
+
+.filecontainer {
+	margin-bottom: 20px;
+}
+
+.fileborder {
+	display: inline-block;
+	padding: 10px;
+	border: 1px #ddd solid;
+	border-radius: 5px;
+}
+
+.removebtn {
+	float: right;
+	cursor: pointer;
+	font-weight: bold;
+	font-family: sans-serif;
+	font-size: 18px;
+	color: #555;
+}
+
+.removebtn:hover {
+	color: #888;
+}
+
+.codearea {
+	width: 700px;
+	height: 20em;
+}
+
+.hidden {
+	display: none;
+}
 </style>
+<script>
+var nextId = 2;
+
+function makeFileContainer(index) {
+	var div = document.getElementById("filecontainer_template").cloneNode(true);
+	div.id = "filecontainer" + index;
+	div.classList.remove("hidden");
+	div.querySelector("input").name = "name" + index;
+	div.querySelector("textarea").name = "code" + index;
+	div.querySelector(".removebtn").addEventListener("click", function() { doRemovefile(index); });
+	return div;
+}
+
+function doAddfile() {
+	var parent = document.getElementById("filecontainers");
+	parent.appendChild(makeFileContainer(nextId++));
+}
+
+function doRemovefile(index) {
+	var div = document.getElementById("filecontainer" + index);
+	if (div.querySelector("textarea").value.trim() != "") {
+		if (!confirm("Remove this file from the paste?")) return;
+	}
+	div.parentNode.removeChild(div);
+}
+</script>
 </head>
 <body>
 <h3>Paste server for <code>#haskell</code></h3>
@@ -22,12 +81,28 @@ For installation and project management questions, include stack.yaml, *.cabal, 
 If you have 5 minutes to spare, please enjoy <a target="_blank" href="https://www.chiark.greenend.org.uk/~sgtatham/bugs.html">this classic read</a> first; while it is about bug reports, asking good questions is a quite similar process.
 </p>
 
-<form method="POST" action="/paste">
-<textarea id="code" name="code" style="width:700px; height:20em"></textarea><br>
-<input type="submit" value="Submit">
+<form id="pasteform" method="POST" action="/paste">
+<div id="filecontainers">
+	<div id="filecontainer1" class="filecontainer"><div class="fileborder">
+		File name: <input type="text" name="name1" placeholder="(optional)"><br>
+		<textarea class="codearea" name="code1"></textarea>
+	</div></div>
+</div>
+<br>
+<input type="submit" value="Submit" style="background-color: #afa; font-weight: bold">
+<button type="button" style="background-color: #aaf; margin-left: 50px" onclick="doAddfile()"><b>+</b> Add another file</button>
 </form>
 <br>
 <br>
 <small><i>Open source: <a href="https://github.com/tomsmeding/pastebin-haskell">github</a></i></small>
+
+<!-- template for creating new file containers -->
+<div id="filecontainer_template" class="filecontainer hidden">
+	<div class="fileborder">
+		<div class="removebtn">x</div>
+		File name: <input type="text" name="name1" placeholder="(optional)"><br>
+		<textarea class="codearea" name="code1"></textarea>
+	</div>
+</div>
 </body>
 </html>

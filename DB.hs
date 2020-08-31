@@ -1,5 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeApplications #-}
 module DB (
     Database, ErrCode(..), KeyType, ContentsType,
     withDatabase,
@@ -7,10 +8,14 @@ module DB (
 ) where
 
 import Control.Exception (tryJust, handleJust)
-import Control.Monad (when)
+import Control.Monad (forM_, when)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Short as Short
+import Data.List (sortBy)
+import Data.Ord (comparing)
 import qualified Data.Text as T
+import Data.Time.Clock (secondsToNominalDiffTime)
+import Data.Time.Clock.POSIX (POSIXTime, getPOSIXTime)
 import Database.SQLite.Simple
 import System.Exit (die)
 import System.IO (hPutStrLn, stderr)
@@ -26,7 +31,7 @@ dbFileName = "pastes.db"
 newtype Database = Database Connection
 
 type KeyType = Short.ShortByteString
-type ContentsType = ByteString
+type ContentsType = [(Maybe ByteString, ByteString)]
 
 data ErrCode = ErrExists  -- ^ Key already exists in database
              | ErrFull    -- ^ Database disk quota has been reached
@@ -59,9 +64,23 @@ withDatabase act =
 schema :: [Query]
 schemaVersion :: Int
 (schema, schemaVersion) =
-    (["CREATE TABLE meta (version INTEGER);"
-     ,"CREATE TABLE pastes (key BLOB PRIMARY KEY, value BLOB);"]
-    ,1)
+    (["CREATE TABLE meta (version INTEGER NOT NULL)"
+     ,"CREATE TABLE pastes (\
+      \    id INTEGER PRIMARY KEY NOT NULL, \
+      \    key BLOB NOT NULL, \
+      \    date INTEGER NULL, \
+      \    UNIQUE (key)\
+      \)"
+     ,"CREATE UNIQUE INDEX pastes_key ON pastes (key)"
+     ,"CREATE TABLE files (\
+      \    paste INTEGER NOT NULL, \
+      \    fname BLOB NULL, \
+      \    value BLOB NOT NULL, \
+      \    fileorder INTEGER NOT NULL, \
+      \    FOREIGN KEY (paste) REFERENCES pastes (id) ON DELETE CASCADE\
+      \)"
+     ,"CREATE INDEX files_paste ON files (paste)"]
+    ,2)
 
 databaseVersion :: Database -> IO (Maybe Int)
 databaseVersion (Database conn) = do
@@ -79,25 +98,38 @@ applySchema (Database conn) = do
     mapM_ (execute_ conn) schema
     execute conn "INSERT INTO meta (version) VALUES (?)" (Only schemaVersion)
 
-storePaste :: Database -> Short.ShortByteString -> ByteString -> IO (Maybe ErrCode)
-storePaste (Database conn) key value =
+storePaste :: Database -> KeyType -> ContentsType -> IO (Maybe ErrCode)
+storePaste (Database conn) key files = do
+    now <- truncate <$> getPOSIXTime :: IO Int
     let predicate (SQLError { sqlError = ErrorError }) = Just ()
         predicate _ = Nothing
-    in handleJust predicate (const (return (Just ErrFull))) $
+    handleJust predicate (const (return (Just ErrFull))) $
         withTransaction conn $ do
             [Only count] <- query conn "SELECT COUNT(*) FROM pastes WHERE key = ?"
                                        (Only (Short.fromShort key))
             if (count :: Int) == 0
                 then do
-                    execute conn "INSERT INTO pastes (key, value) VALUES (?, ?)"
-                                 (Short.fromShort key, value)
+                    execute conn "INSERT INTO pastes (key, date) VALUES (?, ?)"
+                                 (Short.fromShort key, now)
+                    pasteid <- lastInsertRowId conn
+                    forM_ (zip files [1::Int ..]) $ \((mfname, contents), idx) ->
+                        execute conn "INSERT INTO files (paste, fname, value, fileorder) \
+                                     \VALUES (?, ?, ?, ?)"
+                                (pasteid, mfname, contents, idx)
                     return Nothing
                 else return (Just ErrExists)
 
-getPaste :: Database -> Short.ShortByteString -> IO (Maybe ByteString)
+getPaste :: Database -> KeyType -> IO (Maybe (Maybe POSIXTime, ContentsType))
 getPaste (Database conn) key = do
-    res <- query conn "SELECT value FROM pastes WHERE key = ?" (Only (Short.fromShort key))
+    res <- query @_ @(Maybe Int, Maybe ByteString, ByteString, Int)
+                 conn "SELECT date, fname, value, fileorder FROM pastes, files \
+                      \WHERE id = paste AND key = ?"
+                 (Only (Short.fromShort key))
+    let files = map fst . sortBy (comparing snd) $
+                [((mfname, contents), order)
+                | (_, mfname, contents, order) <- res]
     case res of
-        [Only value] -> return (Just value)
+        (date, _, _, _) : _ ->
+            let date' = secondsToNominalDiffTime . fromIntegral <$> date
+            in return (Just (date', files))
         [] -> return Nothing
-        _ -> return Nothing  -- multiple entries, what?

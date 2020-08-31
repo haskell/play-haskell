@@ -6,7 +6,7 @@ module SpamDetect (
 ) where
 
 import Control.Concurrent (forkIO, threadDelay)
-import Control.Monad (forever, forM, void)
+import Control.Monad (forever, forM, when, void)
 import Control.Concurrent.STM
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict (Map)
@@ -79,7 +79,8 @@ cleanupMap var = do
         if now - lastTime > recordSecs
             then return (Just key)
             else return Nothing
-    hPutStrLn stderr $ "Spam map cleanup: deleting: " ++ show toDelete
+    when (length toDelete > 0) $
+        hPutStrLn stderr $ "Spam map cleanup: deleting: " ++ show toDelete
     let deleteMap = Map.fromList (map (,()) toDelete)
     -- There is a race condition here; technically, the entire function needs
     -- to be in an 'atomically' block, and the fact that it isn't means that
