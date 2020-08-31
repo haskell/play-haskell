@@ -5,15 +5,13 @@ import Control.Concurrent.STM
 import Control.Monad
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Builder as Builder
-import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString.Short as Short
 import qualified Data.ByteString.Char8 as Char8
 import Data.ByteString (ByteString)
 import Data.Char
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict (Map)
-import Data.Maybe (maybeToList, fromMaybe)
+import Data.Maybe (maybeToList)
 import Data.String (fromString)
 import Data.Time.Clock.POSIX (POSIXTime)
 import Snap.Core hiding (path, method)
@@ -29,14 +27,6 @@ import DB (Database, KeyType, ContentsType)
 import SpamDetect
 import Pages
 
-
-htmlEscape :: ByteString -> Builder.Builder
-htmlEscape bs
-  | Just idx <- BS.elemIndex (fromIntegral (ord '<')) bs =
-      mconcat [Builder.byteString (BS.take idx bs)
-              ,Builder.byteString (Char8.pack "&lt;")
-              ,htmlEscape (BS.drop (idx + 1) bs)]
-  | otherwise = Builder.byteString bs
 
 alphabet :: ByteString
 alphabet = Char8.pack (['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'])
@@ -104,15 +94,10 @@ genStorePaste context stvar contents =
 getPaste :: Context -> KeyType -> IO (Maybe (Maybe POSIXTime, ContentsType))
 getPaste context = DB.getPaste (cDB context)
 
-pasteReadResponse :: AtomicState -> KeyType -> Maybe POSIXTime -> ContentsType -> IO Lazy.ByteString
+pasteReadResponse :: AtomicState -> KeyType -> Maybe POSIXTime -> ContentsType -> IO ByteString
 pasteReadResponse stvar key mdate files = do
-    (pre, mid, post) <- stateGetPage pPasteRead stvar
-    return $ Builder.toLazyByteString $ mconcat
-        [Builder.byteString pre
-        ,Builder.shortByteString key
-        ,Builder.byteString mid
-        ,htmlEscape (BS.concat [Char8.pack "<" `BS.append` fromMaybe BS.empty mfn `BS.append` Char8.pack ">" `BS.append` c | (mfn, c) <- files])
-        ,Builder.byteString post]
+    renderer <- stateGetPage pPasteRead stvar
+    return $ renderer key mdate files
 
 parsePasteGet :: ByteString -> Maybe KeyType
 parsePasteGet bs = do
@@ -161,7 +146,7 @@ handleRequest context stvar GET path
   | Just key <- parsePasteGet path = do
       res <- liftIO $ getPaste context key
       case res of
-          Just (mdate, contents) -> liftIO (pasteReadResponse stvar key mdate contents) >>= writeLBS
+          Just (mdate, contents) -> liftIO (pasteReadResponse stvar key mdate contents) >>= writeBS
           Nothing -> httpError 404 "Paste not found"
 handleRequest context stvar POST path
   | path == Char8.pack "/paste" = do
