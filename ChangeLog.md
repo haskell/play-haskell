@@ -1,5 +1,9 @@
 # Revision history for pastebin-haskell
 
+## 0.2.4.0 -- 2020-08-31
+
+* Pasting multiple files
+
 ## 0.2.3.0 -- 2020-08-27
 
 * Smaller paste size limit (64 KiB)
