@@ -2,14 +2,35 @@
 <html>
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Paste</title>
 <style>
-body {
-	font-family: sans-serif;
+html, body {
+	width: 100%;
+}
+
+header#topbar {
+	background-color: #3e3a3f;
+	padding: 20px 40px 20px 25px;
+	color: white;
+	font-size: 14pt;
+}
+
+header#topbar a {
+	color: #bbf;
+}
+
+#main {
+	max-width: 1000px;
+	margin: 0 auto 30px auto;
 }
 
 p {
-	max-width: 800px;
+	margin: 16px 15px;
+}
+
+#pasteform {
+	margin: 0 15px;
 }
 
 .filecontainer {
@@ -17,10 +38,15 @@ p {
 }
 
 .fileborder {
-	display: inline-block;
-	padding: 10px;
+	/* display: inline-block; */
+	/* padding: 10px; */
 	border: 1px #ddd solid;
 	border-radius: 5px;
+}
+
+.fnamecontainer {
+	background-color: #eee;
+	padding: 5px 10px;
 }
 
 .removebtn {
@@ -37,14 +63,19 @@ p {
 }
 
 .codearea {
-	width: 700px;
+	width: 100%;
 	height: 20em;
 }
 
-.hidden {
-	display: none;
+#submit-row button {
+	margin: 0;  /* purecss gives submit/normal buttons different margins on narrow screens; don't do that */
+}
+
+#submit-row > div:last-child {
+	text-align: right;
 }
 </style>
+<link rel="stylesheet" href="https://unpkg.com/purecss@2.0.3/build/pure-min.css" integrity="sha384-cg6SkqEOCV1NbJoCu11+bm0NvBRc8IYLRGXkmNrqUBfTjmMYwNKPWBTIKyw9mHNJ" crossorigin="anonymous">
 <script>
 var nextId = 2;
 
@@ -73,34 +104,50 @@ function doRemovefile(index) {
 </script>
 </head>
 <body>
-<h3>Paste server for <code>#haskell</code></h3>
+<header id="topbar">
+	<b>Paste for <code>#haskell</code></b>
+	<div style="float: right">
+		<small><i>Open source: <a href="https://github.com/tomsmeding/pastebin-haskell">github</a></i></small>
+	</div>
+</header>
 
-<p>
-Help us help you: put in your code along with a brief description about what you are trying to do and how it failed (such as error messages).
-For installation and project management questions, include stack.yaml, *.cabal, cabal.project files (if you have any of those, of course).
-If you have 5 minutes to spare, please enjoy <a target="_blank" href="https://www.chiark.greenend.org.uk/~sgtatham/bugs.html">this classic read</a> first; while it is about bug reports, asking good questions is a quite similar process.
-</p>
+<div id="main">
+	<p>
+	Help us help you: put in your code along with a brief description about what you are trying to do and how it failed (such as error messages).
+	For installation and project management questions, include stack.yaml, *.cabal, cabal.project files (if you have any of those, of course).
+	If you have 5 minutes to spare, please enjoy <a target="_blank" href="https://www.chiark.greenend.org.uk/~sgtatham/bugs.html">this classic read</a> first; while it is about bug reports, asking good questions is a quite similar process.
+	</p>
 
-<form id="pasteform" method="POST" action="/paste">
-<div id="filecontainers">
-	<div id="filecontainer1" class="filecontainer"><div class="fileborder">
-		File name: <input type="text" name="name1" placeholder="(optional)"><br>
-		<textarea class="codearea" name="code1"></textarea>
-	</div></div>
+	<form id="pasteform" method="POST" action="/paste" class="pure-form">
+		<div id="filecontainers">
+			<div id="filecontainer1" class="filecontainer">
+				<div class="fileborder">
+					<div class="fnamecontainer">
+						File name: <input type="text" name="name1" placeholder="(optional)">
+					</div>
+					<textarea class="codearea" name="code1"></textarea>
+				</div>
+			</div>
+		</div>
+		<br>
+		<div id="submit-row" class="pure-g">
+			<div class="pure-u-1-2">
+				<button type="button" class="pure-button" onclick="doAddfile()"><b>+</b> Add another file</button>
+			</div>
+			<div class="pure-u-1-2">
+				<button type="submit" class="pure-button pure-button-primary">Submit</button>
+			</div>
+		</div>
+	</form>
 </div>
-<br>
-<input type="submit" value="Submit" style="background-color: #afa; font-weight: bold">
-<button type="button" style="background-color: #aaf; margin-left: 50px" onclick="doAddfile()"><b>+</b> Add another file</button>
-</form>
-<br>
-<br>
-<small><i>Open source: <a href="https://github.com/tomsmeding/pastebin-haskell">github</a></i></small>
 
 <!-- template for creating new file containers -->
 <div id="filecontainer_template" class="filecontainer hidden">
 	<div class="fileborder">
-		<div class="removebtn">x</div>
-		File name: <input type="text" name="name1" placeholder="(optional)"><br>
+		<div class="fnamecontainer">
+			<div class="removebtn">x</div>
+			File name: <input type="text" name="name1" placeholder="(optional)">
+		</div>
 		<textarea class="codearea" name="code1"></textarea>
 	</div>
 </div>
