@@ -12,7 +12,7 @@ cabal install --installdir="$tempdir"
 cp "$(realpath "$tempdir/pastebin-haskell")" "$tempdir/pastebin-haskell-exec"
 mv "$tempdir/pastebin-haskell-exec" "$tempdir/pastebin-haskell"
 
-cp -t "$tempdir" $(grep '^extra-source-files:' pastebin-haskell.cabal | cut -d: -f2 | tr ' ' $'\n' | grep '\.html$\|\.js$\|\.css$')
+cp -t "$tempdir" $(grep '^extra-source-files:' pastebin-haskell.cabal | cut -d: -f2 | tr ' ' $'\n' | grep -v 'ChangeLog.md')
 
 (
 	cd "$tempdir"
