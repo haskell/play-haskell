@@ -11,7 +11,7 @@ import Data.ByteString (ByteString)
 import Data.Char
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict (Map)
-import Data.Maybe (maybeToList)
+import Data.Maybe (maybeToList, isNothing)
 import Data.String (fromString)
 import Data.Time.Clock.POSIX (POSIXTime)
 import Snap.Core hiding (path, method)
@@ -158,6 +158,8 @@ handleRequest context stvar POST path
           else case collectFilesFromPost (rqPostParams req) of
                    [] -> httpError 400 "No paste given"
                    files
+                     | all id [isNothing m && BS.null c | (m, c) <- files] ->
+                         httpError 400 "No paste given"
                      | sum (map (BS.length . snd) files) <= maxPasteSize -> do
                          mkey <- liftIO $ genStorePaste context stvar files
                          case mkey of
