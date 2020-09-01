@@ -9,6 +9,7 @@ import qualified Data.ByteString.Short as Short
 import qualified Data.ByteString.Char8 as Char8
 import Data.ByteString (ByteString)
 import Data.Char
+import qualified Data.List as List (lookup)
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict (Map)
 import Data.Maybe (maybeToList, isNothing)
@@ -135,12 +136,19 @@ collectFilesFromPost mp =
         , (idx, rest) <- maybeToList (Char8.readInt (BS.drop 4 key))
         , BS.null rest]
 
+staticFiles :: [(ByteString, (FilePath, String))]
+staticFiles =
+    [(Char8.pack path, (tail path, mime))
+    | (path, mime) <-
+        [("/highlight.pack.js", "text/javascript")
+        ,("/highlight.pack.css", "text/css")
+        ,("/robots.txt", "text/plain")]]
+
 handleRequest :: Context -> AtomicState -> Method -> ByteString -> Snap ()
 handleRequest context stvar GET path
   | path == Char8.pack "/" = do
       liftIO (stateGetPage pIndex stvar) >>= writeBS
-  | path == Char8.pack "/highlight.pack.js" = staticFile "text/javascript" "highlight.pack.js"
-  | path == Char8.pack "/highlight.pack.css" = staticFile "text/css" "highlight.pack.css"
+  | Just (path', mime) <- List.lookup path staticFiles = staticFile mime path'
   | BS.take 7 path == Char8.pack "/paste/" =
       redirect' (BS.drop 6 path) 301  -- moved permanently
   | Just key <- parsePasteGet path = do
