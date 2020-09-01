@@ -4,18 +4,65 @@
 <meta charset="utf-8">
 <title>Paste read</title>
 <style>
-body {
-	font-family: sans-serif;
+html {
+	position: relative;
+	min-height: 100%;
 }
 
-p {
-	max-width: 800px;
+body {
+	padding-bottom: 90px;
+	font-size: 12pt;
+}
+
+header, footer {
+	background-color: #3e3a3f;
+	color: white;
+}
+
+header a, footer a {
+	color: #bbf;
+}
+
+header {
+	padding: 20px 40px 20px 25px;
+	font-size: 14pt;
+}
+
+footer {
+	position: absolute;
+	bottom: 0;
+	width: 100%;
+}
+
+footer > div {
+	font-size: 9pt;
+	padding: 20px;
+}
+
+#main {
+	max-width: 1000px;
+	margin: 0 auto 30px auto;
 }
 
 .fakeh3 {
 	margin: 19px 0;
 }
+
+pre, code.codeblock {
+	font-size: 12px;
+	line-height: 1;
+}
+
+pre.plain {
+	background-color: #f0f0f0;
+	padding: 0.5em;
+}
+
+code.codeblock.hljs {
+	line-height: normal;
+}
 </style>
+<link rel="stylesheet" href="https://unpkg.com/purecss@2.0.3/build/pure-min.css" integrity="sha384-cg6SkqEOCV1NbJoCu11+bm0NvBRc8IYLRGXkmNrqUBfTjmMYwNKPWBTIKyw9mHNJ" crossorigin="anonymous">
 <link rel="stylesheet" href="/highlight.pack.css" defer>
 <script src="/highlight.pack.js" defer></script>
 <script>
@@ -40,6 +87,7 @@ function applyHighlighting(yes) {
 		var elems = document.getElementsByClassName("codeblock");
 		for (var i = 0; i < elems.length; i++) {
 			hljs.highlightBlock(elems[i]);
+			elems[i].parentNode.classList.remove("plain");
 		}
 	} else {
 		location.href = location.href;
@@ -53,23 +101,37 @@ document.addEventListener("DOMContentLoaded", () => {
 </script>
 </head>
 <body>
-<div style="float: right">
-	<a href="javascript:doToggleHighlighting()" style="font-size: small">[toggle highlighting]</a>
+<header id="topbar">
+	<b>Paste for <code>#haskell</code></b>
+	<div style="float: right">
+		<small><i>Open source: <a href="https://github.com/tomsmeding/pastebin-haskell">github</a></i></small>
+	</div>
+</header>
+
+<div id="main">
+	<div style="float: right">
+		<a href="javascript:doToggleHighlighting()" style="font-size: small">[toggle highlighting]</a>
+	</div>
+
+	<h3>This is paste <code>{{key}}</code>{{#date}} (pasted at <span id="date">{{date}}</span>){{/date}}</h3>
+	{{#unixdate}}<script>
+	document.getElementById("date").innerHTML = new Date({{unixdate}} * 1000).toLocaleString();
+	</script>{{/unixdate}}
+
+	{{#pastes}}
+	{{#fname}}<h3><code>{{fname}}</code></h3>{{/fname}}
+	{{^fname}}<div class="fakeh3">(no filename)</div>{{/fname}}
+	<pre class="plain"><code class="codeblock haskell">{{contents}}</code></pre>
+	{{/pastes}}
+
+	<br>
+	<a href="/">Make another paste</a>
 </div>
 
-<h3>This is paste <code>{{key}}</code>{{#date}} (pasted at <span id="date">{{date}}</span>){{/date}}</h3>
-{{#unixdate}}<script>
-document.getElementById("date").innerHTML = new Date({{unixdate}} * 1000).toLocaleString();
-</script>{{/unixdate}}
-
-{{#pastes}}
-{{#fname}}<h3><code>{{fname}}</code></h3>{{/fname}}
-{{^fname}}<div class="fakeh3">(no filename)</div>{{/fname}}
-<pre><code class="codeblock haskell">{{contents}}</code></pre>
-{{/pastes}}
-
-<br>
-<a href="/">Make another paste</a>
-
+<footer>
+	<div>
+		This is user-uploaded content, not endorsed by the owner of this website.
+	</div>
+</footer>
 </body>
 </html>

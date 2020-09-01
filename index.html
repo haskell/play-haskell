@@ -5,15 +5,38 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Paste</title>
 <style>
-header#topbar {
+html {
+	position: relative;
+	min-height: 100%;
+}
+
+body {
+	padding-bottom: 90px;
+}
+
+header, footer {
 	background-color: #3e3a3f;
-	padding: 20px 40px 20px 25px;
 	color: white;
+}
+
+header a, footer a {
+	color: #bbf;
+}
+
+header {
+	padding: 20px 40px 20px 25px;
 	font-size: 14pt;
 }
 
-header#topbar a {
-	color: #bbf;
+footer {
+	position: absolute;
+	bottom: 0;
+	width: 100%;
+}
+
+footer > div {
+	font-size: 9pt;
+	padding: 20px;
 }
 
 #main {
@@ -57,8 +80,9 @@ header#topbar a {
 }
 
 .codearea {
-	width: 100%;
-	height: 20em;
+	width: 100% !important;  /* To prevent user width resizing */
+	height: 26em;
+	font-family: monospace;
 }
 
 #submit-row button {
@@ -146,6 +170,12 @@ function doRemovefile(index) {
 		</div>
 	</form>
 </div>
+
+<footer>
+	<div>
+		All content submitted is public. Paste responsibly. Be nice to other people. :)
+	</div>
+</footer>
 
 <!-- template for creating new file containers -->
 <div id="filecontainer_template" class="filecontainer hidden">
