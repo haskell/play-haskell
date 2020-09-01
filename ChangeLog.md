@@ -1,5 +1,11 @@
 # Revision history for pastebin-haskell
 
+## 0.2.5.0 -- 2020-09-01
+
+* Don't store completely empty pastes
+* Restyle, better copy on index.html
+* Robots.txt disallowing indexing
+
 ## 0.2.4.0 -- 2020-08-31
 
 * Pasting multiple files
