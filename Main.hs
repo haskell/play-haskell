@@ -5,7 +5,6 @@ import Control.Concurrent.STM
 import Control.Monad
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Short as Short
 import qualified Data.ByteString.Char8 as Char8
 import Data.ByteString (ByteString)
 import Data.Char
@@ -40,13 +39,9 @@ maxPasteSize = 128 * 1024
 
 genKey :: StdGen -> (KeyType, StdGen)
 genKey gen =
-    let (bs, gen') = genShortByteString maxKeyLength gen
-        bs' = Short.toShort
-                . BS.map (\x -> BS.index alphabet
-                                    (fromIntegral x `rem` BS.length alphabet))
-                . Short.fromShort
-                $ bs
-    in (bs', gen')
+    let (bs, gen') = genByteString maxKeyLength gen
+        intoAlphabet n = BS.index alphabet (fromIntegral n `rem` BS.length alphabet)
+    in (BS.map intoAlphabet bs, gen')
 
 data Options = Options { oProxied :: Bool }
 
@@ -100,14 +95,6 @@ pasteReadResponse stvar key mdate files = do
     renderer <- stateGetPage pPasteRead stvar
     return $ renderer key mdate files
 
-parsePasteGet :: ByteString -> Maybe KeyType
-parsePasteGet bs = do
-    guard (1 + minKeyLength <= BS.length bs && BS.length bs <= 1 + maxKeyLength)
-    guard (BS.head bs == fromIntegral (ord '/'))
-    let key = BS.drop 1 bs
-    guard (fromIntegral (ord '/') `BS.notElem` key)
-    return (Short.toShort key)
-
 httpError :: Int -> String -> Snap ()
 httpError code msg = do
     putResponse $ setResponseCode code emptyResponse
@@ -138,44 +125,68 @@ collectFilesFromPost mp =
 
 staticFiles :: [(ByteString, (FilePath, String))]
 staticFiles =
-    [(Char8.pack path, (tail path, mime))
+    [(Char8.pack path, (path, mime))
     | (path, mime) <-
-        [("/highlight.pack.js", "text/javascript")
-        ,("/highlight.pack.css", "text/css")
-        ,("/robots.txt", "text/plain")]]
+        [("highlight.pack.js", "text/javascript")
+        ,("highlight.pack.css", "text/css")
+        ,("robots.txt", "text/plain")]]
 
-handleRequest :: Context -> AtomicState -> Method -> ByteString -> Snap ()
-handleRequest context stvar GET path
-  | path == Char8.pack "/" = do
-      liftIO (stateGetPage pIndex stvar) >>= writeBS
-  | Just (path', mime) <- List.lookup path staticFiles = staticFile mime path'
-  | BS.take 7 path == Char8.pack "/paste/" =
-      redirect' (BS.drop 6 path) 301  -- moved permanently
-  | Just key <- parsePasteGet path = do
-      res <- liftIO $ getPaste context key
-      case res of
-          Just (mdate, contents) -> liftIO (pasteReadResponse stvar key mdate contents) >>= writeBS
-          Nothing -> httpError 404 "Paste not found"
-handleRequest context stvar POST path
-  | path == Char8.pack "/paste" = do
-      req <- getRequest
-      let clientaddr = rqClientAddr req
-      isSpam <- liftIO $ recordCheckSpam (cSpam context) clientaddr
-      if isSpam
-          then httpError 429 "Please slow down a bit, you're rate limited"
-          else case collectFilesFromPost (rqPostParams req) of
-                   [] -> httpError 400 "No paste given"
-                   files
-                     | all id [isNothing m && BS.null c | (m, c) <- files] ->
-                         httpError 400 "No paste given"
-                     | sum (map (BS.length . snd) files) <= maxPasteSize -> do
-                         mkey <- liftIO $ genStorePaste context stvar files
-                         case mkey of
-                             Right key -> redirect' (Char8.pack "/" `BS.append` Short.fromShort key) 303 -- see other
-                             Left err -> httpError 500 err
-                     | otherwise -> do
-                         httpError 400 "Paste too large"
-handleRequest _ _ _ _ = httpError 404 "Page not found"
+data WhatRequest
+    = GetIndex
+    | ReadPaste ByteString
+    | ReadPasteOld ByteString
+    | EditPaste ByteString
+    | StaticFile String FilePath
+    | StorePaste
+
+parseRequest :: Method -> ByteString -> Maybe WhatRequest
+parseRequest _ path
+  | BS.null path || BS.head path /= fromIntegral (ord '/')
+      = Nothing
+parseRequest method path =
+    let comps = BS.split (fromIntegral (ord '/')) (BS.tail path)
+    in case (method, comps) of
+           (GET, []) -> Just GetIndex
+           (GET, [x]) | canBeKey x -> Just (ReadPaste x)
+           (GET, [x, edit]) | edit == Char8.pack "edit", canBeKey x -> Just (EditPaste x)
+           (GET, [paste, x]) | paste == Char8.pack "paste", canBeKey x -> Just (ReadPasteOld x)
+           (GET, [x]) | Just (path', mime) <- List.lookup x staticFiles -> Just (StaticFile mime path')
+           (POST, [paste]) | paste == Char8.pack "paste" -> Just StorePaste
+           _ -> Nothing
+  where
+    canBeKey :: ByteString -> Bool
+    canBeKey key = minKeyLength <= BS.length key && BS.length key <= maxKeyLength
+
+handleRequest :: Context -> AtomicState -> WhatRequest -> Snap ()
+handleRequest context stvar = \case
+    GetIndex -> liftIO (stateGetPage pIndex stvar) >>= writeBS
+    StaticFile mime path -> staticFile mime path
+    ReadPaste key -> do
+        res <- liftIO $ getPaste context key
+        case res of
+            Just (mdate, contents) -> liftIO (pasteReadResponse stvar key mdate contents) >>= writeBS
+            Nothing -> httpError 404 "Paste not found"
+    ReadPasteOld name -> redirect' (Char8.cons '/' name) 301  -- moved permanently
+    StorePaste -> do
+        req <- getRequest
+        let clientaddr = rqClientAddr req
+        isSpam <- liftIO $ recordCheckSpam (cSpam context) clientaddr
+        if isSpam
+            then httpError 429 "Please slow down a bit, you're rate limited"
+            else handleNonSpamSubmit (collectFilesFromPost (rqPostParams req))
+  where
+    handleNonSpamSubmit :: ContentsType -> Snap ()
+    handleNonSpamSubmit [] = httpError 400 "No paste given"
+    handleNonSpamSubmit files
+      | all id [isNothing m && BS.null c | (m, c) <- files] =
+          httpError 400 "No paste given"
+      | sum (map (BS.length . snd) files) <= maxPasteSize = do
+          mkey <- liftIO $ genStorePaste context stvar files
+          case mkey of
+              Right key -> redirect' (Char8.pack "/" `BS.append` key) 303 -- see other
+              Left err -> httpError 500 err
+      | otherwise = do
+          httpError 400 "Paste too large"
 
 installPageReloader :: AtomicState -> IO ()
 installPageReloader stvar = do
@@ -193,7 +204,9 @@ server options context stvar = do
     req <- getRequest
     let path = rqContextPath req `BS.append` rqPathInfo req
         method = rqMethod req
-    handleRequest context stvar method path
+    case parseRequest method path of
+        Just what -> handleRequest context stvar what
+        Nothing -> httpError 404 "Page not found"
 
 config :: Config Snap a
 config =

@@ -5,7 +5,6 @@ module Pages (
 
 import qualified Data.ByteString as BS
 import Data.ByteString (ByteString)
-import qualified Data.ByteString.Short as Short
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Enc
 import Data.Time.Clock (nominalDiffTimeToSeconds)
@@ -34,7 +33,7 @@ loadTemplate fp = do
 renderReadPage :: Mustache.Template -> KeyType -> Maybe POSIXTime -> ContentsType -> ByteString
 renderReadPage templ key mdate files = Enc.encodeUtf8 $
     Mustache.substituteValue templ $ Mustache.object
-        [(Text.pack "key", toMustache (Enc.decodeUtf8 (Short.fromShort key)))
+        [(Text.pack "key", toMustache (Enc.decodeUtf8 key))
         ,(Text.pack "date", maybe (toMustache False) (toMustache . show . posixSecondsToUTCTime) mdate)
         ,(Text.pack "unixdate", maybe (toMustache False) (toMustache @Int . truncate . nominalDiffTimeToSeconds) mdate)
         ,(Text.pack "pastes", toMustache

@@ -10,7 +10,6 @@ module DB (
 import Control.Exception (tryJust, handleJust)
 import Control.Monad (forM_, when)
 import Data.ByteString (ByteString)
-import qualified Data.ByteString.Short as Short
 import Data.List (sortBy)
 import Data.Ord (comparing)
 import qualified Data.Text as T
@@ -30,7 +29,7 @@ dbFileName = "pastes.db"
 
 newtype Database = Database Connection
 
-type KeyType = Short.ShortByteString
+type KeyType = ByteString
 type ContentsType = [(Maybe ByteString, ByteString)]
 
 data ErrCode = ErrExists  -- ^ Key already exists in database
@@ -106,11 +105,11 @@ storePaste (Database conn) key files = do
     handleJust predicate (const (return (Just ErrFull))) $
         withTransaction conn $ do
             [Only count] <- query conn "SELECT COUNT(*) FROM pastes WHERE key = ?"
-                                       (Only (Short.fromShort key))
+                                       (Only key)
             if (count :: Int) == 0
                 then do
                     execute conn "INSERT INTO pastes (key, date) VALUES (?, ?)"
-                                 (Short.fromShort key, now)
+                                 (key, now)
                     pasteid <- lastInsertRowId conn
                     forM_ (zip files [1::Int ..]) $ \((mfname, contents), idx) ->
                         execute conn "INSERT INTO files (paste, fname, value, fileorder) \
@@ -124,7 +123,7 @@ getPaste (Database conn) key = do
     res <- query @_ @(Maybe Int, Maybe ByteString, ByteString, Int)
                  conn "SELECT date, fname, value, fileorder FROM pastes, files \
                       \WHERE id = paste AND key = ?"
-                 (Only (Short.fromShort key))
+                 (Only key)
     let files = map fst . sortBy (comparing snd) $
                 [((mfname, contents), order)
                 | (_, mfname, contents, order) <- res]
