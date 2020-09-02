@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Main (main) where
 
 import Control.Concurrent.STM
@@ -104,14 +105,14 @@ staticFile :: String -> FilePath -> Snap ()
 staticFile mime path = do
     modifyResponse $
         setContentType (Char8.pack mime)
-        . setHeader (fromString "Cache-Control") (Char8.pack "public max-age=3600")
+        . setHeader (fromString "Cache-Control") "public max-age=3600"
     sendFile path
 
 collectFilesFromPost :: Map ByteString [ByteString] -> ContentsType
 collectFilesFromPost mp =
     let params = [(key, value) | (key, value:_) <- Map.assocs mp]
-        codes = Map.fromList $ collectPrefixed (Char8.pack "code") params
-        names = Map.fromList $ collectPrefixed (Char8.pack "name") params
+        codes = Map.fromList (collectPrefixed "code" params)
+        names = Map.fromList (collectPrefixed "name" params)
         names' = Map.map (\bs -> if BS.null bs then Nothing else Just bs) names
     in Map.elems $ Map.intersectionWith (,) names' codes
   where
@@ -148,10 +149,10 @@ parseRequest method path =
     in case (method, comps) of
            (GET, []) -> Just GetIndex
            (GET, [x]) | canBeKey x -> Just (ReadPaste x)
-           (GET, [x, edit]) | edit == Char8.pack "edit", canBeKey x -> Just (EditPaste x)
-           (GET, [paste, x]) | paste == Char8.pack "paste", canBeKey x -> Just (ReadPasteOld x)
+           (GET, [x, "edit"]) | canBeKey x -> Just (EditPaste x)
+           (GET, ["paste", x]) | canBeKey x -> Just (ReadPasteOld x)
            (GET, [x]) | Just (path', mime) <- List.lookup x staticFiles -> Just (StaticFile mime path')
-           (POST, [paste]) | paste == Char8.pack "paste" -> Just StorePaste
+           (POST, ["paste"]) -> Just StorePaste
            _ -> Nothing
   where
     canBeKey :: ByteString -> Bool
@@ -183,7 +184,7 @@ handleRequest context stvar = \case
       | sum (map (BS.length . snd) files) <= maxPasteSize = do
           mkey <- liftIO $ genStorePaste context stvar files
           case mkey of
-              Right key -> redirect' (Char8.pack "/" `BS.append` key) 303 -- see other
+              Right key -> redirect' ("/" `BS.append` key) 303 -- see other
               Left err -> httpError 500 err
       | otherwise = do
           httpError 400 "Paste too large"
