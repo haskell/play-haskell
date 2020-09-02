@@ -94,18 +94,26 @@ footer > div {
 #submit-row > div:last-child {
 	text-align: right;
 }
+
+/* Hide the remove button for the first file (it doesn't have an event listener anyway) */
+#filecontainers > div:first-child div.removebtn {
+	display: none;
+}
 </style>
 <link rel="stylesheet" href="https://unpkg.com/purecss@2.0.3/build/pure-min.css" integrity="sha384-cg6SkqEOCV1NbJoCu11+bm0NvBRc8IYLRGXkmNrqUBfTjmMYwNKPWBTIKyw9mHNJ" crossorigin="anonymous">
 <script>
 var nextId = 2;
 
 function makeFileContainer(index) {
-	var div = document.getElementById("filecontainer_template").cloneNode(true);
+	var div = document.getElementById("filecontainer1").cloneNode(true);
 	div.id = "filecontainer" + index;
-	div.classList.remove("hidden");
-	div.querySelector("input").name = "name" + index;
-	div.querySelector("textarea").name = "code" + index;
-	div.querySelector(".removebtn").addEventListener("click", function() { doRemovefile(index); });
+	var input = div.querySelector("input");
+	input.name = "name" + index;
+	input.value = "";
+	var textarea = div.querySelector("textarea");
+	textarea.name = "code" + index;
+	textarea.value = "";
+	div.querySelector(".removebtn").addEventListener("click", function() { doRemovefile(div); });
 	return div;
 }
 
@@ -114,13 +122,21 @@ function doAddfile() {
 	parent.appendChild(makeFileContainer(nextId++));
 }
 
-function doRemovefile(index) {
-	var div = document.getElementById("filecontainer" + index);
-	if (div.querySelector("textarea").value.trim() != "") {
-		if (!confirm("Remove this file from the paste?")) return;
+function doRemovefile(filecontainer) {
+	if (filecontainer.querySelector("textarea").value.trim() != "") {
+		var input = filecontainer.querySelector("input");
+		var filename = input.value == "" ? "this file" : "'" + input.value + "'";
+		if (!confirm("Remove " + filename + " from the paste?")) return;
 	}
-	div.parentNode.removeChild(div);
+	filecontainer.parentNode.removeChild(filecontainer);
 }
+
+document.addEventListener("load", function() {
+	var l = document.getElementById("filecontainers").children;
+	for (var i = 1; i < l.length; i++) {  // skip the first one
+		l[i].querySelector(".removebtn").addEventListener("click", doRemoveFile.bind(window, l[i]));
+	}
+});
 </script>
 </head>
 <body>
@@ -155,6 +171,7 @@ function doRemovefile(index) {
 			<div id="filecontainer1" class="filecontainer">
 				<div class="fileborder">
 					<div class="fnamecontainer">
+						<div class="removebtn">x</div>
 						File name: <input type="text" name="name1" placeholder="(optional)">
 					</div>
 					<textarea class="codearea" name="code1"></textarea>
@@ -178,16 +195,5 @@ function doRemovefile(index) {
 		All content submitted is public. Paste responsibly. Be nice to other people. :)
 	</div>
 </footer>
-
-<!-- template for creating new file containers -->
-<div id="filecontainer_template" class="filecontainer hidden">
-	<div class="fileborder">
-		<div class="fnamecontainer">
-			<div class="removebtn">x</div>
-			File name: <input type="text" name="name1" placeholder="(optional)">
-		</div>
-		<textarea class="codearea" name="code1"></textarea>
-	</div>
-</div>
 </body>
 </html>
