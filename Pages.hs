@@ -55,7 +55,8 @@ mixinSinglePaste index (mfname, contents) = Mustache.object $
     [(Text.pack "fname", mixinMaybeNull Enc.decodeUtf8 mfname)
     ,(Text.pack "fnameAttr", maybe (toMustache "") (toMustache . escapeAttribute . Enc.decodeUtf8) mfname)
     ,(Text.pack "contents", toMustache (Enc.decodeUtf8 contents))
-    ,(Text.pack "index", toMustache index)]
+    ,(Text.pack "index", toMustache index)
+    ,(Text.pack "firstFile", toMustache (index == 1))]
 
 mixinMaybeNull :: Mustache.ToMustache b => (a -> b) -> Maybe a -> Mustache.Value
 mixinMaybeNull _ Nothing = toMustache False

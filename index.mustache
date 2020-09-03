@@ -113,6 +113,7 @@ function makeFileContainer(index) {
 	var textarea = div.querySelector("textarea");
 	textarea.name = "code" + index;
 	textarea.value = "";
+	textarea.removeAttribute("autofocus");
 	setupEventHandlers(div);
 	return div;
 }
@@ -180,7 +181,7 @@ window.addEventListener("load", function() {
 						<div class="removebtn">x</div>
 						File name: <input type="text" name="name{{index}}" placeholder="(optional)" value="{{&fnameAttr}}">
 					</div>
-					<textarea class="codearea" name="code{{index}}">{{contents}}</textarea>
+					<textarea class="codearea" name="code{{index}}"{{#firstFile}} autofocus{{/firstFile}}>{{contents}}</textarea>
 				</div>
 			</div>
 			{{/pastes}}
