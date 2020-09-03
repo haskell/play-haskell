@@ -1,5 +1,10 @@
 # Revision history for pastebin-haskell
 
+## 0.2.6.0 -- 2020-09-03
+
+* Edit existing pastes via a button on the read page
+* (Also, internal refactoring)
+
 ## 0.2.5.0 -- 2020-09-01
 
 * Don't store completely empty pastes
