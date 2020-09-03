@@ -1,5 +1,16 @@
 # Revision history for pastebin-haskell
 
+## 0.2.7.0 -- 2020-09-03
+
+* Looks
+  * Revamp and shorten landing page text; thanks `sm` and `geekosaur` for discussion
+  * Header `#haskell` now links to [IRC wiki page](https://wiki.haskell.org/IRC_channel)
+* Reading pastes
+  * Files names on read page are anchor links pointing to that file
+* Making pastes
+  * Keyboard shortcut: ctrl-enter (or meta-enter) immediately submits paste
+  * Autofocus first textarea on index page
+
 ## 0.2.6.0 -- 2020-09-03
 
 * Edit existing pastes via a button on the read page
