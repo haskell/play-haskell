@@ -149,21 +149,10 @@ window.addEventListener("load", function() {
 
 <div id="main">
 	<div class="bodytext">
-		<h3 id="help-us-help-you">Help us help you</h3>
-		<p>Include in your paste:</p>
-		<ul>
-			<li>your code</li>
-			<li>a brief description for what you are trying to do</li>
-			<li>how it failed, such as error messages.</li>
-		</ul>
-		<p>Please enjoy <a href="https://www.chiark.greenend.org.uk/~sgtatham/bugs.html">this</a> classic 5-min read. It is about bug reports, but asking good questions is quite a similar process.</p>
-		<h3 id="for-installation-and-project-management">For installation and project management</h3>
-		<p>Include separately in your paste (if you have them):</p>
-		<ul>
-			<li>stack.yaml</li>
-			<li>*.cabal</li>
-			<li>cabal.project</li>
-		</ul>
+		<p>
+			<i>Help us help you:</i>
+			Include in your paste: your code / failing command; full output, including error messages; and <code>stack.yaml</code>, <code>package.yaml</code>, <code>.cabal</code> and/or <code>cabal.project</code>, if you have any of those files.
+		</p>
 	</div>
 
 	<form id="pasteform" method="POST" action="/paste" class="pure-form">
@@ -190,6 +179,10 @@ window.addEventListener("load", function() {
 			</div>
 		</div>
 	</form>
+
+	<!-- <p style="margin-top: 100px">
+		Please also enjoy <a href="https://www.chiark.greenend.org.uk/~sgtatham/bugs.html">this</a> classic 5-min read. It is about bug reports, but asking good questions is quite a similar process.
+	</p> -->
 </div>
 
 <footer>
