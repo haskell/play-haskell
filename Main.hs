@@ -91,6 +91,11 @@ genStorePaste context stvar contents =
 getPaste :: Context -> KeyType -> IO (Maybe (Maybe POSIXTime, ContentsType))
 getPaste context = DB.getPaste (cDB context)
 
+indexResponse :: AtomicState -> ContentsType -> IO ByteString
+indexResponse stvar files = do
+    renderer <- stateGetPage pIndex stvar
+    return $ renderer files
+
 pasteReadResponse :: AtomicState -> KeyType -> Maybe POSIXTime -> ContentsType -> IO ByteString
 pasteReadResponse stvar key mdate files = do
     renderer <- stateGetPage pPasteRead stvar
@@ -160,8 +165,12 @@ parseRequest method path =
 
 handleRequest :: Context -> AtomicState -> WhatRequest -> Snap ()
 handleRequest context stvar = \case
-    GetIndex -> liftIO (stateGetPage pIndex stvar) >>= writeBS
-    StaticFile mime path -> staticFile mime path
+    GetIndex -> liftIO (indexResponse stvar []) >>= writeBS
+    EditPaste key -> do
+        res <- liftIO $ getPaste context key
+        case res of
+            Just (_, contents) -> liftIO (indexResponse stvar contents) >>= writeBS
+            Nothing -> httpError 404 "Paste not found"
     ReadPaste key -> do
         res <- liftIO $ getPaste context key
         case res of
@@ -175,6 +184,7 @@ handleRequest context stvar = \case
         if isSpam
             then httpError 429 "Please slow down a bit, you're rate limited"
             else handleNonSpamSubmit (collectFilesFromPost (rqPostParams req))
+    StaticFile mime path -> staticFile mime path
   where
     handleNonSpamSubmit :: ContentsType -> Snap ()
     handleNonSpamSubmit [] = httpError 400 "No paste given"

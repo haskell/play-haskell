@@ -131,10 +131,10 @@ function doRemovefile(filecontainer) {
 	filecontainer.parentNode.removeChild(filecontainer);
 }
 
-document.addEventListener("load", function() {
+window.addEventListener("load", function() {
 	var l = document.getElementById("filecontainers").children;
 	for (var i = 1; i < l.length; i++) {  // skip the first one
-		l[i].querySelector(".removebtn").addEventListener("click", doRemoveFile.bind(window, l[i]));
+		l[i].querySelector(".removebtn").addEventListener("click", doRemovefile.bind(window, l[i]));
 	}
 });
 </script>
@@ -168,15 +168,17 @@ document.addEventListener("load", function() {
 
 	<form id="pasteform" method="POST" action="/paste" class="pure-form">
 		<div id="filecontainers">
-			<div id="filecontainer1" class="filecontainer">
+			{{#pastes}}
+			<div id="filecontainer{{index}}" class="filecontainer">
 				<div class="fileborder">
 					<div class="fnamecontainer">
 						<div class="removebtn">x</div>
-						File name: <input type="text" name="name1" placeholder="(optional)">
+						File name: <input type="text" name="name{{index}}" placeholder="(optional)" value="{{&fnameAttr}}">
 					</div>
-					<textarea class="codearea" name="code1"></textarea>
+					<textarea class="codearea" name="code{{index}}">{{contents}}</textarea>
 				</div>
 			</div>
+			{{/pastes}}
 		</div>
 		<br>
 		<div id="submit-row" class="pure-g">
