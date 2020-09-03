@@ -113,7 +113,7 @@ function makeFileContainer(index) {
 	var textarea = div.querySelector("textarea");
 	textarea.name = "code" + index;
 	textarea.value = "";
-	div.querySelector(".removebtn").addEventListener("click", function() { doRemovefile(div); });
+	setupEventHandlers(div);
 	return div;
 }
 
@@ -131,10 +131,22 @@ function doRemovefile(filecontainer) {
 	filecontainer.parentNode.removeChild(filecontainer);
 }
 
+function setupEventHandlers(div) {
+	div.querySelector(".removebtn").addEventListener("click", function() { doRemovefile(div); });
+	div.querySelector("textarea").addEventListener("keydown", function(ev) {
+		if (ev.isComposing || ev.keyCode == 229) {  // ignore IME events
+			return;
+		}
+		if ((ev.ctrlKey || ev.metaKey) && ev.key == "Enter") {
+			document.getElementById("pasteform").submit();
+		}
+	});
+}
+
 window.addEventListener("load", function() {
 	var l = document.getElementById("filecontainers").children;
-	for (var i = 1; i < l.length; i++) {  // skip the first one
-		l[i].querySelector(".removebtn").addEventListener("click", doRemovefile.bind(window, l[i]));
+	for (var i = 0; i < l.length; i++) {
+		setupEventHandlers(l[i]);
 	}
 });
 </script>
