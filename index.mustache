@@ -145,9 +145,13 @@ function setupEventHandlers(div) {
 
 window.addEventListener("load", function() {
 	var l = document.getElementById("filecontainers").children;
+	var maxId = 1;
 	for (var i = 0; i < l.length; i++) {
+		var id = +l[i].id.slice(13);
+		if (!isNaN(id) && id > maxId) maxId = id;
 		setupEventHandlers(l[i]);
 	}
+	nextId = maxId + 1;
 });
 </script>
 </head>
