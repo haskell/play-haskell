@@ -10,8 +10,6 @@ module DB (
 import Control.Exception (tryJust, handleJust)
 import Control.Monad (forM_, when)
 import Data.ByteString (ByteString)
-import Data.List (sortBy)
-import Data.Ord (comparing)
 import qualified Data.Text as T
 import Data.Time.Clock (secondsToNominalDiffTime)
 import Data.Time.Clock.POSIX (POSIXTime, getPOSIXTime)
@@ -120,15 +118,13 @@ storePaste (Database conn) key files = do
 
 getPaste :: Database -> KeyType -> IO (Maybe (Maybe POSIXTime, ContentsType))
 getPaste (Database conn) key = do
-    res <- query @_ @(Maybe Int, Maybe ByteString, ByteString, Int)
-                 conn "SELECT date, fname, value, fileorder FROM pastes, files \
-                      \WHERE id = paste AND key = ?"
+    res <- query @_ @(Maybe Int, Maybe ByteString, ByteString)
+                 conn "SELECT date, fname, value FROM pastes, files \
+                      \WHERE id = paste AND key = ? ORDER BY fileorder"
                  (Only key)
-    let files = map fst . sortBy (comparing snd) $
-                [((mfname, contents), order)
-                | (_, mfname, contents, order) <- res]
     case res of
-        (date, _, _, _) : _ ->
+        (date, _, _) : _ ->
             let date' = secondsToNominalDiffTime . fromIntegral <$> date
+                files = [(mfname, contents) | (_, mfname, contents) <- res]
             in return (Just (date', files))
         [] -> return Nothing
