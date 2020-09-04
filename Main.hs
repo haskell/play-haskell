@@ -203,9 +203,16 @@ handleRequest context stvar = \case
       | all id [isNothing m && BS.null c | (m, c) <- files] =
           httpError 400 "No paste given"
       | sum (map (BS.length . snd) files) <= maxPasteSize = do
+          req <- getRequest
           mkey <- liftIO $ genStorePaste context stvar files
           case mkey of
-              Right key -> redirect' ("/" `BS.append` key) 303 -- see other
+              Right key -> do
+                  let suffix = "/" `BS.append` key
+                  -- Perform a manual redirect because snap's redirect combinator early-exits
+                  modifyResponse $
+                      setResponseStatus 303 "See other"
+                      . setHeader "Location" suffix
+                  writeBS ("https://" `BS.append` rqHostName req `BS.append` suffix)
               Left err -> httpError 500 err
       | otherwise = do
           httpError 400 "Paste too large"
