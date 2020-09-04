@@ -45,8 +45,14 @@ footer > div {
 
 /* --- */
 
-.fakeh3 {
-	margin: 19px 0;
+.filename-header {
+	padding-top: 0.3em;
+	padding-bottom: 0.15em;
+}
+
+.filename-link {
+	font-size: 1.17em;
+	font-weight: bold;
 }
 
 pre, code.codeblock {
@@ -121,7 +127,14 @@ document.addEventListener("DOMContentLoaded", () => {
 	</script>{{/unixdate}}
 
 	{{#pastes}}
-	<h3 id="file-{{index}}"><a href="#file-{{index}}">{{#fname}}<code>{{fname}}</code>{{/fname}}{{^fname}}#{{/fname}}</a></h3>
+	<div class="pure-g filename-header">
+		<div class="pure-u-1-2">
+			<a href="#file-{{index}}" class="filename-link">{{#fname}}<code>{{fname}}</code>{{/fname}}{{^fname}}#{{/fname}}</a>
+		</div>
+		<div class="pure-u-1-2" style="text-align: right">
+			[<a href="/{{key}}/raw/{{index}}">raw</a>]
+		</div>
+	</div>
 	<pre class="plain"><code class="codeblock haskell">{{contents}}</code></pre>
 	{{/pastes}}
 

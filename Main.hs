@@ -22,6 +22,7 @@ import System.Exit (exitFailure)
 import System.IO
 import qualified System.Posix.Signals as Signal
 import System.Random
+import Text.Read (readMaybe)
 
 import qualified DB
 import DB (Database, KeyType, ContentsType)
@@ -140,6 +141,7 @@ staticFiles =
 data WhatRequest
     = GetIndex
     | ReadPaste ByteString
+    | ReadPasteRaw ByteString Int
     | ReadPasteOld ByteString
     | EditPaste ByteString
     | StaticFile String FilePath
@@ -155,6 +157,8 @@ parseRequest method path =
            (GET, []) -> Just GetIndex
            (GET, [x]) | canBeKey x -> Just (ReadPaste x)
            (GET, [x, "edit"]) | canBeKey x -> Just (EditPaste x)
+           (GET, [x, "raw"]) | canBeKey x -> Just (ReadPasteRaw x 1)
+           (GET, [x, "raw", y]) | canBeKey x, Just idx <- readMaybe (Char8.unpack y) -> Just (ReadPasteRaw x idx)
            (GET, ["paste", x]) | canBeKey x -> Just (ReadPasteOld x)
            (GET, [x]) | Just (path', mime) <- List.lookup x staticFiles -> Just (StaticFile mime path')
            (POST, ["paste"]) -> Just StorePaste
@@ -175,6 +179,13 @@ handleRequest context stvar = \case
         res <- liftIO $ getPaste context key
         case res of
             Just (mdate, contents) -> liftIO (pasteReadResponse stvar key mdate contents) >>= writeBS
+            Nothing -> httpError 404 "Paste not found"
+    ReadPasteRaw key idx -> do
+        res <- liftIO $ getPaste context key
+        case res of
+            Just (_, contents)
+              | 1 <= idx, idx <= length contents -> writeBS (snd (contents !! (idx - 1)))
+              | otherwise -> httpError 404 "File index out of range for paste"
             Nothing -> httpError 404 "Paste not found"
     ReadPasteOld name -> redirect' (Char8.cons '/' name) 301  -- moved permanently
     StorePaste -> do
