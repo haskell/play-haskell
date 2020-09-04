@@ -152,7 +152,7 @@ parseRequest _ path
   | BS.null path || BS.head path /= fromIntegral (ord '/')
       = Nothing
 parseRequest method path =
-    let comps = BS.split (fromIntegral (ord '/')) (BS.tail path)
+    let comps = BS.split (fromIntegral (ord '/')) (trimSlashes path)
     in case (method, comps) of
            (GET, []) -> Just GetIndex
            (GET, [x]) | canBeKey x -> Just (ReadPaste x)
@@ -166,6 +166,10 @@ parseRequest method path =
   where
     canBeKey :: ByteString -> Bool
     canBeKey key = minKeyLength <= BS.length key && BS.length key <= maxKeyLength
+
+    trimSlashes :: ByteString -> ByteString
+    trimSlashes = let slash = fromIntegral (ord '/')
+                  in BS.dropWhile (== slash) . BS.dropWhileEnd (== slash)
 
 handleRequest :: Context -> AtomicState -> WhatRequest -> Snap ()
 handleRequest context stvar = \case
