@@ -122,7 +122,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 	{{#pastes}}
 	{{#fname}}<h3 id="file-{{index}}"><a href="#file-{{index}}"><code>{{fname}}</code></a></h3>{{/fname}}
-	{{^fname}}<div id="file-{{index}}" class="fakeh3"><a href="#file-{{index}}">(no filename)</a></div>{{/fname}}
+	{{^fname}}<div id="file-{{index}}" class="fakeh3"><a href="#file-{{index}}">#</a></div>{{/fname}}
 	<pre class="plain"><code class="codeblock haskell">{{contents}}</code></pre>
 	{{/pastes}}
 
