@@ -67,11 +67,12 @@ code.codeblock.hljs {
 <link rel="stylesheet" href="/highlight.pack.css" defer>
 <script src="/highlight.pack.js" defer></script>
 <script>
-var wantHighlighting = false;
+var wantHighlighting = true;
 var loaded = false;
 
 if ("localStorage" in window) {
-	wantHighlighting = localStorage.getItem("highlighting") == "1";
+	// Only disable highlighting if it explicitly is "0" (i.e. default is do highlight)
+	wantHighlighting = localStorage.getItem("highlighting") != "0";
 }
 
 function doToggleHighlighting() {
