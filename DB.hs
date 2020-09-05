@@ -66,6 +66,7 @@ schemaVersion :: Int
       \    id INTEGER PRIMARY KEY NOT NULL, \
       \    key BLOB NOT NULL, \
       \    date INTEGER NULL, \
+      \    srcip TEXT NULL, \
       \    UNIQUE (key)\
       \)"
      ,"CREATE UNIQUE INDEX pastes_key ON pastes (key)"
@@ -77,7 +78,7 @@ schemaVersion :: Int
       \    FOREIGN KEY (paste) REFERENCES pastes (id) ON DELETE CASCADE\
       \)"
      ,"CREATE INDEX files_paste ON files (paste)"]
-    ,2)
+    ,3)
 
 databaseVersion :: Database -> IO (Maybe Int)
 databaseVersion (Database conn) = do

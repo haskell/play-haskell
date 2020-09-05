@@ -9,7 +9,7 @@ maintainer:          tom.smeding@gmail.com
 build-type:          Simple
 homepage:            https://github.com/tomsmeding/pastebin-haskell
 extra-source-files:  index.mustache read.mustache highlight.pack.css highlight.pack.js
-extra-source-files:  migrate_db_1_2.sh robots.txt
+extra-source-files:  migrate_db_1_2.sh migrate_db_2_3.sh robots.txt
 extra-source-files:  ChangeLog.md
 
 executable pastebin-haskell
