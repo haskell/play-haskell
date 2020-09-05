@@ -25,7 +25,7 @@ import System.Random
 import Text.Read (readMaybe)
 
 import qualified DB
-import DB (Database, KeyType, ContentsType)
+import DB (Database, ClientAddr, KeyType, ContentsType)
 import SpamDetect
 import Pages
 
@@ -77,11 +77,11 @@ stateGetPage f stvar =
     f . sPages <$> atomically (readTVar stvar)
 
 -- returns the generated key, or an error string
-genStorePaste :: Context -> AtomicState -> ContentsType -> IO (Either String KeyType)
-genStorePaste context stvar contents =
+genStorePaste :: Context -> AtomicState -> ClientAddr -> ContentsType -> IO (Either String KeyType)
+genStorePaste context stvar srcip contents =
     let loop iter = do
             key <- genKey' stvar
-            DB.storePaste (cDB context) key contents >>= \case
+            DB.storePaste (cDB context) srcip key contents >>= \case
                 Nothing -> return (Right key)
                 Just DB.ErrExists
                     | iter < 5 -> loop (iter + 1)  -- try again with a new key
@@ -208,7 +208,7 @@ handleRequest context stvar = \case
           httpError 400 "No paste given"
       | sum (map (BS.length . snd) files) <= maxPasteSize = do
           req <- getRequest
-          mkey <- liftIO $ genStorePaste context stvar files
+          mkey <- liftIO $ genStorePaste context stvar (Char8.unpack (rqClientAddr req)) files
           case mkey of
               Right key -> do
                   let suffix = "/" `BS.append` key

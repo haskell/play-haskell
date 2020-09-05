@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
 module DB (
-    Database, ErrCode(..), KeyType, ContentsType,
+    Database, ErrCode(..), ClientAddr, KeyType, ContentsType,
     withDatabase,
     storePaste, getPaste
 ) where
@@ -27,6 +27,7 @@ dbFileName = "pastes.db"
 
 newtype Database = Database Connection
 
+type ClientAddr = String
 type KeyType = ByteString
 type ContentsType = [(Maybe ByteString, ByteString)]
 
@@ -96,8 +97,8 @@ applySchema (Database conn) = do
     mapM_ (execute_ conn) schema
     execute conn "INSERT INTO meta (version) VALUES (?)" (Only schemaVersion)
 
-storePaste :: Database -> KeyType -> ContentsType -> IO (Maybe ErrCode)
-storePaste (Database conn) key files = do
+storePaste :: Database -> ClientAddr -> KeyType -> ContentsType -> IO (Maybe ErrCode)
+storePaste (Database conn) clientaddr key files = do
     now <- truncate <$> getPOSIXTime :: IO Int
     let predicate (SQLError { sqlError = ErrorError }) = Just ()
         predicate _ = Nothing
@@ -107,8 +108,8 @@ storePaste (Database conn) key files = do
                                        (Only key)
             if (count :: Int) == 0
                 then do
-                    execute conn "INSERT INTO pastes (key, date) VALUES (?, ?)"
-                                 (key, now)
+                    execute conn "INSERT INTO pastes (key, date, srcip) VALUES (?, ?, ?)"
+                                 (key, now, clientaddr)
                     pasteid <- lastInsertRowId conn
                     forM_ (zip files [1::Int ..]) $ \((mfname, contents), idx) ->
                         execute conn "INSERT INTO files (paste, fname, value, fileorder) \
