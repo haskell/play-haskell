@@ -1,5 +1,15 @@
 # Revision history for pastebin-haskell
 
+## 0.2.8.0 -- 2020-09-05
+
+* Reading pastes
+  * Enable syntax highlighting by default if you've never visited the page before
+  * Use "#" for files without filename (thanks `sm`)
+  * "Raw" links to plain-text file contents
+* Store redirect response now contains paste URL in body to aid pasting using curl
+  * `curl -d 'name1=' --data-urlencode 'code1@/dev/stdin' https://your.pastebin.example.com/paste`
+* Paste source IP is now stored for future spam tracking
+
 ## 0.2.7.0 -- 2020-09-03
 
 * Looks
