@@ -17,8 +17,6 @@ import Data.String (fromString)
 import Data.Time.Clock.POSIX (POSIXTime)
 import Snap.Core hiding (path, method)
 import Snap.Http.Server
-import System.Environment (getArgs)
-import System.Exit (exitFailure)
 import System.IO
 import qualified System.Posix.Signals as Signal
 import System.Random
@@ -26,6 +24,7 @@ import Text.Read (readMaybe)
 
 import qualified DB
 import DB (Database, ClientAddr, KeyType, ContentsType)
+import qualified Options as Opt
 import SpamDetect
 import Pages
 
@@ -251,18 +250,13 @@ config =
 
 main :: IO ()
 main = do
-    options <- getArgs >>= \case
-        ["--proxied"] -> return (defaultOptions { oProxied = True })
-        [] -> return defaultOptions
-        _ -> do
-            hPutStr stderr $ unlines $
-                ["Usage:"
-                ,"  ./pastebin-haskell [--proxied]"
-                ,""
-                ,"  --proxied   Assumes the server is running behind a proxy that sets"
-                ,"              X-Forwarded-For instead of the source IP of a request"
-                ,"              for rate limiting."]
-            exitFailure
+    options <- Opt.parseOptions $ Opt.Interface defaultOptions $ Map.fromList
+        [("--proxied", Opt.Flag "Assumes the server is running behind a proxy that sets \
+                                \X-Forwarded-For, instead of using the source IP of a \
+                                \request for rate limiting."
+                                (\o -> o { oProxied = True }))
+        ,("--help", Opt.Help)
+        ,("-h", Opt.Help)]
 
     DB.withDatabase $ \db -> do
         spam <- initSpamDetect
