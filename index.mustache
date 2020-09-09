@@ -95,6 +95,10 @@ footer > div {
 	text-align: right;
 }
 
+#submit-button {
+	background-color: #0074e0;  /* little bit darker than purecss for WCAG constrast */
+}
+
 /* Hide the remove button for the first file (it doesn't have an event listener anyway) */
 #filecontainers > div:first-child div.removebtn {
 	display: none;
@@ -178,21 +182,21 @@ window.addEventListener("load", function() {
 			<div id="filecontainer{{index}}" class="filecontainer">
 				<div class="fileborder">
 					<div class="fnamecontainer">
-						<div class="removebtn">x</div>
-						File name: <input type="text" name="name{{index}}" placeholder="(optional)" value="{{&fnameAttr}}">
+						<div class="removebtn" role="button" aria-label="Remove file" tabindex="0">x</div>
+						<label>File name: <input type="text" name="name{{index}}" placeholder="(optional)" value="{{&fnameAttr}}"></label>
 					</div>
-					<textarea class="codearea" name="code{{index}}"{{#firstFile}} autofocus{{/firstFile}}>{{contents}}</textarea>
+					<textarea class="codearea" name="code{{index}}" aria-label="File contents"{{#firstFile}} autofocus{{/firstFile}}>{{contents}}</textarea>
 				</div>
 			</div>
 			{{/pastes}}
 		</div>
 		<br>
-		<div id="submit-row" class="pure-g">
+		<div id="submit-row" class="pure-g" role="toolbar">
 			<div class="pure-u-1-2">
 				<button type="button" class="pure-button" onclick="doAddfile()"><b>+</b> Add another file</button>
 			</div>
 			<div class="pure-u-1-2">
-				<button type="submit" class="pure-button pure-button-primary">Submit</button>
+				<button type="submit" id="submit-button" class="pure-button pure-button-primary">Submit</button>
 			</div>
 		</div>
 	</form>
