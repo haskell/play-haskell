@@ -21,8 +21,8 @@ import System.IO (hPutStrLn, stderr)
 maxDbFileSize :: Int
 maxDbFileSize = 1024 * 1024 * 1024  -- 1 GiB
 
-dbFileName :: FilePath
-dbFileName = "pastes.db"
+dbFileName :: FilePath -> FilePath
+dbFileName dbdir = dbdir ++ "/pastes.db"
 
 
 newtype Database = Database Connection
@@ -35,9 +35,9 @@ data ErrCode = ErrExists  -- ^ Key already exists in database
              | ErrFull    -- ^ Database disk quota has been reached
   deriving (Show)
 
-withDatabase :: (Database -> IO ()) -> IO ()
-withDatabase act =
-    withConnection dbFileName $ \conn -> do
+withDatabase :: FilePath -> (Database -> IO ()) -> IO ()
+withDatabase dbdir act =
+    withConnection (dbFileName dbdir) $ \conn -> do
         execute_ conn "PRAGMA foreign_keys = on"
         [Only pageSize] <- query_ conn "PRAGMA page_size"
         [Only pageCount] <- query_ conn "PRAGMA page_count"
@@ -49,7 +49,7 @@ withDatabase act =
         databaseVersion (Database conn) >>= \case
             Nothing -> do
                 applySchema (Database conn)
-                hPutStrLn stderr $ "Created database at '" ++ dbFileName ++ "'"
+                hPutStrLn stderr $ "Created database at '" ++ dbFileName dbdir ++ "'"
             Just ver | ver == schemaVersion -> return ()
                      | otherwise -> die $ "ERROR: Incompatible database schema version (DB " ++
                                             show ver ++ ", app " ++ show schemaVersion ++ ")"

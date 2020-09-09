@@ -44,10 +44,11 @@ genKey gen =
         intoAlphabet n = BS.index alphabet (fromIntegral n `rem` BS.length alphabet)
     in (BS.map intoAlphabet bs, gen')
 
-data Options = Options { oProxied :: Bool }
+data Options = Options { oProxied :: Bool
+                       , oDBDir :: FilePath }
 
 defaultOptions :: Options
-defaultOptions = Options False
+defaultOptions = Options False "."
 
 data Context = Context
     { cDB :: Database
@@ -255,10 +256,12 @@ main = do
                                 \X-Forwarded-For, instead of using the source IP of a \
                                 \request for rate limiting."
                                 (\o -> o { oProxied = True }))
+        ,("--dbdir", Opt.Setter "Sets directory to store pastes.db in."
+                                (\o s -> o { oDBDir = s }))
         ,("--help", Opt.Help)
         ,("-h", Opt.Help)]
 
-    DB.withDatabase $ \db -> do
+    DB.withDatabase (oDBDir options) $ \db -> do
         spam <- initSpamDetect
         let context = Context db spam
 
