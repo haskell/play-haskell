@@ -63,20 +63,20 @@ schema :: [Query]
 schemaVersion :: Int
 (schema, schemaVersion) =
     (["CREATE TABLE meta (version INTEGER NOT NULL)"
-     ,"CREATE TABLE pastes (\
-      \    id INTEGER PRIMARY KEY NOT NULL, \
-      \    key BLOB NOT NULL, \
-      \    date INTEGER NULL, \
-      \    srcip TEXT NULL, \
-      \    UNIQUE (key)\
+     ,"CREATE TABLE pastes (\n\
+      \    id INTEGER PRIMARY KEY NOT NULL, \n\
+      \    key BLOB NOT NULL, \n\
+      \    date INTEGER NULL, \n\
+      \    srcip TEXT NULL, \n\
+      \    UNIQUE (key)\n\
       \)"
      ,"CREATE UNIQUE INDEX pastes_key ON pastes (key)"
-     ,"CREATE TABLE files (\
-      \    paste INTEGER NOT NULL, \
-      \    fname BLOB NULL, \
-      \    value BLOB NOT NULL, \
-      \    fileorder INTEGER NOT NULL, \
-      \    FOREIGN KEY (paste) REFERENCES pastes (id) ON DELETE CASCADE\
+     ,"CREATE TABLE files (\n\
+      \    paste INTEGER NOT NULL, \n\
+      \    fname BLOB NULL, \n\
+      \    value BLOB NOT NULL, \n\
+      \    fileorder INTEGER NOT NULL, \n\
+      \    FOREIGN KEY (paste) REFERENCES pastes (id) ON DELETE CASCADE\n\
       \)"
      ,"CREATE INDEX files_paste ON files (paste)"]
     ,3)
