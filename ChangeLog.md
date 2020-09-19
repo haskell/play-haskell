@@ -1,5 +1,13 @@
 # Revision history for pastebin-haskell
 
+## 0.2.9.0 -- 2020-09-19
+
+* Apply some accessibility guidelines on the html pages
+  * Slightly higher contrast on submit button, ARIA attributes and roles, keyboard-selectable delete-file button (using tabindex)
+* Reword "Edit this paste" button to "Clone and edit this paste"
+* Track parents: the read page now shows the paste that was edited to produce
+  this one, if any. (suggested by `sm`)
+
 ## 0.2.8.0 -- 2020-09-05
 
 * Reading pastes
