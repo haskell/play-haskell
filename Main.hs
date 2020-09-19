@@ -179,20 +179,17 @@ handleRequest :: Context -> AtomicState -> WhatRequest -> Snap ()
 handleRequest context stvar = \case
     GetIndex -> liftIO (indexResponse stvar (Contents [] Nothing)) >>= writeBS
     EditPaste key -> do
-        res <- liftIO $ getPaste context key
-        case res of
+        liftIO (getPaste context key) >>= \case
             Just (_, Contents files _) ->
                 -- Replace parent (if any) with the edited paste
                 liftIO (indexResponse stvar (Contents files (Just key))) >>= writeBS
             Nothing -> httpError 404 "Paste not found"
     ReadPaste key -> do
-        res <- liftIO $ getPaste context key
-        case res of
+        liftIO (getPaste context key) >>= \case
             Just (mdate, contents) -> liftIO (pasteReadResponse stvar key mdate contents) >>= writeBS
             Nothing -> httpError 404 "Paste not found"
     ReadPasteRaw key idx -> do
-        res <- liftIO $ getPaste context key
-        case res of
+        liftIO (getPaste context key) >>= \case
             Just (_, Contents files _)
               | 1 <= idx, idx <= length files -> writeBS (snd (files !! (idx - 1)))
               | otherwise -> httpError 404 "File index out of range for paste"
