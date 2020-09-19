@@ -23,7 +23,7 @@ import System.Random
 import Text.Read (readMaybe)
 
 import qualified DB
-import DB (Database, ClientAddr, KeyType, ContentsType)
+import DB (Database, ClientAddr, KeyType, Contents(..))
 import qualified Options as Opt
 import SpamDetect
 import Pages
@@ -77,7 +77,7 @@ stateGetPage f stvar =
     f . sPages <$> atomically (readTVar stvar)
 
 -- returns the generated key, or an error string
-genStorePaste :: Context -> AtomicState -> ClientAddr -> ContentsType -> IO (Either String KeyType)
+genStorePaste :: Context -> AtomicState -> ClientAddr -> Contents -> IO (Either String KeyType)
 genStorePaste context stvar srcip contents =
     let loop iter = do
             key <- genKey' stvar
@@ -89,18 +89,18 @@ genStorePaste context stvar srcip contents =
                 Just DB.ErrFull -> return (Left "Too many pastes submitted, please notify tomsmeding")
     in loop (0 :: Int)
 
-getPaste :: Context -> KeyType -> IO (Maybe (Maybe POSIXTime, ContentsType))
+getPaste :: Context -> KeyType -> IO (Maybe (Maybe POSIXTime, Contents))
 getPaste context = DB.getPaste (cDB context)
 
-indexResponse :: AtomicState -> ContentsType -> IO ByteString
-indexResponse stvar files = do
+indexResponse :: AtomicState -> Contents -> IO ByteString
+indexResponse stvar contents = do
     renderer <- stateGetPage pIndex stvar
-    return $ renderer files
+    return $ renderer contents
 
-pasteReadResponse :: AtomicState -> KeyType -> Maybe POSIXTime -> ContentsType -> IO ByteString
-pasteReadResponse stvar key mdate files = do
+pasteReadResponse :: AtomicState -> KeyType -> Maybe POSIXTime -> Contents -> IO ByteString
+pasteReadResponse stvar key mdate contents = do
     renderer <- stateGetPage pPasteRead stvar
-    return $ renderer key mdate files
+    return $ renderer key mdate contents
 
 httpError :: Int -> String -> Snap ()
 httpError code msg = do
@@ -114,13 +114,17 @@ staticFile mime path = do
         . setHeader (fromString "Cache-Control") "public max-age=3600"
     sendFile path
 
-collectFilesFromPost :: Map ByteString [ByteString] -> ContentsType
-collectFilesFromPost mp =
+collectContentsFromPost :: Map ByteString [ByteString] -> Contents
+collectContentsFromPost mp =
     let params = [(key, value) | (key, value:_) <- Map.assocs mp]
         codes = Map.fromList (collectPrefixed "code" params)
         names = Map.fromList (collectPrefixed "name" params)
         names' = Map.map (\bs -> if BS.null bs then Nothing else Just bs) names
-    in Map.elems $ Map.intersectionWith (,) names' codes
+        files = Map.elems $ Map.intersectionWith (,) names' codes
+        mparent = case Map.lookup "parent" mp of
+                    Just (parent : _) -> Just parent
+                    _ -> Nothing
+    in Contents files mparent
   where
     collectPrefixed :: ByteString -> [(ByteString, a)] -> [(Int, a)]
     collectPrefixed prefix pairs =
@@ -173,11 +177,13 @@ parseRequest method path =
 
 handleRequest :: Context -> AtomicState -> WhatRequest -> Snap ()
 handleRequest context stvar = \case
-    GetIndex -> liftIO (indexResponse stvar []) >>= writeBS
+    GetIndex -> liftIO (indexResponse stvar (Contents [] Nothing)) >>= writeBS
     EditPaste key -> do
         res <- liftIO $ getPaste context key
         case res of
-            Just (_, contents) -> liftIO (indexResponse stvar contents) >>= writeBS
+            Just (_, Contents files _) ->
+                -- Replace parent (if any) with the edited paste
+                liftIO (indexResponse stvar (Contents files (Just key))) >>= writeBS
             Nothing -> httpError 404 "Paste not found"
     ReadPaste key -> do
         res <- liftIO $ getPaste context key
@@ -187,8 +193,8 @@ handleRequest context stvar = \case
     ReadPasteRaw key idx -> do
         res <- liftIO $ getPaste context key
         case res of
-            Just (_, contents)
-              | 1 <= idx, idx <= length contents -> writeBS (snd (contents !! (idx - 1)))
+            Just (_, Contents files _)
+              | 1 <= idx, idx <= length files -> writeBS (snd (files !! (idx - 1)))
               | otherwise -> httpError 404 "File index out of range for paste"
             Nothing -> httpError 404 "Paste not found"
     ReadPasteOld name -> redirect' (Char8.cons '/' name) 301  -- moved permanently
@@ -198,17 +204,17 @@ handleRequest context stvar = \case
         isSpam <- liftIO $ recordCheckSpam (cSpam context) clientaddr
         if isSpam
             then httpError 429 "Please slow down a bit, you're rate limited"
-            else handleNonSpamSubmit (collectFilesFromPost (rqPostParams req))
+            else handleNonSpamSubmit (collectContentsFromPost (rqPostParams req))
     StaticFile mime path -> staticFile mime path
   where
-    handleNonSpamSubmit :: ContentsType -> Snap ()
-    handleNonSpamSubmit [] = httpError 400 "No paste given"
-    handleNonSpamSubmit files
+    handleNonSpamSubmit :: Contents -> Snap ()
+    handleNonSpamSubmit (Contents [] _) = httpError 400 "No paste given"
+    handleNonSpamSubmit contents@(Contents files _)
       | all id [isNothing m && BS.null c | (m, c) <- files] =
           httpError 400 "No paste given"
       | sum (map (BS.length . snd) files) <= maxPasteSize = do
           req <- getRequest
-          mkey <- liftIO $ genStorePaste context stvar (Char8.unpack (rqClientAddr req)) files
+          mkey <- liftIO $ genStorePaste context stvar (Char8.unpack (rqClientAddr req)) contents
           case mkey of
               Right key -> do
                   let suffix = "/" `BS.append` key

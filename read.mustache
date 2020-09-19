@@ -65,6 +65,12 @@ pre.plain {
 	padding: 0.5em;
 }
 
+.parentline {
+	font-size: small;
+	font-style: italic;
+	margin-bottom: 1em;
+}
+
 code.codeblock.hljs {
 	line-height: normal;
 }
@@ -125,6 +131,9 @@ document.addEventListener("DOMContentLoaded", () => {
 	{{#unixdate}}<script>
 	document.getElementById("date").innerHTML = new Date({{unixdate}} * 1000).toLocaleString();
 	</script>{{/unixdate}}
+	{{#parent}}<div class="parentline">
+		(Edited from: <a href="/{{&parentAttr}}"><code>{{parent}}</code></a>)
+	</div>{{/parent}}
 
 	{{#pastes}}
 	<div class="pure-g filename-header">

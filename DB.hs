@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
 module DB (
-    Database, ErrCode(..), ClientAddr, KeyType, ContentsType,
+    Database, ErrCode(..), ClientAddr, KeyType, Contents(..),
     withDatabase,
     storePaste, getPaste
 ) where
@@ -29,7 +29,9 @@ newtype Database = Database Connection
 
 type ClientAddr = String
 type KeyType = ByteString
-type ContentsType = [(Maybe ByteString, ByteString)]
+data Contents =
+    Contents [(Maybe ByteString, ByteString)]  -- ^ Files with optional filenames
+             (Maybe KeyType)                   -- ^ Parent paste this was edited from, if any
 
 data ErrCode = ErrExists  -- ^ Key already exists in database
              | ErrFull    -- ^ Database disk quota has been reached
@@ -68,6 +70,7 @@ schemaVersion :: Int
       \    key BLOB NOT NULL, \n\
       \    date INTEGER NULL, \n\
       \    srcip TEXT NULL, \n\
+      \    parent INTEGER REFERENCES pastes (id) ON DELETE SET NULL,\n\
       \    UNIQUE (key)\n\
       \)"
      ,"CREATE UNIQUE INDEX pastes_key ON pastes (key)"
@@ -79,7 +82,7 @@ schemaVersion :: Int
       \    FOREIGN KEY (paste) REFERENCES pastes (id) ON DELETE CASCADE\n\
       \)"
      ,"CREATE INDEX files_paste ON files (paste)"]
-    ,3)
+    ,4)
 
 databaseVersion :: Database -> IO (Maybe Int)
 databaseVersion (Database conn) = do
@@ -97,8 +100,8 @@ applySchema (Database conn) = do
     mapM_ (execute_ conn) schema
     execute conn "INSERT INTO meta (version) VALUES (?)" (Only schemaVersion)
 
-storePaste :: Database -> ClientAddr -> KeyType -> ContentsType -> IO (Maybe ErrCode)
-storePaste (Database conn) clientaddr key files = do
+storePaste :: Database -> ClientAddr -> KeyType -> Contents -> IO (Maybe ErrCode)
+storePaste (Database conn) clientaddr key (Contents files mparent) = do
     now <- truncate <$> getPOSIXTime :: IO Int
     let predicate (SQLError { sqlError = ErrorError }) = Just ()
         predicate _ = Nothing
@@ -108,8 +111,14 @@ storePaste (Database conn) clientaddr key files = do
                                        (Only key)
             if (count :: Int) == 0
                 then do
-                    execute conn "INSERT INTO pastes (key, date, srcip) VALUES (?, ?, ?)"
-                                 (key, now, clientaddr)
+                    case mparent of
+                      Just parent ->
+                          execute conn "INSERT INTO pastes (key, date, srcip, parent) \
+                                       \VALUES (?, ?, ?, (SELECT id FROM pastes WHERE key = ?))"
+                                       (key, now, clientaddr, parent)
+                      Nothing ->
+                          execute conn "INSERT INTO pastes (key, date, srcip) VALUES (?, ?, ?)"
+                                       (key, now, clientaddr)
                     pasteid <- lastInsertRowId conn
                     forM_ (zip files [1::Int ..]) $ \((mfname, contents), idx) ->
                         execute conn "INSERT INTO files (paste, fname, value, fileorder) \
@@ -118,15 +127,16 @@ storePaste (Database conn) clientaddr key files = do
                     return Nothing
                 else return (Just ErrExists)
 
-getPaste :: Database -> KeyType -> IO (Maybe (Maybe POSIXTime, ContentsType))
+getPaste :: Database -> KeyType -> IO (Maybe (Maybe POSIXTime, Contents))
 getPaste (Database conn) key = do
-    res <- query @_ @(Maybe Int, Maybe ByteString, ByteString)
-                 conn "SELECT date, fname, value FROM pastes, files \
-                      \WHERE id = paste AND key = ? ORDER BY fileorder"
+    res <- query @_ @(Maybe Int, Maybe ByteString, ByteString, Maybe ByteString)
+                 conn "SELECT P.date, F.fname, F.value, (SELECT key FROM pastes WHERE id = P.parent) \
+                      \FROM pastes AS P, files as F \
+                      \WHERE P.id = F.paste AND P.key = ? ORDER BY F.fileorder"
                  (Only key)
     case res of
-        (date, _, _) : _ ->
+        (date, _, _, mparent) : _ ->
             let date' = secondsToNominalDiffTime . fromIntegral <$> date
-                files = [(mfname, contents) | (_, mfname, contents) <- res]
-            in return (Just (date', files))
+                files = [(mfname, contents) | (_, mfname, contents, _) <- res]
+            in return (Just (date', Contents files mparent))
         [] -> return Nothing

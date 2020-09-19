@@ -177,6 +177,7 @@ window.addEventListener("load", function() {
 	</div>
 
 	<form id="pasteform" method="POST" action="/paste" class="pure-form">
+		{{#parentAttr}}<input type="hidden" name="parent" value="{{&parentAttr}}">{{/parentAttr}}
 		<div id="filecontainers">
 			{{#pastes}}
 			<div id="filecontainer{{index}}" class="filecontainer">

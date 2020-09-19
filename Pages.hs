@@ -16,11 +16,11 @@ import qualified Text.Mustache as Mustache
 import Text.Mustache (toMustache)
 import qualified Text.Mustache.Types as Mustache (Value)
 
-import DB (KeyType, ContentsType)
+import DB (KeyType, Contents(..))
 
 
-data Pages = Pages { pIndex :: ContentsType -> ByteString  -- pass empty content for new blank paste
-                   , pPasteRead :: KeyType -> Maybe POSIXTime -> ContentsType -> ByteString }
+data Pages = Pages { pIndex :: Contents -> ByteString  -- pass empty content for new blank paste
+                   , pPasteRead :: KeyType -> Maybe POSIXTime -> Contents -> ByteString }
 
 pagesFromDisk :: IO Pages
 pagesFromDisk = Pages <$> (renderIndexPage <$> loadTemplate "index.mustache")
@@ -33,21 +33,26 @@ loadTemplate fp = do
         Right templ -> return templ
         Left err -> die (show err)
 
-renderIndexPage :: Mustache.Template -> ContentsType -> ByteString
-renderIndexPage templ [] = renderIndexPage templ [(Nothing, BS.empty)]  -- single empty file if no files given
-renderIndexPage templ files = Enc.encodeUtf8 $
+renderIndexPage :: Mustache.Template -> Contents -> ByteString
+renderIndexPage templ (Contents [] mparent) =
+    -- single empty file if no files given
+    renderIndexPage templ (Contents [(Nothing, BS.empty)] mparent)
+renderIndexPage templ (Contents files mparent) = Enc.encodeUtf8 $
     Mustache.substituteValue templ $ Mustache.object
-        [(Text.pack "pastes", mixinPasteList files)]
+        [(Text.pack "pastes", mixinPasteList files)
+        ,(Text.pack "parentAttr", mixinMaybeNull (escapeAttribute . Enc.decodeUtf8) mparent)]
 
-renderReadPage :: Mustache.Template -> KeyType -> Maybe POSIXTime -> ContentsType -> ByteString
-renderReadPage templ key mdate files = Enc.encodeUtf8 $
+renderReadPage :: Mustache.Template -> KeyType -> Maybe POSIXTime -> Contents -> ByteString
+renderReadPage templ key mdate (Contents files mparent) = Enc.encodeUtf8 $
     Mustache.substituteValue templ $ Mustache.object
         [(Text.pack "key", toMustache (Enc.decodeUtf8 key))
         ,(Text.pack "date", mixinMaybeNull (show . posixSecondsToUTCTime) mdate)
         ,(Text.pack "unixdate", mixinMaybeNull @Int (truncate . nominalDiffTimeToSeconds) mdate)
-        ,(Text.pack "pastes", mixinPasteList files)]
+        ,(Text.pack "pastes", mixinPasteList files)
+        ,(Text.pack "parent", mixinMaybeNull Enc.decodeUtf8 mparent)
+        ,(Text.pack "parentAttr", mixinMaybeNull (escapeAttribute . Enc.decodeUtf8) mparent)]
 
-mixinPasteList :: ContentsType -> Mustache.Value
+mixinPasteList :: [(Maybe ByteString, ByteString)] -> Mustache.Value
 mixinPasteList = toMustache . zipWith mixinSinglePaste [1..]
 
 mixinSinglePaste :: Int -> (Maybe ByteString, ByteString) -> Mustache.Value
