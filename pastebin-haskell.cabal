@@ -14,7 +14,7 @@ extra-source-files:  ChangeLog.md
 
 executable pastebin-haskell
   main-is:             Main.hs
-  other-modules:       DB, Options, Pages, RecentList, SpamDetect
+  other-modules:       Archive, DB, Options, Pages, RecentList, SpamDetect
   build-depends:       base >= 4.13 && < 4.15,
                        array >= 0.5.4 && < 0.6,
                        bytestring >= 0.10.12 && < 0.11,
@@ -27,11 +27,14 @@ executable pastebin-haskell
                        snap-core >= 1.0.4.2 && < 1.1,
                        sqlite-simple >= 0.4.18 && < 0.5,
                        text,
+                       tar-bytestring >= 0.6.3 && < 0.7,
+                       these,
                        time >= 1.9.3 && < 1.11,
-                       unix >= 2.7.2 && < 2.8
+                       unix >= 2.7.2 && < 2.8,
+                       zlib >= 0.6.2 && < 0.7
   hs-source-dirs:      .
   default-language:    Haskell2010
-  ghc-options:         -Wall -O2
+  ghc-options:         -Wall -O2 -threaded
 
 source-repository head
   type: git

@@ -148,8 +148,15 @@ document.addEventListener("DOMContentLoaded", () => {
 	{{/pastes}}
 
 	<br>
-	<a href="/{{key}}/edit">Clone and edit this paste</a>
-	<a href="/" style="margin-left: 50px">Make a new paste</a>
+	<div class="pure-g">
+		<div class="pure-u-1-2">
+			<a href="/{{key}}/edit">Clone and edit this paste</a>
+			<a href="/" style="margin-left: 50px">Make a new paste</a>
+		</div>
+		<div class="pure-u-1-2" style="text-align: right">
+			<a href="/{{key}}/download">Download paste</a>
+		</div>
+	</div>
 </div>
 
 <footer>

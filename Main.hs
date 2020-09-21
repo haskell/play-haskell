@@ -22,6 +22,7 @@ import qualified System.Posix.Signals as Signal
 import System.Random
 import Text.Read (readMaybe)
 
+import Archive
 import qualified DB
 import DB (Database, ClientAddr, KeyType, Contents(..))
 import qualified Options as Opt
@@ -150,6 +151,7 @@ data WhatRequest
     | EditPaste ByteString
     | StaticFile String FilePath
     | StorePaste
+    | DownloadPaste ByteString
 
 parseRequest :: Method -> ByteString -> Maybe WhatRequest
 parseRequest _ path
@@ -163,6 +165,7 @@ parseRequest method path =
            (GET, [x, "edit"]) | canBeKey x -> Just (EditPaste x)
            (GET, [x, "raw"]) | canBeKey x -> Just (ReadPasteRaw x 1)
            (GET, [x, "raw", y]) | canBeKey x, Just idx <- readMaybe (Char8.unpack y) -> Just (ReadPasteRaw x idx)
+           (GET, [x, "download"]) | canBeKey x -> Just (DownloadPaste x)
            (GET, ["paste", x]) | canBeKey x -> Just (ReadPasteOld x)
            (GET, [x]) | Just (path', mime) <- List.lookup x staticFiles -> Just (StaticFile mime path')
            (POST, ["paste"]) -> Just StorePaste
@@ -203,6 +206,15 @@ handleRequest context stvar = \case
             then httpError 429 "Please slow down a bit, you're rate limited"
             else handleNonSpamSubmit (collectContentsFromPost (rqPostParams req))
     StaticFile mime path -> staticFile mime path
+    DownloadPaste key -> do
+        liftIO (getPaste context key) >>= \case
+            Just (_, Contents files _) -> do
+                let disposition = BS.concat ["attachment; filename=\"", key, ".tar.gz\""]
+                modifyResponse $
+                    setContentType "application/gzip"
+                    . addHeader "Content-Disposition" disposition
+                writeLBS (Archive.createArchive key files)
+            Nothing -> httpError 404 "Paste not found"
   where
     handleNonSpamSubmit :: Contents -> Snap ()
     handleNonSpamSubmit (Contents [] _) = httpError 400 "No paste given"
