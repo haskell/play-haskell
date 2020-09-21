@@ -1,5 +1,10 @@
 # Revision history for pastebin-haskell
 
+## 0.2.10.0 -- 2020-09-21
+
+* Download pastes as `.tar.gz` (suggested by `sm`)
+* Show paste key in read page title
+
 ## 0.2.9.0 -- 2020-09-19
 
 * Apply some accessibility guidelines on the html pages
