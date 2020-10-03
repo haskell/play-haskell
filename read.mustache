@@ -55,9 +55,9 @@ footer > div {
 	font-weight: bold;
 }
 
-pre, code.codeblock {
+pre.listing, code.listing.codeblock {
 	font-size: 12px;
-	line-height: 1;
+	line-height: normal;
 }
 
 pre.plain {
@@ -69,10 +69,6 @@ pre.plain {
 	font-size: small;
 	font-style: italic;
 	margin-bottom: 1em;
-}
-
-code.codeblock.hljs {
-	line-height: normal;
 }
 </style>
 <link rel="stylesheet" href="https://unpkg.com/purecss@2.0.3/build/pure-min.css" integrity="sha384-cg6SkqEOCV1NbJoCu11+bm0NvBRc8IYLRGXkmNrqUBfTjmMYwNKPWBTIKyw9mHNJ" crossorigin="anonymous">
@@ -144,7 +140,7 @@ document.addEventListener("DOMContentLoaded", () => {
 			[<a href="/{{key}}/raw/{{index}}">raw</a>]
 		</div>
 	</div>
-	<pre class="plain"><code class="codeblock haskell">{{contents}}</code></pre>
+	<pre class="plain listing"><code class="listing codeblock haskell">{{contents}}</code></pre>
 	{{/pastes}}
 
 	<br>
