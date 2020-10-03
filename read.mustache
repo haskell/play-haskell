@@ -65,6 +65,22 @@ pre.plain {
 	padding: 0.5em;
 }
 
+.lnumtable {
+	border-collapse: collapse;
+}
+
+.lnumtable td {
+	margin: 0;
+	padding: 0;
+}
+
+td.lnums > pre {
+	text-align: right;
+	color: #aaa;
+	padding-left: 10px;
+	padding-right: 15px;
+}
+
 .parentline {
 	font-size: small;
 	font-style: italic;
@@ -140,7 +156,10 @@ document.addEventListener("DOMContentLoaded", () => {
 			[<a href="/{{key}}/raw/{{index}}">raw</a>]
 		</div>
 	</div>
-	<pre class="plain listing"><code class="listing codeblock haskell">{{contents}}</code></pre>
+	<table class="lnumtable"><tbody><tr>
+		<td class="lnums"><pre class="plain listing">{{linenums}}</pre></td>
+		<td><pre class="plain listing"><code class="listing codeblock haskell">{{contents}}</code></pre></td>
+	</tr></tbody></table>
 	{{/pastes}}
 
 	<br>

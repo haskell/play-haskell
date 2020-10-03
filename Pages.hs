@@ -61,8 +61,11 @@ mixinSinglePaste index (mfname, contents) = Mustache.object $
     [(Text.pack "fname", mixinMaybeNull decodeUtf8 mfname)
     ,(Text.pack "fnameAttr", maybe (toMustache "") (toMustache . escapeAttribute . decodeUtf8) mfname)
     ,(Text.pack "contents", toMustache (decodeUtf8 contents))
+    ,(Text.pack "linenums", toMustache (unlines (map show [1 .. numlines])))
     ,(Text.pack "index", toMustache index)
     ,(Text.pack "firstFile", toMustache (index == 1))]
+  where
+    numlines = BS.count 10 contents + 1 - (case BS.unsnoc contents of Just (_, 10) -> 1 ; _ -> 0)
 
 mixinMaybeNull :: Mustache.ToMustache b => (a -> b) -> Maybe a -> Mustache.Value
 mixinMaybeNull _ Nothing = toMustache False
