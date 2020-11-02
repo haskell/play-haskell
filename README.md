@@ -17,3 +17,18 @@ The server reloads the HTML pages in memory upon receipt of SIGUSR1.
 ## Storage
 
 Pastes are stored in an SQLite database in the file `pastes.db`.
+
+## Pasting from your terminal
+
+The following command:
+
+    curl -d 'name1=a.txt' --data-urlencode 'code1@file.txt' https://url.of.the.pastebin.example.com/paste
+
+will create a paste with one file called `a.txt` containing the contents of
+`file.txt` in your current directory. To read from stdin, use `/dev/stdin`
+instead of `file.txt`. To post more files, give <code>name<i>N</i></code> and
+<code>code<i>N</i></code> parameters for each file for _N_ from 1 up to the
+number of files to paste. An empty filename results in a file without a name on
+the paste read page.
+
+Please don't abuse, but then the whole service is "please don't abuse".
