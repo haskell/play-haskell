@@ -26,7 +26,8 @@ import Archive
 import qualified DB
 import DB (Database, ClientAddr, KeyType, Contents(..))
 import qualified Options as Opt
-import SpamDetect
+import SpamDetect hiding (Action(..))
+import qualified SpamDetect as Spam (Action(..))
 import Pages
 
 
@@ -201,7 +202,7 @@ handleRequest context stvar = \case
     StorePaste -> do
         req <- getRequest
         let clientaddr = rqClientAddr req
-        isSpam <- liftIO $ recordCheckSpam (cSpam context) clientaddr
+        isSpam <- liftIO $ recordCheckSpam Spam.Post (cSpam context) clientaddr
         if isSpam
             then httpError 429 "Please slow down a bit, you're rate limited"
             else handleNonSpamSubmit (collectContentsFromPost (rqPostParams req))
