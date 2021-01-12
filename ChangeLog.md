@@ -1,5 +1,11 @@
 # Revision history for pastebin-haskell
 
+## 0.2.11.0 -- 2021-01-12
+
+* Line numbers! (New year, more numbers)
+* Somewhat simpler "spam detection" module
+* Bug fixes: fix line heights, don't error on invalid utf8
+
 ## 0.2.10.0 -- 2020-09-21
 
 * Download pastes as `.tar.gz` (suggested by `sm`)
