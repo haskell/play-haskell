@@ -43,6 +43,10 @@ footer > div {
 	margin: 0 auto 30px auto;
 }
 
+.invisible {
+	display: none;
+}
+
 /* --- */
 
 .filename-header {
@@ -98,12 +102,13 @@ td.lnums > pre {
 <link rel="stylesheet" href="/highlight.pack.css" defer>
 <script src="/highlight.pack.js" defer></script>
 <script>
-var wantHighlighting = true;
+var wantHighlighting = true, wantLineNumbers = true;
 var loaded = false;
 
 if ("localStorage" in window) {
-	// Only disable highlighting if it explicitly is "0" (i.e. default is do highlight)
+	// Only disable if option is explicitly "0" (i.e. default is enabled)
 	wantHighlighting = localStorage.getItem("highlighting") != "0";
+	wantLineNumbers = localStorage.getItem("linenumbers") != "0";
 }
 
 function doToggleHighlighting() {
@@ -127,9 +132,27 @@ function applyHighlighting(yes) {
 	}
 }
 
+function doToggleLineNumbers() {
+	wantLineNumbers = !wantLineNumbers;
+	if (loaded) applyLineNumbers(wantLineNumbers);
+}
+
+function applyLineNumbers(yes) {
+	if ("localStorage" in window) {
+		localStorage.setItem("linenumbers", yes ? "1" : "0");
+	}
+
+	var elems = document.querySelectorAll("td.lnums");
+	for (var i = 0; i < elems.length; i++) {
+		if (yes) elems[i].classList.remove("invisible");
+		else elems[i].classList.add("invisible");
+	}
+}
+
 document.addEventListener("DOMContentLoaded", () => {
 	loaded = true;
 	if (wantHighlighting) applyHighlighting(true);
+	if (!wantLineNumbers) applyLineNumbers(false);
 });
 </script>
 </head>
@@ -142,8 +165,10 @@ document.addEventListener("DOMContentLoaded", () => {
 </header>
 
 <div id="main">
-	<div style="float: right">
-		<a href="javascript:doToggleHighlighting()" style="font-size: small">[toggle highlighting]</a>
+	<div style="float: right; font-size: small">
+		[toggle
+		<a href="javascript:doToggleHighlighting()">highlighting</a>,
+		<a href="javascript:doToggleLineNumbers()">numbers</a>]
 	</div>
 
 	<h3>This is paste <code>{{key}}</code>{{#date}} (pasted at <span id="date">{{date}}</span>){{/date}}</h3>
