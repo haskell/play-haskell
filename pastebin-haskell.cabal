@@ -5,7 +5,7 @@ version:             0.2.11.0
 license:             MIT
 license-file:        LICENSE
 author:              Tom Smeding
-maintainer:          tom.smeding@gmail.com
+maintainer:          tom@tomsmeding.com
 build-type:          Simple
 homepage:            https://github.com/tomsmeding/pastebin-haskell
 extra-source-files:  index.mustache read.mustache highlight.pack.css highlight.pack.js
