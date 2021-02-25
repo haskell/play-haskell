@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main (main) where
 
+import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.STM
 import Control.Monad
 import Control.Monad.IO.Class (liftIO)
@@ -257,6 +258,11 @@ installPageReloader stvar = do
             putStrLn "Reloaded pages"
     void $ Signal.installHandler Signal.sigUSR1 (Signal.Catch handler) Nothing
 
+startExpiredRemoveService :: Database -> IO ()
+startExpiredRemoveService db = void $ forkIO $ forever $ do
+    threadDelay (6 * 3600 * 1000000)  -- 6 hours
+    DB.removeExpiredPastes db
+
 server :: Options -> Context -> AtomicState -> Snap ()
 server options context stvar = do
     -- If we're proxied, set the source IP from the X-Forwarded-For header.
@@ -300,6 +306,9 @@ main = do
 
         -- Reload pages from disk on SIGUSR1
         installPageReloader stvar
+
+        -- Start services
+        startExpiredRemoveService db
 
         -- Run server
         httpServe config (server options context stvar)

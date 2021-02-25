@@ -4,7 +4,8 @@
 module DB (
     Database, ErrCode(..), ClientAddr, KeyType, Contents(..),
     withDatabase,
-    storePaste, getPaste
+    storePaste, getPaste,
+    removeExpiredPastes,
 ) where
 
 import Control.Exception (tryJust, handleJust)
@@ -146,3 +147,8 @@ getPaste (Database conn) key = do
                 files = [(mfname, contents) | (_, _, mfname, contents, _) <- res]
             in return (Just (date', Contents files mparent expire'))
         [] -> return Nothing
+
+removeExpiredPastes :: Database -> IO ()
+removeExpiredPastes (Database conn) = do
+    now <- truncate <$> getPOSIXTime :: IO Int
+    execute conn "DELETE FROM pastes WHERE ? >= expire" (Only now)
