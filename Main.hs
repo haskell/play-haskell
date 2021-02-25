@@ -14,7 +14,8 @@ import qualified Data.Map.Strict as Map
 import Data.Map.Strict (Map)
 import Data.Maybe (maybeToList, isNothing)
 import Data.String (fromString)
-import Data.Time.Clock.POSIX (POSIXTime)
+import Data.Time.Clock (nominalDay)
+import Data.Time.Clock.POSIX (POSIXTime, getPOSIXTime)
 import Snap.Core hiding (path, method)
 import Snap.Http.Server
 import System.IO
@@ -102,7 +103,8 @@ indexResponse stvar contents = do
 pasteReadResponse :: AtomicState -> KeyType -> Maybe POSIXTime -> Contents -> IO ByteString
 pasteReadResponse stvar key mdate contents = do
     renderer <- stateGetPage pPasteRead stvar
-    return $ renderer key mdate contents
+    now <- getPOSIXTime
+    return $ renderer now key mdate contents
 
 httpError :: Int -> String -> Snap ()
 httpError code msg = do
@@ -116,8 +118,8 @@ staticFile mime path = do
         . setHeader (fromString "Cache-Control") "public max-age=3600"
     sendFile path
 
-collectContentsFromPost :: Map ByteString [ByteString] -> Contents
-collectContentsFromPost mp =
+collectContentsFromPost :: POSIXTime -> Map ByteString [ByteString] -> Contents
+collectContentsFromPost now mp =
     let params = [(key, value) | (key, value:_) <- Map.assocs mp]
         codes = Map.fromList (collectPrefixed "code" params)
         names = Map.fromList (collectPrefixed "name" params)
@@ -126,7 +128,16 @@ collectContentsFromPost mp =
         mparent = case Map.lookup "parent" mp of
                     Just (parent : _) -> Just parent
                     _ -> Nothing
-    in Contents files mparent
+        mexpire = case Map.lookup "expire" mp of
+                    Just (expire : _) -> case expire of
+                        "never" -> Nothing
+                        "day" -> Just (now + nominalDay)
+                        "week" -> Just (now + 7 * nominalDay)
+                        "month" -> Just (now + 31 * nominalDay)
+                        "year" -> Just (now + 366 * nominalDay)
+                        _ -> Nothing  -- ¯\_(ツ)_/¯
+                    _ -> Nothing
+    in Contents files mparent mexpire
   where
     collectPrefixed :: ByteString -> [(ByteString, a)] -> [(Int, a)]
     collectPrefixed prefix pairs =
@@ -181,12 +192,12 @@ parseRequest method path =
 
 handleRequest :: Context -> AtomicState -> WhatRequest -> Snap ()
 handleRequest context stvar = \case
-    GetIndex -> liftIO (indexResponse stvar (Contents [] Nothing)) >>= writeBS
+    GetIndex -> liftIO (indexResponse stvar (Contents [] Nothing Nothing)) >>= writeBS
     EditPaste key -> do
         liftIO (getPaste context key) >>= \case
-            Just (_, Contents files _) ->
+            Just (_, Contents files _ _) ->
                 -- Replace parent (if any) with the edited paste
-                liftIO (indexResponse stvar (Contents files (Just key))) >>= writeBS
+                liftIO (indexResponse stvar (Contents files (Just key) Nothing)) >>= writeBS
             Nothing -> httpError 404 "Paste not found"
     ReadPaste key -> do
         liftIO (getPaste context key) >>= \case
@@ -194,7 +205,7 @@ handleRequest context stvar = \case
             Nothing -> httpError 404 "Paste not found"
     ReadPasteRaw key idx -> do
         liftIO (getPaste context key) >>= \case
-            Just (_, Contents files _)
+            Just (_, Contents files _ _)
               | 1 <= idx, idx <= length files -> writeBS (snd (files !! (idx - 1)))
               | otherwise -> httpError 404 "File index out of range for paste"
             Nothing -> httpError 404 "Paste not found"
@@ -203,13 +214,14 @@ handleRequest context stvar = \case
         req <- getRequest
         let clientaddr = rqClientAddr req
         isSpam <- liftIO $ recordCheckSpam Spam.Post (cSpam context) clientaddr
+        now <- liftIO getPOSIXTime
         if isSpam
             then httpError 429 "Please slow down a bit, you're rate limited"
-            else handleNonSpamSubmit (collectContentsFromPost (rqPostParams req))
+            else handleNonSpamSubmit (collectContentsFromPost now (rqPostParams req))
     StaticFile mime path -> staticFile mime path
     DownloadPaste key -> do
         liftIO (getPaste context key) >>= \case
-            Just (_, Contents files _) -> do
+            Just (_, Contents files _ _) -> do
                 let disposition = BS.concat ["attachment; filename=\"", key, ".tar.gz\""]
                 modifyResponse $
                     setContentType "application/gzip"
@@ -218,8 +230,8 @@ handleRequest context stvar = \case
             Nothing -> httpError 404 "Paste not found"
   where
     handleNonSpamSubmit :: Contents -> Snap ()
-    handleNonSpamSubmit (Contents [] _) = httpError 400 "No paste given"
-    handleNonSpamSubmit contents@(Contents files _)
+    handleNonSpamSubmit (Contents [] _ _) = httpError 400 "No paste given"
+    handleNonSpamSubmit contents@(Contents files _ _)
       | all id [isNothing m && BS.null c | (m, c) <- files] =
           httpError 400 "No paste given"
       | sum (map (BS.length . snd) files) <= maxPasteSize = do

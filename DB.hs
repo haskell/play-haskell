@@ -32,6 +32,7 @@ type KeyType = ByteString
 data Contents =
     Contents [(Maybe ByteString, ByteString)]  -- ^ Files with optional filenames
              (Maybe KeyType)                   -- ^ Parent paste this was edited from, if any
+             (Maybe POSIXTime)                 -- ^ Expiration date
 
 data ErrCode = ErrExists  -- ^ Key already exists in database
              | ErrFull    -- ^ Database disk quota has been reached
@@ -61,6 +62,7 @@ withDatabase dbdir act =
         execute_ conn $ Query (T.pack ("PRAGMA max_page_count = " ++ show maxPages))
         act (Database conn)
 
+-- 'pastes.date' and 'pastes.expire' are unix timestamps.
 schema :: [Query]
 schemaVersion :: Int
 (schema, schemaVersion) =
@@ -69,6 +71,7 @@ schemaVersion :: Int
       \    id INTEGER PRIMARY KEY NOT NULL, \n\
       \    key BLOB NOT NULL, \n\
       \    date INTEGER NULL, \n\
+      \    expire INTEGER NULL, \n\
       \    srcip TEXT NULL, \n\
       \    parent INTEGER REFERENCES pastes (id) ON DELETE SET NULL,\n\
       \    UNIQUE (key)\n\
@@ -82,7 +85,7 @@ schemaVersion :: Int
       \    FOREIGN KEY (paste) REFERENCES pastes (id) ON DELETE CASCADE\n\
       \)"
      ,"CREATE INDEX files_paste ON files (paste)"]
-    ,4)
+    ,5)
 
 databaseVersion :: Database -> IO (Maybe Int)
 databaseVersion (Database conn) = do
@@ -101,8 +104,9 @@ applySchema (Database conn) = do
     execute conn "INSERT INTO meta (version) VALUES (?)" (Only schemaVersion)
 
 storePaste :: Database -> ClientAddr -> KeyType -> Contents -> IO (Maybe ErrCode)
-storePaste (Database conn) clientaddr key (Contents files mparent) = do
+storePaste (Database conn) clientaddr key (Contents files mparent mexpire) = do
     now <- truncate <$> getPOSIXTime :: IO Int
+    let mexpire' = truncate <$> mexpire :: Maybe Int
     let predicate (SQLError { sqlError = ErrorError }) = Just ()
         predicate _ = Nothing
     handleJust predicate (const (return (Just ErrFull))) $
@@ -113,12 +117,13 @@ storePaste (Database conn) clientaddr key (Contents files mparent) = do
                 then do
                     case mparent of
                       Just parent ->
-                          execute conn "INSERT INTO pastes (key, date, srcip, parent) \
-                                       \VALUES (?, ?, ?, (SELECT id FROM pastes WHERE key = ?))"
-                                       (key, now, clientaddr, parent)
+                          execute conn "INSERT INTO pastes (key, date, expire, srcip, parent) \
+                                       \VALUES (?, ?, ?, ?, (SELECT id FROM pastes WHERE key = ?))"
+                                       (key, now, mexpire', clientaddr, parent)
                       Nothing ->
-                          execute conn "INSERT INTO pastes (key, date, srcip) VALUES (?, ?, ?)"
-                                       (key, now, clientaddr)
+                          execute conn "INSERT INTO pastes (key, date, expire, srcip) \
+                                       \VALUES (?, ?, ?, ?)"
+                                       (key, now, mexpire', clientaddr)
                     pasteid <- lastInsertRowId conn
                     forM_ (zip files [1::Int ..]) $ \((mfname, contents), idx) ->
                         execute conn "INSERT INTO files (paste, fname, value, fileorder) \
@@ -129,14 +134,15 @@ storePaste (Database conn) clientaddr key (Contents files mparent) = do
 
 getPaste :: Database -> KeyType -> IO (Maybe (Maybe POSIXTime, Contents))
 getPaste (Database conn) key = do
-    res <- query @_ @(Maybe Int, Maybe ByteString, ByteString, Maybe ByteString)
-                 conn "SELECT P.date, F.fname, F.value, (SELECT key FROM pastes WHERE id = P.parent) \
+    res <- query @_ @(Maybe Int, Maybe Int, Maybe ByteString, ByteString, Maybe ByteString)
+                 conn "SELECT P.date, P.expire, F.fname, F.value, (SELECT key FROM pastes WHERE id = P.parent) \
                       \FROM pastes AS P, files as F \
                       \WHERE P.id = F.paste AND P.key = ? ORDER BY F.fileorder"
                  (Only key)
     case res of
-        (date, _, _, mparent) : _ ->
+        (date, expire, _, _, mparent) : _ ->
             let date' = secondsToNominalDiffTime . fromIntegral <$> date
-                files = [(mfname, contents) | (_, mfname, contents, _) <- res]
-            in return (Just (date', Contents files mparent))
+                expire' = secondsToNominalDiffTime . fromIntegral <$> expire
+                files = [(mfname, contents) | (_, _, mfname, contents, _) <- res]
+            in return (Just (date', Contents files mparent expire'))
         [] -> return Nothing

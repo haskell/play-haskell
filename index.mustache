@@ -103,6 +103,28 @@ footer > div {
 #filecontainers > div:first-child div.removebtn {
 	display: none;
 }
+
+#options-container {
+	text-align: right;
+}
+
+#options-details {
+	display: inline-block;
+	padding: 5px;
+	border: 1px #eee solid;
+	border-radius: 5px;
+}
+
+#options-details > summary {
+	margin-right: 5px;
+	margin-left: 5px;
+}
+
+#options-details > fieldset {
+	margin-top: 10px;
+	margin-right: 10px;
+	margin-left: 10px;
+}
 </style>
 <link rel="stylesheet" href="https://unpkg.com/purecss@2.0.3/build/pure-min.css" integrity="sha384-cg6SkqEOCV1NbJoCu11+bm0NvBRc8IYLRGXkmNrqUBfTjmMYwNKPWBTIKyw9mHNJ" crossorigin="anonymous">
 <script>
@@ -199,6 +221,24 @@ window.addEventListener("load", function() {
 			<div class="pure-u-1-2">
 				<button type="submit" id="submit-button" class="pure-button pure-button-primary">Submit</button>
 			</div>
+		</div>
+		<br>
+		<div id="options-container">
+			<details id="options-details">
+				<summary>Options</summary>
+				<fieldset>  <!-- https://purecss.io/forms/ -->
+					<div class="pure-control-group">
+						<label for="expire">Expiration:</label>
+						<select id="expire" name="expire">
+							<option value="never">Never</option>
+							<option value="day">A day</option>
+							<option value="week">A week</option>
+							<option value="month">A month</option>
+							<option value="year">A year</option>
+						</select>
+					</div>
+				</fieldset>
+			</details>
 		</div>
 	</form>
 
