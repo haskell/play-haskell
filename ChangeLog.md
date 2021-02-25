@@ -1,5 +1,9 @@
 # Revision history for pastebin-haskell
 
+## 0.2.12.0 -- 2021-02-25
+
+* Allow pastes to expire (though not by default) (suggested by `geekosaur`, discussed with `__monty__`)
+
 ## 0.2.11.0 -- 2021-01-12
 
 * Line numbers! (New year, more numbers)
