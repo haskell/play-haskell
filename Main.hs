@@ -77,7 +77,7 @@ genKey' var = atomically $ do
 
 stateGetPage :: (Pages -> a) -> AtomicState -> IO a
 stateGetPage f stvar =
-    f . sPages <$> atomically (readTVar stvar)
+    f . sPages <$> readTVarIO stvar
 
 -- returns the generated key, or an error string
 genStorePaste :: Context -> AtomicState -> ClientAddr -> Contents -> IO (Either String KeyType)
@@ -232,7 +232,7 @@ handleRequest context stvar = \case
     handleNonSpamSubmit :: Contents -> Snap ()
     handleNonSpamSubmit (Contents [] _ _) = httpError 400 "No paste given"
     handleNonSpamSubmit contents@(Contents files _ _)
-      | all id [isNothing m && BS.null c | (m, c) <- files] =
+      | and [isNothing m && BS.null c | (m, c) <- files] =
           httpError 400 "No paste given"
       | sum (map (BS.length . snd) files) <= maxPasteSize = do
           req <- getRequest
