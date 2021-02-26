@@ -1,5 +1,10 @@
 # Revision history for pastebin-haskell
 
+## 0.2.13.0 -- 2021-02-26
+
+* Dark mode using CSS `prefers-color-scheme` query (suggested by my eyes)
+* Fix file anchor links
+
 ## 0.2.12.0 -- 2021-02-25
 
 * Allow pastes to expire (though not by default) (suggested by `geekosaur`, discussed with `__monty__`)
