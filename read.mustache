@@ -237,7 +237,7 @@ document.addEventListener("DOMContentLoaded", () => {
 	{{#pastes}}
 	<div class="pure-g filename-header">
 		<div class="pure-u-1-2">
-			<a href="#file-{{index}}" class="filename-link" role="heading" aria-level="2">{{#fname}}<code>{{fname}}</code>{{/fname}}{{^fname}}#{{/fname}}</a>
+			<a id="file-{{index}}" href="#file-{{index}}" class="filename-link" role="heading" aria-level="2">{{#fname}}<code>{{fname}}</code>{{/fname}}{{^fname}}#{{/fname}}</a>
 		</div>
 		<div class="pure-u-1-2" style="text-align: right">
 			[<a href="/{{key}}/raw/{{index}}">raw</a>]
