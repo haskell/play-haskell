@@ -14,20 +14,35 @@ body {
 	padding-bottom: 90px;
 }
 
-@media (prefers-color-scheme: dark) {
-	body {
-		color: white;
-		background-color: #121212;
-	}
-}
-
 header, footer {
 	background-color: #3e3a3f;
-	color: white;
+	color: #e8e8e8;
+}
+
+@media (prefers-color-scheme: dark) {
+	body {
+		color: #ddd;
+		background-color: #121212;
+	}
+
+	header, footer {
+		color: #ddd;
+	}
+
+	/* Headings are bold and large; make less flashy-white to compensate. */
+	h1, h2, h3 {
+		color: #ccc;
+	}
 }
 
 header a, footer a {
 	color: #bbf;
+}
+
+@media (prefers-color-scheme: dark) {
+	a {
+		color: #bbf;
+	}
 }
 
 header {
@@ -49,6 +64,10 @@ footer > div {
 #main {
 	max-width: 1000px;
 	margin: 0 auto 30px auto;
+}
+
+.invisible {
+	display: none;
 }
 
 /* --- */

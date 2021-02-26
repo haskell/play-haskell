@@ -2,6 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Paste: {{key}}</title>
 <style>
 html {
@@ -15,11 +16,33 @@ body {
 
 header, footer {
 	background-color: #3e3a3f;
-	color: white;
+	color: #e8e8e8;
+}
+
+@media (prefers-color-scheme: dark) {
+	body {
+		color: #ddd;
+		background-color: #121212;
+	}
+
+	header, footer {
+		color: #ddd;
+	}
+
+	/* Headings are bold and large; make less flashy-white to compensate. */
+	h1, h2, h3 {
+		color: #ccc;
+	}
 }
 
 header a, footer a {
 	color: #bbf;
+}
+
+@media (prefers-color-scheme: dark) {
+	a {
+		color: #bbf;
+	}
 }
 
 header {
@@ -67,6 +90,12 @@ pre.listing, code.listing.codeblock {
 pre.plain {
 	background-color: #f0f0f0;
 	padding: 0.5em;
+}
+
+@media (prefers-color-scheme: dark) {
+	pre.plain {
+		background-color: #272822;
+	}
 }
 
 .lnumtable {
@@ -153,10 +182,26 @@ function applyLineNumbers(yes) {
 	}
 }
 
+function applyDarkScheme(yes) {
+	if (yes) {
+		document.body.classList.remove("clrl");
+		document.body.classList.add("clrd");
+	} else {
+		document.body.classList.remove("clrd");
+		document.body.classList.add("clrl");
+	}
+}
+
 document.addEventListener("DOMContentLoaded", () => {
 	loaded = true;
 	if (wantHighlighting) applyHighlighting(true);
 	if (!wantLineNumbers) applyLineNumbers(false);
+
+	if ("matchMedia" in window) {
+		var media = window.matchMedia("(prefers-color-scheme: dark)");
+		applyDarkScheme(media.matches);
+		media.addEventListener("change", function(ev) { applyDarkScheme(ev.matches); });
+	}
 });
 </script>
 </head>

@@ -27,6 +27,7 @@ import Text.Read (readMaybe)
 import Archive
 import qualified DB
 import DB (Database, ClientAddr, KeyType, Contents(..))
+import HighlightCSS
 import qualified Options as Opt
 import SpamDetect hiding (Action(..))
 import qualified SpamDetect as Spam (Action(..))
@@ -56,7 +57,8 @@ defaultOptions = Options False "."
 
 data Context = Context
     { cDB :: Database
-    , cSpam :: SpamDetect ByteString }
+    , cSpam :: SpamDetect ByteString
+    , cHighlightCSS :: ByteString }
 
 data State = State
     { sRandGen :: StdGen
@@ -112,11 +114,14 @@ httpError code msg = do
     putResponse $ setResponseCode code emptyResponse
     writeBS (Char8.pack msg)
 
+applyStaticFileHeaders :: String -> Response -> Response
+applyStaticFileHeaders mime =
+    setContentType (Char8.pack mime)
+    . setHeader (fromString "Cache-Control") "public max-age=3600"
+
 staticFile :: String -> FilePath -> Snap ()
 staticFile mime path = do
-    modifyResponse $
-        setContentType (Char8.pack mime)
-        . setHeader (fromString "Cache-Control") "public max-age=3600"
+    modifyResponse (applyStaticFileHeaders mime)
     sendFile path
 
 collectContentsFromPost :: POSIXTime -> Map ByteString [ByteString] -> Contents
@@ -153,7 +158,7 @@ staticFiles =
     [(Char8.pack path, (path, mime))
     | (path, mime) <-
         [("highlight.pack.js", "text/javascript")
-        ,("highlight.pack.css", "text/css")
+        -- ,("highlight.pack.css", "text/css")  -- this one is generated, not a static file
         ,("robots.txt", "text/plain")]]
 
 data WhatRequest
@@ -163,6 +168,7 @@ data WhatRequest
     | ReadPasteOld ByteString
     | EditPaste ByteString
     | StaticFile String FilePath
+    | HighlightCSS
     | StorePaste
     | DownloadPaste ByteString
 
@@ -180,6 +186,7 @@ parseRequest method path =
            (GET, [x, "raw", y]) | canBeKey x, Just idx <- readMaybe (Char8.unpack y) -> Just (ReadPasteRaw x idx)
            (GET, [x, "download"]) | canBeKey x -> Just (DownloadPaste x)
            (GET, ["paste", x]) | canBeKey x -> Just (ReadPasteOld x)
+           (GET, ["highlight.pack.css"]) -> Just HighlightCSS
            (GET, [x]) | Just (path', mime) <- List.lookup x staticFiles -> Just (StaticFile mime path')
            (POST, ["paste"]) -> Just StorePaste
            _ -> Nothing
@@ -220,6 +227,9 @@ handleRequest context stvar = \case
             then httpError 429 "Please slow down a bit, you're rate limited"
             else handleNonSpamSubmit (collectContentsFromPost now (rqPostParams req))
     StaticFile mime path -> staticFile mime path
+    HighlightCSS -> do
+        modifyResponse (applyStaticFileHeaders "text/css")
+        writeBS (cHighlightCSS context)
     DownloadPaste key -> do
         liftIO (getPaste context key) >>= \case
             Just (_, Contents files _ _) -> do
@@ -297,7 +307,8 @@ main = do
 
     DB.withDatabase (oDBDir options) $ \db -> do
         spam <- initSpamDetect
-        let context = Context db spam
+        css <- processHighlightCSS
+        let context = Context db spam css
 
         -- Create state
         randgen <- newStdGen
