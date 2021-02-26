@@ -14,6 +14,13 @@ body {
 	padding-bottom: 90px;
 }
 
+@media (prefers-color-scheme: dark) {
+	body {
+		color: white;
+		background-color: #121212;
+	}
+}
+
 header, footer {
 	background-color: #3e3a3f;
 	color: white;
@@ -63,9 +70,35 @@ footer > div {
 	border-radius: 5px;
 }
 
+
 .fnamecontainer {
 	background-color: #eee;
 	padding: 5px 10px;
+}
+
+@media (prefers-color-scheme: dark) {
+	.fileborder {
+		border: 1px #555 solid;
+	}
+
+	.fnamecontainer {
+		background-color: #333;
+	}
+
+	/* Lots of important here because we need to override purecss. */
+	input, .codearea, select {
+		background-color: #242522 !important;
+		color: white;
+		-webkit-box-shadow: none !important;
+		box-shadow: none !important;
+		border: 1px #888 solid !important;
+	}
+
+	input:focus, .codearea:focus, select:focus {
+		-webkit-box-shadow: inset 0 1px 2px #99c !important;
+		box-shadow: inset 0 1px 2px #99c !important;
+		border: 1px #99c solid !important;
+	}
 }
 
 .removebtn {
@@ -91,11 +124,17 @@ footer > div {
 	margin: 0;  /* purecss gives submit/normal buttons different margins on narrow screens; don't do that */
 }
 
+@media (prefers-color-scheme: dark) {
+	#submit-row button {
+		background-color: #aaa;
+	}
+}
+
 #submit-row > div:last-child {
 	text-align: right;
 }
 
-#submit-button {
+#submit-row #submit-button {
 	background-color: #0074e0;  /* little bit darker than purecss for WCAG constrast */
 }
 
@@ -113,6 +152,12 @@ footer > div {
 	padding: 5px;
 	border: 1px #eee solid;
 	border-radius: 5px;
+}
+
+@media (prefers-color-scheme: dark) {
+	#options-details {
+		border-color: #555;
+	}
 }
 
 #options-details > summary {
