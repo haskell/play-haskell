@@ -55,6 +55,11 @@ data Options = Options { oProxied :: Bool
 defaultOptions :: Options
 defaultOptions = Options False "."
 
+writeHTML :: MonadSnap m => ByteString -> m ()
+writeHTML bs = do
+    modifyResponse $ setContentType (Char8.pack "text/html")
+    writeBS bs
+
 data Context = Context
     { cDB :: Database
     , cSpam :: SpamDetect ByteString
@@ -200,16 +205,16 @@ parseRequest method path =
 
 handleRequest :: Context -> AtomicState -> WhatRequest -> Snap ()
 handleRequest context stvar = \case
-    GetIndex -> liftIO (indexResponse stvar (Contents [] Nothing Nothing)) >>= writeBS
+    GetIndex -> liftIO (indexResponse stvar (Contents [] Nothing Nothing)) >>= writeHTML
     EditPaste key -> do
         liftIO (getPaste context key) >>= \case
             Just (_, Contents files _ _) ->
                 -- Replace parent (if any) with the edited paste
-                liftIO (indexResponse stvar (Contents files (Just key) Nothing)) >>= writeBS
+                liftIO (indexResponse stvar (Contents files (Just key) Nothing)) >>= writeHTML
             Nothing -> httpError 404 "Paste not found"
     ReadPaste key -> do
         liftIO (getPaste context key) >>= \case
-            Just (mdate, contents) -> liftIO (pasteReadResponse stvar key mdate contents) >>= writeBS
+            Just (mdate, contents) -> liftIO (pasteReadResponse stvar key mdate contents) >>= writeHTML
             Nothing -> httpError 404 "Paste not found"
     ReadPasteRaw key idx -> do
         liftIO (getPaste context key) >>= \case
