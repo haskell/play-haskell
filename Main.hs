@@ -10,11 +10,13 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as Char8
 import Data.ByteString (ByteString)
 import Data.Char
+import Data.Either (isLeft)
 import qualified Data.List as List (lookup)
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict (Map)
 import Data.Maybe (maybeToList, isNothing)
 import Data.String (fromString)
+import qualified Data.Text.Encoding as Enc
 import Data.Time.Clock (nominalDay)
 import Data.Time.Clock.POSIX (POSIXTime, getPOSIXTime)
 import Snap.Core hiding (path, method)
@@ -57,7 +59,7 @@ defaultOptions = Options False "."
 
 writeHTML :: MonadSnap m => ByteString -> m ()
 writeHTML bs = do
-    modifyResponse $ setContentType (Char8.pack "text/html")
+    modifyResponse $ setContentType (Char8.pack "text/html; charset=utf-8")
     writeBS bs
 
 data Context = Context
@@ -219,7 +221,9 @@ handleRequest context stvar = \case
     ReadPasteRaw key idx -> do
         liftIO (getPaste context key) >>= \case
             Just (_, Contents files _ _)
-              | 1 <= idx, idx <= length files -> writeBS (snd (files !! (idx - 1)))
+              | 1 <= idx, idx <= length files -> do
+                  modifyResponse $ setContentType (Char8.pack "text/plain; charset=utf-8")
+                  writeBS (snd (files !! (idx - 1)))
               | otherwise -> httpError 404 "File index out of range for paste"
             Nothing -> httpError 404 "Paste not found"
     ReadPasteOld name -> redirect' (Char8.cons '/' name) 301  -- moved permanently
@@ -250,6 +254,8 @@ handleRequest context stvar = \case
     handleNonSpamSubmit contents@(Contents files _ _)
       | and [isNothing m && BS.null c | (m, c) <- files] =
           httpError 400 "No paste given"
+      | or [isLeft (Enc.decodeUtf8' c) | (_, c) <- files] =
+          httpError 400 "Invalid encoding; paste must be UTF-8"
       | sum (map (BS.length . snd) files) <= maxPasteSize = do
           req <- getRequest
           mkey <- liftIO $ genStorePaste context stvar (Char8.unpack (rqClientAddr req)) contents
