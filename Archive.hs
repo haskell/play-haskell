@@ -6,8 +6,11 @@ import qualified Codec.Compression.GZip as GZip
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as Char8
 import qualified Data.ByteString.Lazy as Lazy
+import Data.Bifunctor (first)
 import Data.ByteString (ByteString)
 import Data.Char (chr, isAlphaNum, ord)
+import Data.Function (on)
+import Data.Ord (comparing)
 import Data.These (These(That, These))
 import Data.List
 import Data.Maybe (fromMaybe)
@@ -16,9 +19,11 @@ import Data.Maybe (fromMaybe)
 createArchive :: ByteString -> [(Maybe ByteString, ByteString)] -> Lazy.ByteString
 createArchive key files =
     let dirprefix = BS.append key (Char8.pack "/")
-        names = chooseNames (BS.length dirprefix) (map (fromMaybe (Char8.pack "file.hs") . fst) files)
+        names = chooseNames (BS.length dirprefix)
+                            [(fromMaybe (Char8.pack "file.hs") name, content)
+                            | (name, content) <- files]
         entries = [Tar.fileEntry path content'
-                  | (name, content) <- zip names (map snd files)
+                  | (name, content) <- names
                   , let content' = Lazy.fromStrict content
                   , path <- case Tar.toTarPath False (BS.append dirprefix name) of
                               That path -> [path]
@@ -26,14 +31,15 @@ createArchive key files =
                               _ -> []]
     in GZip.compress (Tar.write entries)
 
-chooseNames :: Int -> [ByteString] -> [ByteString]
-chooseNames reservedPrefixLen = concatMap numberGroup . group . sort . map (BS.take maxNameLen . filterName)
+chooseNames :: Int -> [(ByteString, a)] -> [(ByteString, a)]
+chooseNames reservedPrefixLen = concatMap numberGroup . groupBy ((==) `on` fst) . sortBy (comparing fst) . map (first (BS.take maxNameLen . filterName))
   where
-    numberGroup :: [ByteString] -> [ByteString]
+    numberGroup :: [(ByteString, a)] -> [(ByteString, a)]
     numberGroup [file] = [file]
     numberGroup files =
-        zipWith addSuffix files [Char8.pack ('-' : show i)
-                                | i <- [1::Int ..]]
+        zipWith (\(file, tag) suf -> (addSuffix file suf, tag))
+                files
+                [Char8.pack ('-' : show i) | i <- [1::Int ..]]
 
     addSuffix :: ByteString -> ByteString -> ByteString
     addSuffix name suffix = case BS.elemIndexEnd (fromIntegral (ord '.')) name of
