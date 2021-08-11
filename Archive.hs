@@ -1,7 +1,6 @@
 module Archive (createArchive) where
 
-import qualified Codec.Archive.Tar as Tar
-import qualified Codec.Archive.Tar.Entry as Tar
+import qualified Codec.Archive as Tar
 import qualified Codec.Compression.GZip as GZip
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as Char8
@@ -11,28 +10,35 @@ import Data.ByteString (ByteString)
 import Data.Char (chr, isAlphaNum, ord)
 import Data.Function (on)
 import Data.Ord (comparing)
-import Data.These (These(That, These))
 import Data.List
 import Data.Maybe (fromMaybe)
+import System.Posix.Types (CMode(..))
 
 
 createArchive :: ByteString -> [(Maybe ByteString, ByteString)] -> Lazy.ByteString
 createArchive key files =
-    let dirprefix = BS.append key (Char8.pack "/")
-        names = chooseNames (BS.length dirprefix)
+    let dirprefix = Char8.unpack key ++ "/"
+        names = chooseNames (length dirprefix)
                             [(fromMaybe (Char8.pack "file.hs") name, content)
                             | (name, content) <- files]
-        entries = [Tar.fileEntry path content'
-                  | (name, content) <- names
-                  , let content' = Lazy.fromStrict content
-                  , path <- case Tar.toTarPath False (BS.append dirprefix name) of
-                              That path -> [path]
-                              These _ path -> [path]
-                              _ -> []]
-    in GZip.compress (Tar.write entries)
+        entries = [fileEntry (dirprefix ++ Char8.unpack name) content
+                  | (name, content) <- names]
+    in GZip.compress (Tar.entriesToBSL entries)
+  where
+    fileEntry :: FilePath -> ByteString -> Tar.Entry FilePath ByteString
+    fileEntry fp contents =
+        Tar.Entry { Tar.filepath = fp
+                  , Tar.content = Tar.NormalFile contents
+                  , Tar.permissions = CMode 0o0644
+                  , Tar.ownership = Tar.Ownership Nothing Nothing 0 0
+                  , Tar.time = Nothing }
 
 chooseNames :: Int -> [(ByteString, a)] -> [(ByteString, a)]
-chooseNames reservedPrefixLen = concatMap numberGroup . groupBy ((==) `on` fst) . sortBy (comparing fst) . map (first (BS.take maxNameLen . filterName))
+chooseNames reservedPrefixLen =
+    concatMap numberGroup
+    . groupBy ((==) `on` fst)
+    . sortBy (comparing fst)
+    . map (first (BS.take maxNameLen . filterName))
   where
     numberGroup :: [(ByteString, a)] -> [(ByteString, a)]
     numberGroup [file] = [file]

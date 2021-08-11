@@ -20,6 +20,7 @@ executable pastebin-haskell
                        bytestring >= 0.10.12 && < 0.11,
                        containers >= 0.6.3.1 && < 0.7,
                        clock >= 0.8 && < 0.9,
+                       libarchive >= 3.0.2.2 && < 3.1,
                        mustache >= 2.3.1 && < 2.4,
                        parsec >= 3.1.14.0 && < 3.2,
                        stm >= 2.5 && < 2.6,
@@ -28,8 +29,6 @@ executable pastebin-haskell
                        snap-core >= 1.0.4.2 && < 1.1,
                        sqlite-simple >= 0.4.18 && < 0.5,
                        text,
-                       tar-bytestring >= 0.6.3 && < 0.7,
-                       these,
                        time >= 1.9.3 && < 1.11,
                        unix >= 2.7.2 && < 2.8,
                        zlib >= 0.6.2 && < 0.7
