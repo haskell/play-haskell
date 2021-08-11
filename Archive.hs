@@ -12,26 +12,28 @@ import Data.Function (on)
 import Data.Ord (comparing)
 import Data.List
 import Data.Maybe (fromMaybe)
+import Data.Time.Clock.POSIX (POSIXTime)
 import System.Posix.Types (CMode(..))
+import Foreign.C.Types (CTime(..))
 
 
-createArchive :: ByteString -> [(Maybe ByteString, ByteString)] -> Lazy.ByteString
-createArchive key files =
+createArchive :: ByteString -> Maybe POSIXTime -> [(Maybe ByteString, ByteString)] -> Lazy.ByteString
+createArchive key mtime files =
     let dirprefix = Char8.unpack key ++ "/"
         names = chooseNames (length dirprefix)
                             [(fromMaybe (Char8.pack "file.hs") name, content)
                             | (name, content) <- files]
-        entries = [fileEntry (dirprefix ++ Char8.unpack name) content
+        entries = [fileEntry (dirprefix ++ Char8.unpack name) mtime content
                   | (name, content) <- names]
     in GZip.compress (Tar.entriesToBSL entries)
-  where
-    fileEntry :: FilePath -> ByteString -> Tar.Entry FilePath ByteString
-    fileEntry fp contents =
-        Tar.Entry { Tar.filepath = fp
-                  , Tar.content = Tar.NormalFile contents
-                  , Tar.permissions = CMode 0o0644
-                  , Tar.ownership = Tar.Ownership Nothing Nothing 0 0
-                  , Tar.time = Nothing }
+
+fileEntry :: FilePath -> Maybe POSIXTime -> ByteString -> Tar.Entry FilePath ByteString
+fileEntry fp modtime contents =
+    Tar.Entry { Tar.filepath = fp
+              , Tar.content = Tar.NormalFile contents
+              , Tar.permissions = CMode 0o0644
+              , Tar.ownership = Tar.Ownership Nothing Nothing 0 0
+              , Tar.time = fmap (\t -> (CTime (floor t), 0)) modtime }
 
 chooseNames :: Int -> [(ByteString, a)] -> [(ByteString, a)]
 chooseNames reservedPrefixLen =

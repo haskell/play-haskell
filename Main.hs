@@ -241,12 +241,12 @@ handleRequest context stvar = \case
         writeBS (cHighlightCSS context)
     DownloadPaste key -> do
         liftIO (getPaste context key) >>= \case
-            Just (_, Contents files _ _) -> do
+            Just (mdate, Contents files _ _) -> do
                 let disposition = BS.concat ["attachment; filename=\"", key, ".tar.gz\""]
                 modifyResponse $
                     setContentType "application/gzip"
                     . addHeader "Content-Disposition" disposition
-                writeLBS (Archive.createArchive key files)
+                writeLBS (Archive.createArchive key mdate files)
             Nothing -> httpError 404 "Paste not found"
   where
     handleNonSpamSubmit :: Contents -> Snap ()
