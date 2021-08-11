@@ -1,5 +1,16 @@
 # Revision history for pastebin-haskell
 
+## 0.2.14.0 -- 2021-08-11
+
+* Bugs:
+  * Tar archive file ordering is now _correct_ instead of horribly wrong (I was sorting the file names but not the contents blobs...)
+* Features:
+  * Code blocks now scroll horizontally instead of overflowing the page
+  * HTML pages now correctly get a text/html content type in order to support lynx
+  * Check and enforce UTF8 in pastes
+* Refactors:
+  * Switch from tar-bytestring to libarchive on [recommendation](https://github.com/hasufell/hpath/pull/41#issuecomment-896910037) of @hasufell
+
 ## 0.2.13.0 -- 2021-02-26
 
 * Dark mode using CSS `prefers-color-scheme` query (suggested by my eyes)
