@@ -17,6 +17,7 @@ executable pastebin-haskell
     Main.hs
   other-modules:
     Archive
+    Data.Queue
     DB
     GHCPool
     HighlightCSS

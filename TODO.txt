@@ -1,0 +1,2 @@
+- Audit the bwrap command in bwrap-files/start.sh
+- Do we need to SIGKILL ghc processes?
