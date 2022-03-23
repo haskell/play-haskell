@@ -21,6 +21,7 @@ import Data.Time.Clock (nominalDay)
 import Data.Time.Clock.POSIX (POSIXTime, getPOSIXTime)
 import Snap.Core hiding (path, method)
 import Snap.Http.Server
+import System.FilePath ((</>))
 import System.IO
 import qualified System.Posix.Signals as Signal
 import System.Random
@@ -129,7 +130,7 @@ applyStaticFileHeaders mime =
 staticFile :: String -> FilePath -> Snap ()
 staticFile mime path = do
     modifyResponse (applyStaticFileHeaders mime)
-    sendFile path
+    sendFile ("static" </> path)
 
 collectContentsFromPost :: POSIXTime -> Map ByteString [ByteString] -> Contents
 collectContentsFromPost now mp =

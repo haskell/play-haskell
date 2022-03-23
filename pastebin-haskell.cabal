@@ -8,9 +8,9 @@ author:              Tom Smeding
 maintainer:          tom@tomsmeding.com
 build-type:          Simple
 homepage:            https://github.com/tomsmeding/pastebin-haskell
-extra-source-files:  index.mustache read.mustache highlight-light.pack.css highlight-dark.pack.css highlight.pack.js
+extra-source-files:  index.mustache read.mustache highlight-light.pack.css highlight-dark.pack.css
 extra-source-files:  migrate_db_1_2.sh migrate_db_2_3.sh migrate_db_3_4.sh migrate_db_4_5.sh
-extra-source-files:  robots.txt ChangeLog.md
+extra-source-files:  static/highlight.pack.js static/robots.txt static/ChangeLog.md
 
 executable pastebin-haskell
   main-is:             Main.hs
@@ -20,6 +20,7 @@ executable pastebin-haskell
                        bytestring >= 0.10.12 && < 0.11,
                        containers >= 0.6.3.1 && < 0.7,
                        clock >= 0.8 && < 0.9,
+                       filepath >= 1.4.2.1 && < 1.5,
                        libarchive >= 3.0.2.2 && < 3.1,
                        mustache >= 2.3.1 && < 2.4,
                        parsec >= 3.1.14.0 && < 3.2,
