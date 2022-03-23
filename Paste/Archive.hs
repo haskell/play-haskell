@@ -1,4 +1,4 @@
-module Archive (createArchive) where
+module Paste.Archive (createArchive) where
 
 import qualified Codec.Archive as Tar
 import qualified Codec.Compression.GZip as GZip

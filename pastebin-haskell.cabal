@@ -16,14 +16,16 @@ executable pastebin-haskell
   main-is:
     Main.hs
   other-modules:
-    Archive
     Data.Queue
-    DB
     GHCPool
-    HighlightCSS
     Options
-    Pages
-    SpamDetect
+    Paste
+    Paste.Archive
+    Paste.DB
+    Paste.HighlightCSS
+    Paste.Pages
+    Paste.SpamDetect
+    ServerModule
   build-depends:
     base >= 4.13 && < 4.15,
     array >= 0.5.4 && < 0.6,

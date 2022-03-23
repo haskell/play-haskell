@@ -1,5 +1,5 @@
 {-# LANGUAGE ViewPatterns #-}
-module SpamDetect (
+module Paste.SpamDetect (
     Action(..),
     SpamDetect,
     initSpamDetect,

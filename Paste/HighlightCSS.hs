@@ -1,4 +1,4 @@
-module HighlightCSS (
+module Paste.HighlightCSS (
     processHighlightCSS,
 ) where
 

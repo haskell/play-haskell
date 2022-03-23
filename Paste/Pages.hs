@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TypeApplications #-}
-module Pages (
+module Paste.Pages (
     Pages(..), pagesFromDisk
 ) where
 
@@ -17,7 +17,7 @@ import qualified Text.Mustache as Mustache
 import Text.Mustache (toMustache)
 import qualified Text.Mustache.Types as Mustache (Value)
 
-import DB (KeyType, Contents(..))
+import Paste.DB (KeyType, Contents(..))
 
 
 data Pages = Pages { pIndex :: Contents -> ByteString  -- pass empty content for new blank paste
