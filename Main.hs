@@ -12,17 +12,20 @@ import qualified Data.Map.Strict as Map
 import Data.Maybe (mapMaybe, fromMaybe)
 import Snap.Core hiding (path, method)
 import Snap.Http.Server
-import System.FilePath ((</>))
 import System.IO
+import qualified System.Posix.Signals as Signal
 
 import qualified Options as Opt
 import Paste
+import Play
 import ServerModule
+import SpamDetect
 
 
 data InstantiatedModule = InstantiatedModule
-    { imHandler :: Method -> ByteString -> Maybe (Snap ())
-    , imStatics :: Map ByteString MimeType }
+    { imHandler :: GlobalContext -> Method -> [ByteString] -> Maybe (Snap ())
+    , imStatics :: Map ByteString MimeType
+    , imRefreshPages :: IO () }
 
 instantiate :: Options -> ServerModule -> (InstantiatedModule -> IO ()) -> IO ()
 instantiate options m k =
@@ -30,12 +33,14 @@ instantiate options m k =
       ServerModule { smMakeContext = make
                    , smParseRequest = parse
                    , smHandleRequest = handle
-                   , smStaticFiles = statics } ->
+                   , smStaticFiles = statics
+                   , smReloadPages = refresh } ->
           make options $ \ctx ->
               k $ InstantiatedModule
-                    { imHandler = \method path ->
-                                      (\req -> handle ctx req) <$> parse method path
-                    , imStatics = Map.fromList (map (first Char8.pack) statics) }
+                    { imHandler = \gctx method path ->
+                                      (\req -> handle gctx ctx req) <$> parse method path
+                    , imStatics = Map.fromList (map (first Char8.pack) statics)
+                    , imRefreshPages = refresh ctx }
 
 instantiates :: Options -> [ServerModule] -> ([InstantiatedModule] -> IO ()) -> IO ()
 instantiates _ [] f = f []
@@ -44,29 +49,26 @@ instantiates options (m : ms) f =
         instantiates options ms $ \ms' ->
             f (m' : ms')
 
-staticFile :: String -> FilePath -> Snap ()
-staticFile mime path = do
-    modifyResponse (applyStaticFileHeaders mime)
-    sendFile ("static" </> path)
-
-handleStaticFiles :: [InstantiatedModule] -> ByteString -> Maybe (Snap ())
-handleStaticFiles _ path
+splitPath :: ByteString -> Maybe [ByteString]
+splitPath path
   | BS.null path || BS.head path /= fromIntegral (ord '/')
   = Nothing
-handleStaticFiles ms path =
-    case BS.split (fromIntegral (ord '/')) (trimSlashes path) of 
-      [component] -> case mapMaybe (\m -> Map.lookup component (imStatics m)) ms of
-                       [mime] -> Just (staticFile mime (Char8.unpack component))
-                       [] -> Nothing
-                       _ -> error $ "Multiple handlers for the same static file:" ++ show component
-      _ -> Nothing
+splitPath path = Just (BS.split (fromIntegral (ord '/')) (trimSlashes path))
   where
     trimSlashes :: ByteString -> ByteString
     trimSlashes = let slash = fromIntegral (ord '/')
                   in BS.dropWhile (== slash) . BS.dropWhileEnd (== slash)
 
-server :: Options -> [InstantiatedModule] -> Snap ()
-server options modules = do
+handleStaticFiles :: [InstantiatedModule] -> [ByteString] -> Maybe (Snap ())
+handleStaticFiles ms [component] =
+  case mapMaybe (\m -> Map.lookup component (imStatics m)) ms of
+    [mime] -> Just (staticFile mime (Char8.unpack component))
+    [] -> Nothing
+    _ -> error $ "Multiple handlers for the same static file:" ++ show component
+handleStaticFiles _ _ = Nothing
+
+server :: GlobalContext -> Options -> [InstantiatedModule] -> Snap ()
+server gctx options modules = do
     -- If we're proxied, set the source IP from the X-Forwarded-For header.
     when (oProxied options) ipHeaderFilter
 
@@ -74,9 +76,12 @@ server options modules = do
     let path = rqContextPath req `BS.append` rqPathInfo req
         method = rqMethod req
 
-    fromMaybe (httpError 404 "Page not found") $ asum $
-        [guard (method == GET) >> handleStaticFiles modules path]
-        ++ map (\m -> imHandler m method path) modules
+    case splitPath path of
+      Just components ->
+        fromMaybe (httpError 404 "Page not found") $ asum $
+            [guard (method == GET) >> handleStaticFiles modules components]
+            ++ map (\m -> imHandler m gctx method components) modules
+      Nothing -> httpError 400 "Invalid URL"
 
 config :: Config Snap a
 config =
@@ -98,6 +103,12 @@ main = do
         ,("--help", Opt.Help)
         ,("-h", Opt.Help)]
 
-    let modules = [pasteModule]
-    instantiates options modules $ \modules' ->
-        httpServe config (server options modules')
+    spam <- initSpamDetect
+    let gctx = GlobalContext
+                 { gcSpam = spam }
+
+    let modules = [pasteModule, playModule]
+    instantiates options modules $ \modules' -> do
+        forM_ modules' $ \m ->
+            void $ Signal.installHandler Signal.sigUSR1 (Signal.Catch (imRefreshPages m)) Nothing
+        httpServe config (server gctx options modules')

@@ -4,7 +4,10 @@ module ServerModule where
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as Char8
 import Data.String (fromString)
-import Snap.Core
+import Snap.Core hiding (path)
+import System.FilePath ((</>))
+
+import SpamDetect
 
 
 -- TODO: Perhaps this can be split out over modules as well
@@ -15,14 +18,18 @@ data Options = Options { oProxied :: Bool
 defaultOptions :: Options
 defaultOptions = Options False "."
 
+data GlobalContext = GlobalContext
+  { gcSpam :: SpamDetect ByteString }
+
 type MimeType = String
 
 data ServerModule =
     forall ctx req. ServerModule
         { smMakeContext :: Options -> (ctx -> IO ()) -> IO ()  -- bracket
-        , smParseRequest :: Method -> ByteString -> Maybe req
-        , smHandleRequest :: ctx -> req -> Snap ()
-        , smStaticFiles :: [(FilePath, MimeType)] }
+        , smParseRequest :: Method -> [ByteString] -> Maybe req
+        , smHandleRequest :: GlobalContext -> ctx -> req -> Snap ()
+        , smStaticFiles :: [(FilePath, MimeType)]
+        , smReloadPages :: ctx -> IO () }
 
 
 httpError :: Int -> String -> Snap ()
@@ -34,3 +41,8 @@ applyStaticFileHeaders :: String -> Response -> Response
 applyStaticFileHeaders mime =
     setContentType (Char8.pack mime)
     . setHeader (fromString "Cache-Control") (Char8.pack "public max-age=3600")
+
+staticFile :: String -> FilePath -> Snap ()
+staticFile mime path = do
+    modifyResponse (applyStaticFileHeaders mime)
+    sendFile ("static" </> path)

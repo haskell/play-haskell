@@ -1,5 +1,5 @@
 {-# LANGUAGE ViewPatterns #-}
-module Paste.SpamDetect (
+module SpamDetect (
     Action(..),
     SpamDetect,
     initSpamDetect,
@@ -20,11 +20,24 @@ import System.Random (randomRIO)
 
 -- CONSTANTS
 
-data Action = Post
+-- | Each time a user performs an action, their spam account is incremented by
+-- the corresponding 'actionPenalty'. If an action brings the spam account over
+-- 'spamThreshold', the action is marked as spam (but the account is still
+-- incremented).
+--
+-- Over time, a spam account decreases exponentially such that every
+-- 'halfTimeSecs' seconds (without intervening actions), the account decreases
+-- by half. This is actually implemented by a single O(1) computation every
+-- time the actualised account is needed.
+--
+-- Scores below 'forgetBelowScore' are removed from the map; this is done every
+-- 'forgetIntervalSecs' + [0, 'forgetIntervalFuzzSecs'] seconds.
+data Action = Post | PlayRun
   deriving (Show)
 
 actionPenalty :: Action -> Float
 actionPenalty Post = 1.4
+actionPenalty PlayRun = 1.8
 
 halfTimeSecs :: Float
 halfTimeSecs = 10
@@ -55,8 +68,11 @@ initSpamDetect = do
 
     void $ forkIO $ forever $ do
         randoffset <- randomRIO (0, forgetIntervalFuzzSecs)
-        threadDelay (forgetIntervalSecs * 1000 * 1000 + randoffset)
-        forgetOld var
+        threadDelay ((forgetIntervalSecs + randoffset) * 1000 * 1000)
+
+        now <- getTimeSecsMonotonic
+        atomically $ modifyTVar' var (Map.filter (\(score, tm) ->
+            progressTime tm now score >= forgetBelowScore))
 
     return (SpamDetect var)
 
@@ -70,12 +86,6 @@ recordCheckSpam (actionPenalty -> penalty) (SpamDetect var) user = do
             sc2 = progressTime tm1 now sc1
         writeTVar var (Map.insert user (sc2 + penalty, now) mp)
         return (sc2 + penalty >= spamThreshold)
-
-forgetOld :: Ord a => TVar (Map a (Float, Int64)) -> IO ()
-forgetOld var = do
-    now <- getTimeSecsMonotonic
-    atomically $ modifyTVar' var (Map.filter (\(score, tm) ->
-        progressTime tm now score >= forgetBelowScore))
 
 progressTime :: Int64 -> Int64 -> Float -> Float
 progressTime tm1 tm2 sc1 =

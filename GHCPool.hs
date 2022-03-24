@@ -4,6 +4,7 @@ module GHCPool (
   availableVersions,
   Command(..),
   Version(..),
+  Pool,
   makePool,
   runInPool,
 ) where
@@ -98,6 +99,7 @@ makeWorker = do
           putMVar resultvar TimeOut
   return (Worker thread mvar resultvar)
 
+-- | makePool numWorkers maxQueueLen
 makePool :: Int -> Int -> IO Pool
 makePool numWorkers maxQueueLen = do
   workers <- replicateM numWorkers makeWorker

@@ -9,7 +9,6 @@ import Control.Monad.IO.Class (liftIO)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as Char8
 import Data.ByteString (ByteString)
-import Data.Char
 import Data.Either (isLeft)
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict (Map)
@@ -18,7 +17,6 @@ import qualified Data.Text.Encoding as Enc
 import Data.Time.Clock (nominalDay)
 import Data.Time.Clock.POSIX (POSIXTime, getPOSIXTime)
 import Snap.Core hiding (path, method)
-import qualified System.Posix.Signals as Signal
 import System.Random
 import Text.Read (readMaybe)
 
@@ -26,10 +24,10 @@ import Paste.Archive
 import qualified Paste.DB as DB
 import Paste.DB (Database, ClientAddr, KeyType, Contents(..))
 import Paste.HighlightCSS
-import Paste.SpamDetect hiding (Action(..))
-import qualified Paste.SpamDetect as Spam (Action(..))
 import Paste.Pages
 import ServerModule
+import SpamDetect hiding (Action(..))
+import qualified SpamDetect as Spam (Action(..))
 
 
 alphabet :: ByteString
@@ -54,7 +52,6 @@ writeHTML bs = do
 
 data Context = Context
     { cDB :: Database
-    , cSpam :: SpamDetect ByteString
     , cHighlightCSS :: ByteString }
 
 data State = State
@@ -145,33 +142,25 @@ data WhatRequest
     | StorePaste
     | DownloadPaste ByteString
 
-parseRequest :: Method -> ByteString -> Maybe WhatRequest
-parseRequest _ path
-  | BS.null path || BS.head path /= fromIntegral (ord '/')
-      = Nothing
-parseRequest method path =
-    let comps = BS.split (fromIntegral (ord '/')) (trimSlashes path)
-    in case (method, comps) of
-           (GET, []) -> Just GetIndex
-           (GET, [x]) | canBeKey x -> Just (ReadPaste x)
-           (GET, [x, "edit"]) | canBeKey x -> Just (EditPaste x)
-           (GET, [x, "raw"]) | canBeKey x -> Just (ReadPasteRaw x 1)
-           (GET, [x, "raw", y]) | canBeKey x, Just idx <- readMaybe (Char8.unpack y) -> Just (ReadPasteRaw x idx)
-           (GET, [x, "download"]) | canBeKey x -> Just (DownloadPaste x)
-           (GET, ["paste", x]) | canBeKey x -> Just (ReadPasteOld x)
-           (GET, ["highlight.pack.css"]) -> Just HighlightCSS
-           (POST, ["paste"]) -> Just StorePaste
-           _ -> Nothing
+parseRequest :: Method -> [ByteString] -> Maybe WhatRequest
+parseRequest method comps =
+    case (method, comps) of
+        (GET, []) -> Just GetIndex
+        (GET, [x]) | canBeKey x -> Just (ReadPaste x)
+        (GET, [x, "edit"]) | canBeKey x -> Just (EditPaste x)
+        (GET, [x, "raw"]) | canBeKey x -> Just (ReadPasteRaw x 1)
+        (GET, [x, "raw", y]) | canBeKey x, Just idx <- readMaybe (Char8.unpack y) -> Just (ReadPasteRaw x idx)
+        (GET, [x, "download"]) | canBeKey x -> Just (DownloadPaste x)
+        (GET, ["paste", x]) | canBeKey x -> Just (ReadPasteOld x)
+        (GET, ["highlight.pack.css"]) -> Just HighlightCSS
+        (POST, ["paste"]) -> Just StorePaste
+        _ -> Nothing
   where
     canBeKey :: ByteString -> Bool
     canBeKey key = minKeyLength <= BS.length key && BS.length key <= maxKeyLength
 
-    trimSlashes :: ByteString -> ByteString
-    trimSlashes = let slash = fromIntegral (ord '/')
-                  in BS.dropWhile (== slash) . BS.dropWhileEnd (== slash)
-
-handleRequest :: Context -> AtomicState -> WhatRequest -> Snap ()
-handleRequest context stvar = \case
+handleRequest :: GlobalContext -> Context -> AtomicState -> WhatRequest -> Snap ()
+handleRequest gctx context stvar = \case
     GetIndex -> liftIO (indexResponse stvar (Contents [] Nothing Nothing)) >>= writeHTML
     EditPaste key -> do
         liftIO (getPaste context key) >>= \case
@@ -194,8 +183,7 @@ handleRequest context stvar = \case
     ReadPasteOld name -> redirect' (Char8.cons '/' name) 301  -- moved permanently
     StorePaste -> do
         req <- getRequest
-        let clientaddr = rqClientAddr req
-        isSpam <- liftIO $ recordCheckSpam Spam.Post (cSpam context) clientaddr
+        isSpam <- liftIO $ recordCheckSpam Spam.Post (gcSpam gctx) (rqClientAddr req)
         now <- liftIO getPOSIXTime
         if isSpam
             then httpError 429 "Please slow down a bit, you're rate limited"
@@ -235,13 +223,11 @@ handleRequest context stvar = \case
       | otherwise = do
           httpError 400 "Paste too large"
 
-installPageReloader :: AtomicState -> IO ()
-installPageReloader stvar = do
-    let handler = do
-            pages <- pagesFromDisk
-            atomically $ modifyTVar stvar $ \state -> state { sPages = pages }
-            putStrLn "Reloaded pages"
-    void $ Signal.installHandler Signal.sigUSR1 (Signal.Catch handler) Nothing
+refreshPages :: AtomicState -> IO ()
+refreshPages stvar = do
+    pages <- pagesFromDisk
+    atomically $ modifyTVar stvar $ \state -> state { sPages = pages }
+    putStrLn "Reloaded pages"
 
 startExpiredRemoveService :: Database -> IO ()
 startExpiredRemoveService db = void $ forkIO $ forever $ do
@@ -252,17 +238,13 @@ pasteModule :: ServerModule
 pasteModule = ServerModule
     { smMakeContext = \options cont ->
           DB.withDatabase (oDBDir options) $ \db -> do
-              spam <- initSpamDetect
               css <- processHighlightCSS
-              let context = Context db spam css
+              let context = Context db css
 
               -- Create state
               randgen <- newStdGen
               pages <- pagesFromDisk
               stvar <- newTVarIO (newState randgen pages)
-
-              -- Reload pages from disk on SIGUSR1
-              installPageReloader stvar
 
               -- Start services
               startExpiredRemoveService db
@@ -270,8 +252,9 @@ pasteModule = ServerModule
               -- Run server
               cont (context, stvar)
     , smParseRequest = parseRequest
-    , smHandleRequest = \(ctx, stvar) -> handleRequest ctx stvar
+    , smHandleRequest = \gctx (ctx, stvar) -> handleRequest gctx ctx stvar
     , smStaticFiles =
         [("highlight.pack.js", "text/javascript")
         -- ,("highlight.pack.css", "text/css")  -- this one is generated, not a static file
-        ,("robots.txt", "text/plain")] }
+        ,("robots.txt", "text/plain")]
+    , smReloadPages = \(_, stvar) -> refreshPages stvar }

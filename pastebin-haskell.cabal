@@ -24,8 +24,9 @@ executable pastebin-haskell
     Paste.DB
     Paste.HighlightCSS
     Paste.Pages
-    Paste.SpamDetect
+    Play
     ServerModule
+    SpamDetect
   build-depends:
     base >= 4.13 && < 4.15,
     array >= 0.5.4 && < 0.6,
@@ -34,6 +35,7 @@ executable pastebin-haskell
     clock >= 0.8 && < 0.9,
     directory >= 1.3.7.0 && < 1.4,
     filepath >= 1.4.2.1 && < 1.5,
+    io-streams,
     libarchive >= 3.0.2.2 && < 3.1,
     mustache >= 2.3.1 && < 2.4,
     parsec >= 3.1.14.0 && < 3.2,
