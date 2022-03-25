@@ -2,10 +2,12 @@
 {-# LANGUAGE TupleSections #-}
 module GHCPool (
   availableVersions,
+  runTimeoutMicrosecs,
   Command(..),
   Version(..),
   Pool,
   makePool,
+  Result(..),
   runInPool,
 ) where
 
@@ -14,6 +16,7 @@ import Control.Exception (evaluate)
 import Control.Monad (replicateM)
 import Data.Char (isDigit)
 import Data.List (sort)
+import qualified System.Clock as Clock
 import System.Directory (listDirectory)
 import System.Environment (getEnv)
 import System.Exit (ExitCode(..))
@@ -54,8 +57,15 @@ commandString CRun = "run"
 
 newtype Version = Version String deriving (Show)
 
-data RunResult = TimeOut
-               | Finished ExitCode String String  -- ^ stdin stdout
+data Result = Result
+  { resExitCode :: ExitCode
+  , resStdout :: String
+  , resStderr :: String
+  , resTimeTaken :: Double  -- ^ seconds
+  }
+  deriving (Show)
+
+data RunResult = TimeOut | Finished Result
   deriving (Show)
 
 data Worker = Worker ThreadId
@@ -89,12 +99,12 @@ makeWorker = do
       _ <- forkIO $ hGetContents outh >>= evaluate . forceString >>= putMVar stdoutmvar
       stderrmvar <- newEmptyMVar
       _ <- forkIO $ hGetContents errh >>= evaluate . forceString >>= putMVar stderrmvar
-      mec <- timeout runTimeoutMicrosecs $ Pr.waitForProcess proch
+      (dur, mec) <- duration $ timeout runTimeoutMicrosecs $ Pr.waitForProcess proch
       case mec of
         Just ec -> do
           out <- readMVar stdoutmvar
           err <- readMVar stderrmvar
-          putMVar resultvar (Finished ec out err)
+          putMVar resultvar (Finished (Result ec out err dur))
         Nothing -> do
           Pr.terminateProcess proch
           -- TODO: do we need to SIGKILL as well?
@@ -114,7 +124,7 @@ data ObtainedWorker = Obtained Worker
                     | Queued (MVar Worker)
                     | QueueFull
 
-runInPool :: Pool -> Command -> Version -> String -> IO (Either String (ExitCode, String, String))
+runInPool :: Pool -> Command -> Version -> String -> IO (Either String Result)
 runInPool pool cmd ver source = do
   result <- modifyMVar (pDataVar pool) $ \pd ->
               case pdAvailable pd of
@@ -132,7 +142,7 @@ runInPool pool cmd ver source = do
     Queued receptor -> readMVar receptor >>= useWorker
     QueueFull -> return (Left "The queue is currently full, try again later")
   where
-    useWorker :: Worker -> IO (Either String (ExitCode, String, String))
+    useWorker :: Worker -> IO (Either String Result)
     useWorker (Worker _tid invar outvar) = do
       putMVar invar (cmd, ver, source)
       result <- readMVar outvar
@@ -146,8 +156,17 @@ runInPool pool cmd ver source = do
             Nothing ->
               return pd { pdAvailable = newWorker : pdAvailable pd }
       case result of
-        Finished ex out err -> return (Right (ex, out, err))
+        Finished res -> return (Right res)
         TimeOut -> return (Left "Running your code resulted in a timeout")
 
 forceString :: String -> String
 forceString = foldr seq >>= id
+
+duration :: IO a -> IO (Double, a)
+duration action = do
+  starttm <- Clock.getTime Clock.Monotonic
+  res <- action
+  endtm <- Clock.getTime Clock.Monotonic
+  let diff = Clock.diffTimeSpec starttm endtm
+      secs = fromIntegral (Clock.sec diff) + fromIntegral (Clock.nsec diff) / 1e9
+  return (secs, res)

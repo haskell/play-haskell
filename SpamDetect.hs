@@ -32,12 +32,14 @@ import System.Random (randomRIO)
 --
 -- Scores below 'forgetBelowScore' are removed from the map; this is done every
 -- 'forgetIntervalSecs' + [0, 'forgetIntervalFuzzSecs'] seconds.
-data Action = Post | PlayRun
+data Action = Post | PlayRunStart | PlayRunTimeoutFraction Float
   deriving (Show)
 
 actionPenalty :: Action -> Float
 actionPenalty Post = 1.4
-actionPenalty PlayRun = 1.0
+actionPenalty PlayRunStart = 0.2
+-- curved increase from 0 at tm=0 to 2 at tm=1
+actionPenalty (PlayRunTimeoutFraction tm) = (1 - 1 / (tm + 1)) * (2 / (1 - (1 / (1 + 1))))
 
 halfTimeSecs :: Float
 halfTimeSecs = 10

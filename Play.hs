@@ -61,7 +61,7 @@ handleRequest gctx (Context pool) = \case
 
   Run -> do
     req <- getRequest
-    isSpam <- liftIO $ recordCheckSpam Spam.PlayRun (gcSpam gctx) (rqClientAddr req)
+    isSpam <- liftIO $ recordCheckSpam Spam.PlayRunStart (gcSpam gctx) (rqClientAddr req)
     if isSpam
       then httpError 429 "Please slow down a bit, you're rate limited"
       else do mpostdata <- runRequestBody $ \stream ->
@@ -78,12 +78,17 @@ handleRequest gctx (Context pool) = \case
                       -> do res <- liftIO $ runInPool pool CRun (Version version) source
                             case res of
                               Left err -> httpError 500 err
-                              Right (ec, out, err) -> do
+                              Right result -> do
+                                -- Record the run as a spam-checking action, but don't actually act
+                                -- on the return value yet; that will come on the next user action
+                                let timeFraction = realToFrac (resTimeTaken result) / (fromIntegral runTimeoutMicrosecs / 1e6)
+                                _ <- liftIO $ recordCheckSpam (Spam.PlayRunTimeoutFraction timeFraction) (gcSpam gctx) (rqClientAddr req)
+
                                 modifyResponse (setContentType (Char8.pack "text/json"))
                                 writeJSON $ JSON.makeObj
-                                              [("ec", JSRational False (fromIntegral (exitCode ec)))
-                                              ,("out", JSString (JSON.toJSString out))
-                                              ,("err", JSString (JSON.toJSString err))]
+                                              [("ec", JSRational False (fromIntegral (exitCode (resExitCode result))))
+                                              ,("out", JSString (JSON.toJSString (resStdout result)))
+                                              ,("err", JSString (JSON.toJSString (resStderr result)))]
                     _ -> httpError 400 "Invalid JSON"
 
 playModule :: ServerModule
