@@ -20,8 +20,17 @@ quicksort (x:xs) = let lesser  = filter (< x) xs
 ]})
 ;(window as any).view = new EditorView({state, parent: document.querySelector("#editor")!})
 
-function performXHR(method, path, responseType, successcb, failcb, mcontentType?, mdata?) {
-	var xhr = new XMLHttpRequest();
+type json =
+| string
+| number
+| boolean
+| null
+| json[]
+| {[key: string]: json}
+
+
+function performXHR(method: string, path: string, responseType: string, successcb: (response: json) => void, failcb: (xhr: XMLHttpRequest) => void, mcontentType?: string, mdata?: string) {
+	const xhr: XMLHttpRequest = new XMLHttpRequest();
 
 	xhr.onreadystatechange = function(){
 		if (xhr.readyState == 4) {
@@ -48,8 +57,8 @@ function performXHR(method, path, responseType, successcb, failcb, mcontentType?
 	if (mdata) xhr.send(mdata); else xhr.send();
 }
 
-function setWorking(yes) {
-	var elt = document.getElementById("btn-run");
+function setWorking(yes: boolean) {
+	let elt: HTMLElement = document.getElementById("btn-run");
 	if (yes) elt.setAttribute("disabled", ""); else elt.removeAttribute("disabled");
 
 	elt = document.getElementById("rightcol");
@@ -57,17 +66,17 @@ function setWorking(yes) {
 	else elt.classList.remove("greytext");
 }
 
-function getVersions(cb) {
+function getVersions(cb: (response: string) => void) {
 	performXHR("GET", "/play/versions", "json", cb, function(xhr) {
 		alert("Error getting available compiler versions (status " + xhr.status + "): " + xhr.responseText);
 	});
 }
 
-function sendRun(source, version, cb) {
-	var payload = JSON.stringify({source, version});
+function sendRun(source: string, version: string, cb: (response: json) => void) {
+	const payload: string = JSON.stringify({source, version});
 	setWorking(true);
 	performXHR("POST", "/play/run", "json",
-		function(res) {
+		function(res: json) {
 			setWorking(false);
 			cb(res);
 		}, function(xhr) {
@@ -78,12 +87,12 @@ function sendRun(source, version, cb) {
 }
 
 function doRun() {
-	var source = (window as any).view.state.doc.toString();
-	var version = (document.getElementById("ghcversionselect") as any).value;
+	const source: string = (window as any).view.state.doc.toString();
+	let version = (document.getElementById("ghcversionselect") as any).value;
 	if (typeof version != "string" || version == "") version = "8.10.7";
 
-	sendRun(source, version, function(response) {
-		var ecNote = document.getElementById("exitcode-note");
+	sendRun(source, version, function(response: {[key: string]: json}) {
+		const ecNote: HTMLElement = document.getElementById("exitcode-note");
 		if (response.ec != 0) {
 			ecNote.classList.remove("invisible");
 			ecNote.textContent = "Command exited with code " + response.ec + ".";
@@ -91,8 +100,8 @@ function doRun() {
 			ecNote.classList.add("invisible");
 		}
 
-		document.getElementById("out-stdout").textContent = response.out;
-		document.getElementById("out-stderr").textContent = response.err;
+		document.getElementById("out-stdout").textContent = response.out as string;
+		document.getElementById("out-stderr").textContent = response.err as string;
 	});
 }
 
@@ -104,9 +113,9 @@ window.addEventListener("load", function() {
 	});
 
 	getVersions(function(versions) {
-		var sel = document.getElementById("ghcversionselect");
-		for (var i = 0; i < versions.length; i++) {
-			var opt = document.createElement("option");
+		const sel: HTMLElement = document.getElementById("ghcversionselect");
+		for (let i = 0; i < versions.length; i++) {
+			const opt: HTMLOptionElement = document.createElement("option");
 			opt.value = versions[i];
 			opt.textContent = "GHC " + versions[i];
 			if (versions[i] == "8.10.7") opt.setAttribute("selected", "");
