@@ -13,6 +13,7 @@ import Control.Concurrent
 import Control.Exception (evaluate)
 import Control.Monad (replicateM)
 import Data.Char (isDigit)
+import Data.List (sort)
 import System.Directory (listDirectory)
 import System.Environment (getEnv)
 import System.Exit (ExitCode(..))
@@ -36,13 +37,14 @@ availableVersions :: IO [String]
 availableVersions = do
   homedir <- ghcupHomeDir
   files <- listDirectory (homedir </> ".ghcup" </> "bin")
-  return [version
-         | f <- files
-         , let fname = takeFileName f
-         , let (prefix, version) = splitAt 4 fname
-         , prefix == "ghc-"
-         , all (\c -> isDigit c || c == '.') version
-         , filter (== '.') version == ".."]
+  return $ sort
+    [version
+    | f <- files
+    , let fname = takeFileName f
+    , let (prefix, version) = splitAt 4 fname
+    , prefix == "ghc-"
+    , all (\c -> isDigit c || c == '.') version
+    , filter (== '.') version == ".."]
 
 data Command = CRun
   deriving (Show)
