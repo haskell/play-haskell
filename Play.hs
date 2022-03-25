@@ -17,8 +17,10 @@ import System.IO.Streams (InputStream)
 import qualified Text.JSON as JSON
 import Text.JSON (JSValue(..))
 import Text.JSON.String (runGetJSON)
+import Text.Read (readMaybe)
 
 import GHCPool
+import Paste.DB (getPaste, Contents(..))
 import ServerModule
 import SpamDetect hiding (Action(..))
 import qualified SpamDetect as Spam (Action(..))
@@ -28,6 +30,7 @@ data Context = Context Pool
 
 data WhatRequest
   = Index
+  | FromPaste ByteString (Maybe Int)
   | Versions
   | Run
   deriving (Show)
@@ -35,6 +38,9 @@ data WhatRequest
 parseRequest :: Method -> [ByteString] -> Maybe WhatRequest
 parseRequest method comps = case (method, comps) of
   (GET, ["play"]) -> Just Index
+  (GET, ["play", "paste", key]) -> Just (FromPaste key Nothing)
+  (GET, ["play", "paste", key, idxs])
+    | Just idx <- readMaybe (Char8.unpack idxs) -> Just (FromPaste key (Just idx))
   (GET, ["play", "versions"]) -> Just Versions
   (POST, ["play", "run"]) -> Just Run
   _ -> Nothing
@@ -53,6 +59,27 @@ streamReadMaxN maxlen stream = fmap mconcat <$> go 0
 handleRequest :: GlobalContext -> Context -> WhatRequest -> Snap ()
 handleRequest gctx (Context pool) = \case
   Index -> staticFile "text/html" "play.html"
+
+  FromPaste key midx -> do
+    res <- liftIO $ getPaste (gcDb gctx) key
+    case (res, midx) of
+      -- TODO: Actually put this in a playground page instead of returning the text as-is
+      (Just (_, Contents ((_, source):_) _ _), Nothing) ->
+        writeBS source
+      (Just (_, Contents l _ _), Just idx)
+        | idx >= 1
+        , (_, source) : _ <- drop (idx - 1) l ->
+            writeBS source
+
+      (Just (_, Contents [] _ _), Nothing) -> do
+        modifyResponse (setContentType (Char8.pack "text/plain"))
+        writeBS (Char8.pack "That paste seems to have no files?")
+      (Just (_, Contents _ _ _), Just _) -> do
+        modifyResponse (setContentType (Char8.pack "text/plain"))
+        writeBS (Char8.pack "File index out of range")
+      (Nothing, _) -> do
+        modifyResponse (setContentType (Char8.pack "text/plain"))
+        writeBS (Char8.pack "That paste does not exist!")
 
   Versions -> do
     modifyResponse (setContentType (Char8.pack "text/plain"))
@@ -93,7 +120,7 @@ handleRequest gctx (Context pool) = \case
 
 playModule :: ServerModule
 playModule = ServerModule
-  { smMakeContext = \_options k -> do
+  { smMakeContext = \_gctx _options k -> do
       nprocs <- getNumCapabilities
       -- TODO: the max queue length is a completely arbitrary value
       pool <- makePool nprocs nprocs

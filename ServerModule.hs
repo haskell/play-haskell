@@ -7,6 +7,7 @@ import Data.String (fromString)
 import Snap.Core hiding (path)
 import System.FilePath ((</>))
 
+import Paste.DB (Database)
 import SpamDetect
 
 
@@ -19,13 +20,14 @@ defaultOptions :: Options
 defaultOptions = Options False "."
 
 data GlobalContext = GlobalContext
-  { gcSpam :: SpamDetect ByteString }
+  { gcSpam :: SpamDetect ByteString
+  , gcDb :: Database }
 
 type MimeType = String
 
 data ServerModule =
     forall ctx req. ServerModule
-        { smMakeContext :: Options -> (ctx -> IO ()) -> IO ()  -- bracket
+        { smMakeContext :: GlobalContext -> Options -> (ctx -> IO ()) -> IO ()  -- bracket
         , smParseRequest :: Method -> [ByteString] -> Maybe req
         , smHandleRequest :: GlobalContext -> ctx -> req -> Snap ()
         , smStaticFiles :: [(FilePath, MimeType)]

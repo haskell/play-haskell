@@ -51,8 +51,7 @@ writeHTML bs = do
     writeBS bs
 
 data Context = Context
-    { cDB :: Database
-    , cHighlightCSS :: ByteString }
+    { cHighlightCSS :: ByteString }
 
 data State = State
     { sRandGen :: StdGen
@@ -77,11 +76,11 @@ stateGetPage f stvar =
     f . sPages <$> readTVarIO stvar
 
 -- returns the generated key, or an error string
-genStorePaste :: Context -> AtomicState -> ClientAddr -> Contents -> IO (Either String KeyType)
-genStorePaste context stvar srcip contents =
+genStorePaste :: GlobalContext -> AtomicState -> ClientAddr -> Contents -> IO (Either String KeyType)
+genStorePaste gctx stvar srcip contents =
     let loop iter = do
             key <- genKey' stvar
-            DB.storePaste (cDB context) srcip key contents >>= \case
+            DB.storePaste (gcDb gctx) srcip key contents >>= \case
                 Nothing -> return (Right key)
                 Just DB.ErrExists
                     | iter < 5 -> loop (iter + 1)  -- try again with a new key
@@ -89,8 +88,8 @@ genStorePaste context stvar srcip contents =
                 Just DB.ErrFull -> return (Left "Too many pastes submitted, please notify tomsmeding")
     in loop (0 :: Int)
 
-getPaste :: Context -> KeyType -> IO (Maybe (Maybe POSIXTime, Contents))
-getPaste context = DB.getPaste (cDB context)
+getPaste :: GlobalContext -> KeyType -> IO (Maybe (Maybe POSIXTime, Contents))
+getPaste gctx = DB.getPaste (gcDb gctx)
 
 indexResponse :: AtomicState -> Contents -> IO ByteString
 indexResponse stvar contents = do
@@ -163,17 +162,17 @@ handleRequest :: GlobalContext -> Context -> AtomicState -> WhatRequest -> Snap 
 handleRequest gctx context stvar = \case
     GetIndex -> liftIO (indexResponse stvar (Contents [] Nothing Nothing)) >>= writeHTML
     EditPaste key -> do
-        liftIO (getPaste context key) >>= \case
+        liftIO (getPaste gctx key) >>= \case
             Just (_, Contents files _ _) ->
                 -- Replace parent (if any) with the edited paste
                 liftIO (indexResponse stvar (Contents files (Just key) Nothing)) >>= writeHTML
             Nothing -> httpError 404 "Paste not found"
     ReadPaste key -> do
-        liftIO (getPaste context key) >>= \case
+        liftIO (getPaste gctx key) >>= \case
             Just (mdate, contents) -> liftIO (pasteReadResponse stvar key mdate contents) >>= writeHTML
             Nothing -> httpError 404 "Paste not found"
     ReadPasteRaw key idx -> do
-        liftIO (getPaste context key) >>= \case
+        liftIO (getPaste gctx key) >>= \case
             Just (_, Contents files _ _)
               | 1 <= idx, idx <= length files -> do
                   modifyResponse $ setContentType "text/plain; charset=utf-8"
@@ -192,7 +191,7 @@ handleRequest gctx context stvar = \case
         modifyResponse (applyStaticFileHeaders "text/css")
         writeBS (cHighlightCSS context)
     DownloadPaste key -> do
-        liftIO (getPaste context key) >>= \case
+        liftIO (getPaste gctx key) >>= \case
             Just (mdate, Contents files _ _) -> do
                 let disposition = BS.concat ["attachment; filename=\"", key, ".tar.gz\""]
                 modifyResponse $
@@ -210,7 +209,7 @@ handleRequest gctx context stvar = \case
           httpError 400 "Invalid encoding; paste must be UTF-8"
       | sum (map (BS.length . snd) files) <= maxPasteSize = do
           req <- getRequest
-          mkey <- liftIO $ genStorePaste context stvar (Char8.unpack (rqClientAddr req)) contents
+          mkey <- liftIO $ genStorePaste gctx stvar (Char8.unpack (rqClientAddr req)) contents
           case mkey of
               Right key -> do
                   let suffix = "/" `BS.append` key
@@ -236,21 +235,20 @@ startExpiredRemoveService db = void $ forkIO $ forever $ do
 
 pasteModule :: ServerModule
 pasteModule = ServerModule
-    { smMakeContext = \options cont ->
-          DB.withDatabase (oDBDir options) $ \db -> do
-              css <- processHighlightCSS
-              let context = Context db css
+    { smMakeContext = \gctx _options cont -> do
+          css <- processHighlightCSS
+          let context = Context css
 
-              -- Create state
-              randgen <- newStdGen
-              pages <- pagesFromDisk
-              stvar <- newTVarIO (newState randgen pages)
+          -- Create state
+          randgen <- newStdGen
+          pages <- pagesFromDisk
+          stvar <- newTVarIO (newState randgen pages)
 
-              -- Start services
-              startExpiredRemoveService db
+          -- Start services
+          startExpiredRemoveService (gcDb gctx)
 
-              -- Run server
-              cont (context, stvar)
+          -- Run server
+          cont (context, stvar)
     , smParseRequest = parseRequest
     , smHandleRequest = \gctx (ctx, stvar) -> handleRequest gctx ctx stvar
     , smStaticFiles =

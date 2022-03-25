@@ -17,36 +17,37 @@ import qualified System.Posix.Signals as Signal
 
 import qualified Options as Opt
 import Paste
+import Paste.DB (withDatabase)
 import Play
 import ServerModule
 import SpamDetect
 
 
 data InstantiatedModule = InstantiatedModule
-    { imHandler :: GlobalContext -> Method -> [ByteString] -> Maybe (Snap ())
+    { imHandler :: Method -> [ByteString] -> Maybe (Snap ())
     , imStatics :: Map ByteString MimeType
     , imRefreshPages :: IO () }
 
-instantiate :: Options -> ServerModule -> (InstantiatedModule -> IO ()) -> IO ()
-instantiate options m k =
+instantiate :: GlobalContext -> Options -> ServerModule -> (InstantiatedModule -> IO ()) -> IO ()
+instantiate gctx options m k =
     case m of
       ServerModule { smMakeContext = make
                    , smParseRequest = parse
                    , smHandleRequest = handle
                    , smStaticFiles = statics
                    , smReloadPages = refresh } ->
-          make options $ \ctx ->
+          make gctx options $ \ctx ->
               k $ InstantiatedModule
-                    { imHandler = \gctx method path ->
+                    { imHandler = \method path ->
                                       (\req -> handle gctx ctx req) <$> parse method path
                     , imStatics = Map.fromList (map (first Char8.pack) statics)
                     , imRefreshPages = refresh ctx }
 
-instantiates :: Options -> [ServerModule] -> ([InstantiatedModule] -> IO ()) -> IO ()
-instantiates _ [] f = f []
-instantiates options (m : ms) f =
-    instantiate options m $ \m' ->
-        instantiates options ms $ \ms' ->
+instantiates :: GlobalContext -> Options -> [ServerModule] -> ([InstantiatedModule] -> IO ()) -> IO ()
+instantiates _ _ [] f = f []
+instantiates gctx options (m : ms) f =
+    instantiate gctx options m $ \m' ->
+        instantiates gctx options ms $ \ms' ->
             f (m' : ms')
 
 splitPath :: ByteString -> Maybe [ByteString]
@@ -67,8 +68,8 @@ handleStaticFiles ms [component] =
     _ -> error $ "Multiple handlers for the same static file:" ++ show component
 handleStaticFiles _ _ = Nothing
 
-server :: GlobalContext -> Options -> [InstantiatedModule] -> Snap ()
-server gctx options modules = do
+server :: Options -> [InstantiatedModule] -> Snap ()
+server options modules = do
     -- If we're proxied, set the source IP from the X-Forwarded-For header.
     when (oProxied options) ipHeaderFilter
 
@@ -80,7 +81,7 @@ server gctx options modules = do
       Just components ->
         fromMaybe (httpError 404 "Page not found") $ asum $
             [guard (method == GET) >> handleStaticFiles modules components]
-            ++ map (\m -> imHandler m gctx method components) modules
+            ++ map (\m -> imHandler m method components) modules
       Nothing -> httpError 400 "Invalid URL"
 
 config :: Config Snap a
@@ -104,11 +105,14 @@ main = do
         ,("-h", Opt.Help)]
 
     spam <- initSpamDetect
-    let gctx = GlobalContext
-                 { gcSpam = spam }
 
-    let modules = [pasteModule, playModule]
-    instantiates options modules $ \modules' -> do
-        forM_ modules' $ \m ->
-            void $ Signal.installHandler Signal.sigUSR1 (Signal.Catch (imRefreshPages m)) Nothing
-        httpServe config (server gctx options modules')
+    withDatabase (oDBDir options) $ \db -> do
+        let gctx = GlobalContext
+                     { gcSpam = spam
+                     , gcDb = db }
+
+        let modules = [pasteModule, playModule]
+        instantiates gctx options modules $ \modules' -> do
+            forM_ modules' $ \m ->
+                void $ Signal.installHandler Signal.sigUSR1 (Signal.Catch (imRefreshPages m)) Nothing
+            httpServe config (server options modules')
