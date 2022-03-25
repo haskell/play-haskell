@@ -104,11 +104,13 @@ function doRun() {
 }
 
 window.addEventListener("load", function() {
-	document.getElementById("editor").addEventListener("keypress", function(ev) {
-		if ((ev.key == "Enter" || ev.keyCode == 13) && ev.ctrlKey) {
-			doRun();
-		}
-	});
+	// // This is broken with the codemirror editor, of course, which rebinds
+	// // ctrl-enter to "insert blank line".
+	// document.getElementById("editor").addEventListener("keypress", function(ev) {
+	//     if ((ev.key == "Enter" || ev.keyCode == 13) && ev.ctrlKey) {
+	//         doRun();
+	//     }
+	// });
 
 	getVersions(function(versions) {
 		const sel: HTMLElement = document.getElementById("ghcversionselect");
