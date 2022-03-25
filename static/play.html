@@ -76,7 +76,17 @@ header {
 </header>
 <div id="main">
 	<div id="leftcol">
-		<textarea id="code-ta"></textarea><br>
+		<textarea id="code-ta">{-# LANGUAGE CPP #-}
+
+import System.Info
+
+main :: IO ()
+main =
+#if __GLASGOW_HASKELL__ &gt;= 900
+  print fullCompilerVersion
+#else
+  print compilerVersion
+#endif</textarea><br>
 	</div>
 	<div id="rightcol">
 		<div id="exitcode-note" class="invisible"></div>
