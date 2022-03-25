@@ -1,7 +1,10 @@
 Play:
 - Audit the bwrap command in bwrap-files/start.sh
 - Do we need to SIGKILL ghc processes?
-- Proper code editor
+- Better CSS!
+- Hotkey for Run
 - Create paste from playground
   - It can return the text of a paste file as text/plain, but now also in a playground window
 - Create playground from paste
+- Stretch goal: ghci on the playground module?
+- Button for code formatting using a formatter
