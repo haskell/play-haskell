@@ -37,7 +37,7 @@ data Action = Post | PlayRun
 
 actionPenalty :: Action -> Float
 actionPenalty Post = 1.4
-actionPenalty PlayRun = 1.8
+actionPenalty PlayRun = 1.0
 
 halfTimeSecs :: Float
 halfTimeSecs = 10

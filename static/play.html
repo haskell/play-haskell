@@ -60,6 +60,9 @@ header {
 #rightcol pre {
 	background-color: #fafafa;
 }
+.invisible {
+	display: none;
+}
 </style>
 <script src="play-index.js"></script>
 </head>
@@ -67,8 +70,8 @@ header {
 <header>
 	<div id="title">Haskell playground</div>
 	<div id="toolbar">
-		<input type="button" value="Run" onclick="doRun()">
-		<input type="button" value="Kaas">
+		<input type="button" value="Run" title="ctrl-Enter" onclick="doRun()">
+		<select id="ghcversionselect"></select>
 	</div>
 </header>
 <div id="main">
@@ -76,6 +79,7 @@ header {
 		<textarea id="code-ta"></textarea><br>
 	</div>
 	<div id="rightcol">
+		<div id="exitcode-note" class="invisible"></div>
 		<div style="border-bottom: 1px #ccc solid">Errors</div>
 		<pre id="out-stderr"></pre>
 		<div style="border-bottom: 1px #ccc solid">Output</div>
