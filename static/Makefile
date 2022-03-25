@@ -10,6 +10,6 @@ dependencies:
 	npm install
 
 clean:
-	rm bundle.js play-index.js
+	rm -f bundle.js play-index.js
 
 .PHONY: clean dependencies

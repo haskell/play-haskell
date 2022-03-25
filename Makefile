@@ -1,4 +1,6 @@
-all:
+.PHONY: reload-pages frontend frontend-dependencies
+
+reload-pages:
 	kill -s USR1 $$(ps -o pid,cmd -ww a | grep '/pastebin-haskell$$' | awk '{print $$1}')
 
 frontend:
@@ -6,5 +8,3 @@ frontend:
 
 frontend-dependencies:
 	$(MAKE) -C static/ dependencies
-
-.PHONY: frontend frontend-dependencies
