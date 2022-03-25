@@ -63,34 +63,22 @@ header {
 .invisible {
 	display: none;
 }
-.greytext {
-	color: #888;
-}
+.cm-editor { height: 800px; width:900px; border: 1px solid #ddd}
+.cm-scroller { overflow: auto; }
 </style>
-<script src="play-index.js"></script>
+<script type=module src="bundle.js">
+</script>
 </head>
 <body>
 <header>
 	<div id="title">Haskell playground</div>
 	<div id="toolbar">
-		<input type="button" id="btn-run" value="Run" title="ctrl-Enter" onclick="doRun()">
+		<input id="btn-run" type="button" value="Run" title="ctrl-Enter">
 		<select id="ghcversionselect"></select>
 	</div>
 </header>
 <div id="main">
-	<div id="leftcol">
-		<textarea id="code-ta">{-# LANGUAGE CPP #-}
-
-import System.Info
-
-main :: IO ()
-main =
-#if __GLASGOW_HASKELL__ &gt;= 900
-  print fullCompilerVersion
-#else
-  print compilerVersion
-#endif</textarea><br>
-	</div>
+	<div id=editor></div>
 	<div id="rightcol">
 		<div id="exitcode-note" class="invisible"></div>
 		<div style="border-bottom: 1px #ccc solid">Errors</div>

@@ -1,17 +1,26 @@
-"use strict";
+import {EditorState, EditorView, basicSetup} from "@codemirror/basic-setup"
+import {javascript} from "@codemirror/lang-javascript"
 
-function performXHR(method, path, responseType, mcontentType, mdata, successcb, failcb) {
-	var haveData;
-	if (arguments.length == 5) {
-		successcb = mcontentType;
-		failcb = mdata;
-		haveData = false;
-	} else if (arguments.length == 7) {
-		haveData = true;
-	} else {
-		throw new Error("Invalid usage of performXHR");
-	}
+let state = EditorState.create({doc: `import System.Info
 
+main :: IO ()
+main = do
+  let unsorted = [10,9..1]
+  putStrLn $ show $ quicksort unsorted
+
+quicksort :: Ord a => [a] -> [a]
+quicksort []     = []
+quicksort (x:xs) = let lesser  = filter (< x) xs
+                       greater = filter (> x) xs
+                   in quicksort lesser ++ [x] ++ quicksort greater
+
+`, extensions: [
+  basicSetup,
+  javascript(),
+]})
+;(window as any).view = new EditorView({state, parent: document.querySelector("#editor")!})
+
+function performXHR(method, path, responseType, successcb, failcb, mcontentType?, mdata?) {
 	var xhr = new XMLHttpRequest();
 
 	xhr.onreadystatechange = function(){
@@ -35,8 +44,8 @@ function performXHR(method, path, responseType, mcontentType, mdata, successcb, 
 
 	xhr.open(method, path);
 	xhr.responseType = "text";
-	if (haveData) xhr.setRequestHeader("Content-Type", mcontentType);
-	if (haveData) xhr.send(mdata); else xhr.send();
+	if (mcontentType) xhr.setRequestHeader("Content-Type", mcontentType);
+	if (mdata) xhr.send(mdata); else xhr.send();
 }
 
 function setWorking(yes) {
@@ -57,20 +66,20 @@ function getVersions(cb) {
 function sendRun(source, version, cb) {
 	var payload = JSON.stringify({source, version});
 	setWorking(true);
-	performXHR("POST", "/play/run", "json", "text/plain", payload,
+	performXHR("POST", "/play/run", "json",
 		function(res) {
 			setWorking(false);
 			cb(res);
 		}, function(xhr) {
 			setWorking(false);
 			alert("Failed to submit run job (status " + xhr.status + "): " + xhr.responseText);
-		}
+		}, "text/plain", payload
 	);
 }
 
 function doRun() {
-	var source = document.getElementById("code-ta").value;
-	var version = document.getElementById("ghcversionselect").value;
+	var source = (window as any).view.state.doc.toString();
+	var version = (document.getElementById("ghcversionselect") as any).value;
 	if (typeof version != "string" || version == "") version = "8.10.7";
 
 	sendRun(source, version, function(response) {
@@ -88,7 +97,7 @@ function doRun() {
 }
 
 window.addEventListener("load", function() {
-	document.getElementById("code-ta").addEventListener("keypress", function(ev) {
+	document.getElementById("editor").addEventListener("keypress", function(ev) {
 		if ((ev.key == "Enter" || ev.keyCode == 13) && ev.ctrlKey) {
 			doRun();
 		}
@@ -105,3 +114,7 @@ window.addEventListener("load", function() {
 		}
 	});
 });
+
+
+document.getElementById("btn-run").addEventListener('click', doRun);
+

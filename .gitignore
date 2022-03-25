@@ -1,2 +1,7 @@
 dist-newstyle/
 pastes.db
+node_modules/
+static/bundle.js
+static/play-index.js
+static/package-lock.json
+
