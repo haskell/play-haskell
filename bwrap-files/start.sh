@@ -22,8 +22,8 @@ args=(
   --new-session
   --unshare-all
   --die-with-parent
-  --perms 700 --file 4 "${homedir}/workdir/entry.sh"
-  "${homedir}/workdir/entry.sh"
+  --file 4 "${homedir}/workdir/entry.sh"
+  bash "${homedir}/workdir/entry.sh"
 )
 
 exec bwrap "${args[@]}" 4<"${filesdir}/entry.sh"
