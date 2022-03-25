@@ -63,6 +63,9 @@ header {
 .invisible {
 	display: none;
 }
+.greytext {
+	color: #888;
+}
 </style>
 <script src="play-index.js"></script>
 </head>
@@ -70,7 +73,7 @@ header {
 <header>
 	<div id="title">Haskell playground</div>
 	<div id="toolbar">
-		<input type="button" value="Run" title="ctrl-Enter" onclick="doRun()">
+		<input type="button" id="btn-run" value="Run" title="ctrl-Enter" onclick="doRun()">
 		<select id="ghcversionselect"></select>
 	</div>
 </header>

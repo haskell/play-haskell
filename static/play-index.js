@@ -39,6 +39,15 @@ function performXHR(method, path, responseType, mcontentType, mdata, successcb, 
 	if (haveData) xhr.send(mdata); else xhr.send();
 }
 
+function setWorking(yes) {
+	var elt = document.getElementById("btn-run");
+	if (yes) elt.setAttribute("disabled", ""); else elt.removeAttribute("disabled");
+
+	elt = document.getElementById("rightcol");
+	if (yes) elt.classList.add("greytext");
+	else elt.classList.remove("greytext");
+}
+
 function getVersions(cb) {
 	performXHR("GET", "/play/versions", "json", cb, function(xhr) {
 		alert("Error getting available compiler versions (status " + xhr.status + "): " + xhr.responseText);
@@ -47,9 +56,16 @@ function getVersions(cb) {
 
 function sendRun(source, version, cb) {
 	var payload = JSON.stringify({source, version});
-	performXHR("POST", "/play/run", "json", "text/plain", payload, cb, function(xhr) {
-		alert("Failed to submit run job (status " + xhr.status + "): " + xhr.responseText);
-	});
+	setWorking(true);
+	performXHR("POST", "/play/run", "json", "text/plain", payload,
+		function(res) {
+			setWorking(false);
+			cb(res);
+		}, function(xhr) {
+			setWorking(false);
+			alert("Failed to submit run job (status " + xhr.status + "): " + xhr.responseText);
+		}
+	);
 }
 
 function doRun() {
