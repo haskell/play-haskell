@@ -127,7 +127,7 @@ playModule = ServerModule
       k (Context pool)
   , smParseRequest = parseRequest
   , smHandleRequest = handleRequest
-  , smStaticFiles = [("play-index.js", "text/javascript")]
+  , smStaticFiles = [("bundle.js", "text/javascript")]
   , smReloadPages = \_ -> return ()
   }
 
