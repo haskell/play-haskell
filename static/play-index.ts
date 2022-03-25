@@ -1,9 +1,7 @@
-import {EditorState, EditorView, basicSetup} from "@codemirror/basic-setup"
-import {javascript} from "@codemirror/lang-javascript"
+import {EditorState, EditorView, basicSetup} from "@codemirror/basic-setup";
+import {javascript} from "@codemirror/lang-javascript";
 
-let state = EditorState.create({doc: `import System.Info
-
-main :: IO ()
+let state = EditorState.create({doc: `main :: IO ()
 main = do
   let unsorted = [10,9..1]
   putStrLn $ show $ quicksort unsorted
@@ -17,8 +15,8 @@ quicksort (x:xs) = let lesser  = filter (< x) xs
 `, extensions: [
   basicSetup,
   javascript(),
-]})
-;(window as any).view = new EditorView({state, parent: document.querySelector("#editor")!})
+]});
+(window as any).view = new EditorView({state, parent: document.querySelector("#editor")!});
 
 type json =
 | string
@@ -124,6 +122,4 @@ window.addEventListener("load", function() {
 	});
 });
 
-
 document.getElementById("btn-run").addEventListener('click', doRun);
-
