@@ -70,8 +70,8 @@ function getVersions(cb: (response: string) => void) {
 	});
 }
 
-function sendRun(source: string, version: string, cb: (response: json) => void) {
-	const payload: string = JSON.stringify({source, version});
+function sendRun(source: string, version: string, opt: string, cb: (response: json) => void) {
+	const payload: string = JSON.stringify({source, version, opt});
 	setWorking(true);
 	performXHR("POST", "/play/run", "json",
 		function(res: json) {
@@ -87,9 +87,11 @@ function sendRun(source: string, version: string, cb: (response: json) => void) 
 function doRun() {
 	const source: string = (window as any).view.state.doc.toString();
 	let version = (document.getElementById("ghcversionselect") as any).value;
+	let opt = (document.getElementById("optselect") as any).value;
 	if (typeof version != "string" || version == "") version = "8.10.7";
+	if (typeof opt != "string" || version == "") opt = "O1";
 
-	sendRun(source, version, function(response: {[key: string]: json}) {
+	sendRun(source, version, opt, function(response: {[key: string]: json}) {
 		const ecNote: HTMLElement = document.getElementById("exitcode-note");
 		if (response.ec != 0) {
 			ecNote.classList.remove("invisible");
@@ -122,6 +124,14 @@ window.addEventListener("load", function() {
 			sel.appendChild(opt);
 		}
 	});
+	const sel: HTMLElement = document.getElementById("optselect");
+	["O0", "O1", "O2"].forEach(o => {
+		const opt: HTMLOptionElement = document.createElement("option");
+		opt.value = o;
+		opt.textContent = "-" + o;
+		if (o == "O1") opt.setAttribute("selected", "");
+		sel.appendChild(opt);
+	})
 });
 
 document.getElementById("btn-run").addEventListener('click', doRun);

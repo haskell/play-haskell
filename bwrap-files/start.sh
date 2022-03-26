@@ -13,6 +13,7 @@ args=(
   --ro-bind "${chroot}"/bin /bin
   --ro-bind "${chroot}"/usr/bin /usr/bin
   --ro-bind "${chroot}"/usr/lib /usr/lib
+  --ro-bind "${chroot}"/usr/include /usr/include
   --ro-bind "${chroot}"/lib /lib
   --ro-bind "${chroot}"/lib64 /lib64
   --dir "${ghcup_base}"

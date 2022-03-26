@@ -4,6 +4,7 @@ module GHCPool (
   availableVersions,
   runTimeoutMicrosecs,
   Command(..),
+  Optimization(..),
   Version(..),
   Pool,
   makePool,
@@ -47,6 +48,16 @@ data Command = CRun
 commandString :: Command -> String
 commandString CRun = "run"
 
+data Optimization = O0
+                  | O1
+                  | O2
+  deriving (Show, Read)
+
+optimizationString :: Optimization -> String
+optimizationString O0 = "-O0"
+optimizationString O1 = "-O1"
+optimizationString O2 = "-O2"
+
 newtype Version = Version String deriving (Show)
 
 data Result = Result
@@ -61,7 +72,7 @@ data RunResult = TimeOut | Finished Result
   deriving (Show)
 
 data Worker = Worker ThreadId
-                     (MVar (Command, Version, String))  -- ^ input
+                     (MVar (Command, Optimization, Version, String))  -- ^ input
                      (MVar RunResult)  -- ^ output
 
 data PoolData = PoolData
@@ -82,9 +93,9 @@ makeWorker = do
                   , Pr.std_out = Pr.CreatePipe
                   , Pr.std_err = Pr.CreatePipe }
     Pr.withCreateProcess spec $ \(Just inh) (Just outh) (Just errh) proch -> do
-      (cmd, Version ver, source) <- readMVar mvar
+      (cmd, opt, Version ver, source) <- readMVar mvar
       _ <- forkIO $ do
-        hPutStr inh (commandString cmd ++ "\n" ++ ver ++ "\n" ++ source)
+        hPutStr inh (commandString cmd ++ "\n" ++ optimizationString opt ++ "\n" ++ ver ++ "\n" ++ source)
         hClose inh
       stdoutmvar <- newEmptyMVar
       _ <- forkIO $ hGetContents outh >>= evaluate . forceString >>= putMVar stdoutmvar
@@ -115,8 +126,8 @@ data ObtainedWorker = Obtained Worker
                     | Queued (MVar Worker)
                     | QueueFull
 
-runInPool :: Pool -> Command -> Version -> String -> IO (Either String Result)
-runInPool pool cmd ver source = do
+runInPool :: Pool -> Command -> Version -> Optimization -> String -> IO (Either String Result)
+runInPool pool cmd ver opt source = do
   result <- modifyMVar (pDataVar pool) $ \pd ->
               case pdAvailable pd of
                 w:ws ->
@@ -135,7 +146,7 @@ runInPool pool cmd ver source = do
   where
     useWorker :: Worker -> IO (Either String Result)
     useWorker (Worker _tid invar outvar) = do
-      putMVar invar (cmd, ver, source)
+      putMVar invar (cmd, opt, ver, source)
       result <- readMVar outvar
       _ <- forkIO $ do
         newWorker <- makeWorker

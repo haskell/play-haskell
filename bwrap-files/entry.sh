@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 IFS="" read -r command
-
+IFS="" read -r opt
 IFS="" read -r version
 
 # Check that there are only version-like characters
@@ -21,7 +21,8 @@ fi
 case "$command" in
 	run)
 		cat >input.hs
-		ghcup --offline run --ghc ${version} -- runhaskell input.hs
+		ghcup --offline run --ghc ${version} -- ghc -o Main "${opt}" input.hs 2>/tmp/null 1>/tmp/null
+		./Main
 		;;
 
 	*)

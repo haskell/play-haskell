@@ -100,9 +100,10 @@ handleRequest gctx (Context pool) = \case
                 Right postdata -> do
                   case runGetJSON JSON.readJSValue (UTF8.toString postdata) of
                     Right (JSObject (JSON.fromJSObject -> obj))
-                      | Just (JSString (JSON.fromJSString -> source)) <- lookup "source" obj
+                      | Just (JSString (JSON.fromJSString -> source))  <- lookup "source" obj
                       , Just (JSString (JSON.fromJSString -> version)) <- lookup "version" obj
-                      -> do res <- liftIO $ runInPool pool CRun (Version version) source
+                      , Just (JSString (JSON.fromJSString -> opt))     <- lookup "opt" obj
+                      -> do res <- liftIO $ runInPool pool CRun (Version version) (read opt) source
                             case res of
                               Left err -> httpError 500 err
                               Right result -> do
