@@ -1,4 +1,4 @@
-cabal-version:       >=1.10
+cabal-version:       2.0
 name:                pastebin-haskell
 synopsis:            Pastebin service in Haskell
 version:             0.2.14.0
@@ -43,6 +43,7 @@ executable pastebin-haskell
     process >= 1.6.14.0 && < 1.7,
     stm >= 2.5 && < 2.6,
     random >= 1.2.0 && < 1.3,
+    safe ^>=0.3,
     snap-server >= 1.1.1.2 && < 1.2,
     snap-core >= 1.0.4.2 && < 1.1,
     sqlite-simple >= 0.4.18 && < 0.5,

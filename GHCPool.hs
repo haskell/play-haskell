@@ -25,29 +25,21 @@ import System.IO (hPutStr, hGetContents, hClose)
 import System.Posix.Directory (getWorkingDirectory)
 import qualified System.Process as Pr
 import System.Timeout (timeout)
+import Safe
+import Data.Maybe
 
 import Data.Queue (Queue)
 import qualified Data.Queue as Queue
 
-
-ghcupHomeDir :: IO String
-ghcupHomeDir = getEnv "HOME"
 
 runTimeoutMicrosecs :: Int
 runTimeoutMicrosecs = 5_000_000
 
 availableVersions :: IO [String]
 availableVersions = do
-  homedir <- ghcupHomeDir
-  files <- listDirectory (homedir </> ".ghcup" </> "bin")
-  return $ sort
-    [version
-    | f <- files
-    , let fname = takeFileName f
-    , let (prefix, version) = splitAt 4 fname
-    , prefix == "ghc-"
-    , all (\c -> isDigit c || c == '.') version
-    , filter (== '.') version == ".."]
+  out <- Pr.readCreateProcess (Pr.proc "ghcup" ["--offline", "list", "-t", "ghc", "-c", "installed", "-r"]) []
+  let ghc_versions = catMaybes $ fmap (`atMay` 1) $ fmap words $ lines out
+  return ghc_versions
 
 data Command = CRun
   deriving (Show)
@@ -84,9 +76,8 @@ makeWorker = do
   mvar <- newEmptyMVar
   resultvar <- newEmptyMVar
   thread <- forkIO $ do
-    homedir <- ghcupHomeDir
     workdir <- getWorkingDirectory
-    let spec = (Pr.proc (workdir </> "bwrap-files/start.sh") [homedir])
+    let spec = (Pr.proc (workdir </> "bwrap-files/start.sh") [])
                   { Pr.std_in = Pr.CreatePipe
                   , Pr.std_out = Pr.CreatePipe
                   , Pr.std_err = Pr.CreatePipe }

@@ -13,15 +13,15 @@ if [[ "${version//[0-9.]/}" != "" ]]; then
 	exit 1
 fi
 
-if [[ ! -f "$HOME/.ghcup/bin/ghc-${version}" ]]; then
-	echo >&2 "Version not available"
+if ! ghcup --offline whereis ghc ${version} 2>/tmp/null 1>/tmp/null ; then
+	echo >&2 "Version ${version} not available"
 	exit 1
 fi
 
 case "$command" in
 	run)
 		cat >input.hs
-		"$HOME/.ghcup/bin/runhaskell-${version}" input.hs
+		ghcup --offline run --ghc ${version} -- runhaskell input.hs
 		;;
 
 	*)
