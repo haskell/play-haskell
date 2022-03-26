@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ViewPatterns #-}
 module Play (playModule) where
 
 import Control.Concurrent (getNumCapabilities)
@@ -34,9 +34,7 @@ data WhatRequest
   = Index
   | FromPaste ByteString (Maybe Int)
   | Versions
-  | Run
-  | Core
-  | Asm
+  | RunGHC Command
   deriving (Show)
 
 parseRequest :: Method -> [ByteString] -> Maybe WhatRequest
@@ -46,9 +44,9 @@ parseRequest method comps = case (method, comps) of
   (GET, ["play", "paste", key, idxs])
     | Just idx <- readMaybe (Char8.unpack idxs) -> Just (FromPaste key (Just idx))
   (GET, ["play", "versions"]) -> Just Versions
-  (POST, ["play", "run"]) -> Just Run
-  (POST, ["play", "core"]) -> Just Core
-  (POST, ["play", "asm"]) -> Just Asm
+  (POST, ["play", "run"]) -> Just (RunGHC CRun)
+  (POST, ["play", "core"]) -> Just (RunGHC CCore)
+  (POST, ["play", "asm"]) -> Just (RunGHC CAsm)
   _ -> Nothing
 
 streamReadMaxN :: Int -> InputStream ByteString -> IO (Maybe ByteString)
@@ -63,7 +61,7 @@ streamReadMaxN maxlen stream = fmap mconcat <$> go 0
                          return Nothing
 
 handleRequest :: GlobalContext -> Context -> WhatRequest -> Snap ()
-handleRequest gctx (Context pool) = \what -> case what of
+handleRequest gctx (Context pool) = \case
   Index -> staticFile "text/html" "play.html"
 
   FromPaste key midx -> do
@@ -92,7 +90,7 @@ handleRequest gctx (Context pool) = \what -> case what of
     versions <- liftIO availableVersions
     writeJSON $ JSArray (map (JSString . JSON.toJSString) versions)
 
-  _ -> do
+  RunGHC runner -> do
     req <- getRequest
     isSpam <- liftIO $ recordCheckSpam Spam.PlayRunStart (gcSpam gctx) (rqClientAddr req)
     if isSpam
@@ -108,15 +106,11 @@ handleRequest gctx (Context pool) = \what -> case what of
                     Right (JSObject (JSON.fromJSObject -> obj))
                       | Just (JSString (JSON.fromJSString -> source))  <- lookup "source" obj
                       , Just (JSString (JSON.fromJSString -> version)) <- lookup "version" obj
-                      -> do runner <- case what of
-                                        Run -> pure CRun
-                                        Core -> pure CCore
-                                        Asm -> pure CAsm
-                                        _ -> fail ("Unexpexted what value: " <> show what)
-                            opt <- case lookup "opt" obj of
-                              Just (JSString (JSON.fromJSString -> opt))
-                                | Just opt' <- readMay @Optimization opt -> pure opt'
-                              _ -> pure O1
+                      -> do let opt | Just (JSString s) <- lookup "opt" obj
+                                    , Just opt' <- readMay @Optimization (JSON.fromJSString s)
+                                    = opt'
+                                    | otherwise
+                                    = O1
                             res <- liftIO $ runInPool pool runner (Version version) opt source
                             case res of
                               Left EQueueFull -> httpError 500 "The queue is currently full, try again later"
