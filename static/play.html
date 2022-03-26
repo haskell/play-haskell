@@ -18,6 +18,8 @@ body {
 }
 #main {
 	flex-grow: 1;
+	display: flex;
+	flex-direction: row;
 }
 header {
 	padding: 5px;
@@ -38,24 +40,18 @@ header {
 #toolbar input[type="button"] {
 	margin: 0 5px;
 }
-#main {
-	display: flex;
-	flex-direction: row;
+#code-ta {
+	flex-grow: 1;
 }
 #leftcol {
 	padding: 5px;
-	background-color: #e8e8e8;
 	width: 50%;
-	display: flex;
-	flex-direction: column;
-}
-#code-ta {
-	flex-grow: 1;
 }
 #rightcol {
 	padding: 5px;
 	background-color: #eee;
 	width: 50%;
+	font-size: x-large;
 }
 #rightcol pre {
 	background-color: #fafafa;
@@ -151,8 +147,15 @@ header {
     transform: rotate(360deg);
   }
 }
-.cm-editor { height: 800px; width:900px; border: 1px solid #ddd}
+.cm-editor {
+	height: 100%;
+	border: 1px solid #ddd;
+	font-size: x-large;
+}
 .cm-scroller { overflow: auto; }
+#editor {
+	height: 100%;
+}
 </style>
 <script type=module src="bundle.js">
 </script>
@@ -169,7 +172,9 @@ header {
 	</div>
 </header>
 <div id="main">
-	<div id=editor></div>
+	<div id="leftcol">	
+		<div id=editor></div>
+	</div>
 	<div id="rightcol">	
 		<div id="output-spinner" class="lds-roller invisible"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
 		<div id="output-pane">
