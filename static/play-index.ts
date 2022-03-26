@@ -78,8 +78,6 @@ function setWorking(yes: boolean) {
 		rightspinner.classList.add("invisible");
 		rightoutput.classList.remove("invisible");
 	}
-
-// <div class="lds-roller"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
 }
 
 function getVersions(cb: (response: string) => void) {
@@ -88,8 +86,8 @@ function getVersions(cb: (response: string) => void) {
 	});
 }
 
-function sendRun(source: string, version: string, opt: string, run: Runner, cb: (response: json) => void, input?: string) {
-	const payload: string = JSON.stringify({source, version, opt, input});
+function sendRun(source: string, version: string, opt: string, run: Runner, cb: (response: json) => void) {
+	const payload: string = JSON.stringify({source, version, opt});
 	setWorking(true);
 	let ep: string = null;
 	switch (run) {
@@ -119,7 +117,7 @@ function doRun(run: Runner) {
 	let version = (document.getElementById("ghcversionselect") as any).value;
 	let opt = (document.getElementById("optselect") as any).value;
 	if (typeof version != "string" || version == "") version = "8.10.7";
-	if (typeof opt != "string" || version == "") opt = "O1";
+	if (typeof opt != "string" || opt == "") opt = "O1";
 
 	sendRun(source, version, opt, run, function(response: {[key: string]: json}) {
 		const ecNote: HTMLElement = document.getElementById("exitcode-note");
