@@ -13,7 +13,7 @@ if [[ "${version//[0-9.]/}" != "" ]]; then
 	exit 1
 fi
 
-if ! ghcup --offline whereis ghc ${version} 2>/tmp/null 1>/tmp/null ; then
+if ! ghcup --offline whereis ghc "${version}" 2>/tmp/null 1>/tmp/null ; then
 	echo >&2 "Version ${version} not available"
 	exit 1
 fi
@@ -21,17 +21,17 @@ fi
 case "$command" in
 	run)
 		cat >input.hs
-		ghcup --offline run --ghc ${version} -- ghc -rtsopts -o Main "${opt}" input.hs 2>/tmp/null 1>/tmp/null
+		ghcup --offline run --ghc "${version}" -- ghc -rtsopts -o Main "${opt}" input.hs #2>/tmp/null 1>/tmp/null
 		./Main +RTS -M100m -RTS
 		;;
 	core)
 		cat >input.hs
-		ghcup --offline run --ghc ${version} -- ghc -ddump-simpl -ddump-to-file -o Main "${opt}" input.hs 2>/tmp/null 1>/tmp/null
+		ghcup --offline run --ghc "${version}" -- ghc -ddump-simpl -ddump-to-file -o Main "${opt}" input.hs 2>/tmp/null 1>/tmp/null
 		cat input.dump-simpl
 		;;
 	asm)
 		cat >input.hs
-		ghcup --offline run --ghc ${version} -- ghc -ddump-asm -ddump-to-file -o Main "${opt}" input.hs 2>/tmp/null 1>/tmp/null
+		ghcup --offline run --ghc "${version}" -- ghc -ddump-asm -ddump-to-file -o Main "${opt}" input.hs 2>/tmp/null 1>/tmp/null
 		cat input.dump-asm
 		;;
 
