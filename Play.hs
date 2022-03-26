@@ -33,6 +33,8 @@ data WhatRequest
   | FromPaste ByteString (Maybe Int)
   | Versions
   | Run
+  | Core
+  | Asm
   deriving (Show)
 
 parseRequest :: Method -> [ByteString] -> Maybe WhatRequest
@@ -43,6 +45,8 @@ parseRequest method comps = case (method, comps) of
     | Just idx <- readMaybe (Char8.unpack idxs) -> Just (FromPaste key (Just idx))
   (GET, ["play", "versions"]) -> Just Versions
   (POST, ["play", "run"]) -> Just Run
+  (POST, ["play", "core"]) -> Just Core
+  (POST, ["play", "asm"]) -> Just Asm
   _ -> Nothing
 
 streamReadMaxN :: Int -> InputStream ByteString -> IO (Maybe ByteString)
@@ -57,7 +61,7 @@ streamReadMaxN maxlen stream = fmap mconcat <$> go 0
                          return Nothing
 
 handleRequest :: GlobalContext -> Context -> WhatRequest -> Snap ()
-handleRequest gctx (Context pool) = \case
+handleRequest gctx (Context pool) = \what -> case what of
   Index -> staticFile "text/html" "play.html"
 
   FromPaste key midx -> do
@@ -86,7 +90,7 @@ handleRequest gctx (Context pool) = \case
     versions <- liftIO availableVersions
     writeJSON $ JSArray (map (JSString . JSON.toJSString) versions)
 
-  Run -> do
+  _ -> do
     req <- getRequest
     isSpam <- liftIO $ recordCheckSpam Spam.PlayRunStart (gcSpam gctx) (rqClientAddr req)
     if isSpam
@@ -103,7 +107,12 @@ handleRequest gctx (Context pool) = \case
                       | Just (JSString (JSON.fromJSString -> source))  <- lookup "source" obj
                       , Just (JSString (JSON.fromJSString -> version)) <- lookup "version" obj
                       , Just (JSString (JSON.fromJSString -> opt))     <- lookup "opt" obj
-                      -> do res <- liftIO $ runInPool pool CRun (Version version) (read opt) source
+                      -> do runner <- case what of
+                                        Run -> pure CRun
+                                        Core -> pure CCore
+                                        Asm -> pure CAsm
+                                        _ -> fail ("Unexpexted what value: " <> show what)
+                            res <- liftIO $ runInPool pool runner (Version version) (read opt) source
                             case res of
                               Left err -> httpError 500 err
                               Right result -> do

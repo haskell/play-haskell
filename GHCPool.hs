@@ -43,10 +43,14 @@ availableVersions = do
   return ghc_versions
 
 data Command = CRun
+             | CCore
+             | CAsm
   deriving (Show)
 
 commandString :: Command -> String
 commandString CRun = "run"
+commandString CCore = "core"
+commandString CAsm = "asm"
 
 data Optimization = O0
                   | O1

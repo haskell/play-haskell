@@ -24,6 +24,16 @@ case "$command" in
 		ghcup --offline run --ghc ${version} -- ghc -o Main "${opt}" input.hs 2>/tmp/null 1>/tmp/null
 		./Main
 		;;
+	core)
+		cat >input.hs
+		ghcup --offline run --ghc ${version} -- ghc -ddump-simpl -ddump-to-file -o Main "${opt}" input.hs 2>/tmp/null 1>/tmp/null
+		cat input.dump-simpl
+		;;
+	asm)
+		cat >input.hs
+		ghcup --offline run --ghc ${version} -- ghc -ddump-asm -ddump-to-file -o Main "${opt}" input.hs 2>/tmp/null 1>/tmp/null
+		cat input.dump-asm
+		;;
 
 	*)
 		echo >&2 "Unknown command"

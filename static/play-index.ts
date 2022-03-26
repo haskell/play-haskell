@@ -26,6 +26,12 @@ type json =
 | json[]
 | {[key: string]: json}
 
+enum Runner {
+	Run = 0,
+	Core = 1,
+	Asm = 2
+}
+
 
 function performXHR(method: string, path: string, responseType: string, successcb: (response: json) => void, failcb: (xhr: XMLHttpRequest) => void, mcontentType?: string, mdata?: string) {
 	const xhr: XMLHttpRequest = new XMLHttpRequest();
@@ -70,10 +76,22 @@ function getVersions(cb: (response: string) => void) {
 	});
 }
 
-function sendRun(source: string, version: string, opt: string, cb: (response: json) => void) {
+function sendRun(source: string, version: string, opt: string, run: Runner, cb: (response: json) => void) {
 	const payload: string = JSON.stringify({source, version, opt});
 	setWorking(true);
-	performXHR("POST", "/play/run", "json",
+	let ep: string = null;
+	switch (run) {
+		case Runner.Run:
+			ep = "/play/run"
+			break;
+		case Runner.Core:
+			ep = "/play/core"
+			break;
+		case Runner.Asm:
+			ep = "/play/asm"
+			break;
+	}
+	performXHR("POST", ep, "json",
 		function(res: json) {
 			setWorking(false);
 			cb(res);
@@ -84,14 +102,14 @@ function sendRun(source: string, version: string, opt: string, cb: (response: js
 	);
 }
 
-function doRun() {
+function doRun(run: Runner) {
 	const source: string = (window as any).view.state.doc.toString();
 	let version = (document.getElementById("ghcversionselect") as any).value;
 	let opt = (document.getElementById("optselect") as any).value;
 	if (typeof version != "string" || version == "") version = "8.10.7";
 	if (typeof opt != "string" || version == "") opt = "O1";
 
-	sendRun(source, version, opt, function(response: {[key: string]: json}) {
+	sendRun(source, version, opt, run, function(response: {[key: string]: json}) {
 		const ecNote: HTMLElement = document.getElementById("exitcode-note");
 		if (response.ec != 0) {
 			ecNote.classList.remove("invisible");
@@ -134,4 +152,6 @@ window.addEventListener("load", function() {
 	})
 });
 
-document.getElementById("btn-run").addEventListener('click', doRun);
+document.getElementById("btn-run").addEventListener('click', () => { doRun(Runner.Run) });
+document.getElementById("btn-core").addEventListener('click', () => { doRun(Runner.Core) });
+document.getElementById("btn-asm").addEventListener('click', () => { doRun(Runner.Asm) });
