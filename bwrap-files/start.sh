@@ -6,16 +6,16 @@ cd "$filesdir"
 
 ghcup_base=$(ghcup whereis basedir)
 
-chroot=/home/hasufell/tmp/ubuntu
+chroot="${filesdir}/ubuntu-base"
 
 args=(
   --tmpfs /tmp
-  --ro-bind "${chroot}"/bin /bin
-  --ro-bind "${chroot}"/usr/bin /usr/bin
-  --ro-bind "${chroot}"/usr/lib /usr/lib
-  --ro-bind "${chroot}"/usr/include /usr/include
-  --ro-bind "${chroot}"/lib /lib
-  --ro-bind "${chroot}"/lib64 /lib64
+  --ro-bind "${chroot}/bin" /bin
+  --ro-bind "${chroot}/usr/bin" /usr/bin
+  --ro-bind "${chroot}/usr/lib" /usr/lib
+  --ro-bind "${chroot}/usr/include" /usr/include
+  --ro-bind "${chroot}/lib" /lib
+  --ro-bind "${chroot}/lib64" /lib64
   --dir "${ghcup_base}"
   --ro-bind "${ghcup_base}/bin"   "${ghcup_base}/bin"
   --ro-bind "${ghcup_base}/ghc"   "${ghcup_base}/ghc"
