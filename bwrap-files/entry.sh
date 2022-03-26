@@ -21,8 +21,8 @@ fi
 case "$command" in
 	run)
 		cat >input.hs
-		ghcup --offline run --ghc ${version} -- ghc -o Main "${opt}" input.hs 2>/tmp/null 1>/tmp/null
-		./Main
+		ghcup --offline run --ghc ${version} -- ghc -rtsopts -o Main "${opt}" input.hs 2>/tmp/null 1>/tmp/null
+		./Main +RTS -M100m -RTS
 		;;
 	core)
 		cat >input.hs
