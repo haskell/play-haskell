@@ -4,9 +4,7 @@
 {-# LANGUAGE TypeApplications #-}
 module Play (playModule) where
 
-import Data.Maybe
 import Control.Concurrent (getNumCapabilities)
-import Control.Monad
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Builder as BSB

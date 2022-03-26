@@ -16,13 +16,9 @@ module GHCPool (
 import Control.Concurrent
 import Control.Exception (evaluate)
 import Control.Monad (replicateM)
-import Data.Char (isDigit)
-import Data.List (sort)
 import qualified System.Clock as Clock
-import System.Directory (listDirectory)
-import System.Environment (getEnv)
 import System.Exit (ExitCode(..))
-import System.FilePath ((</>), takeFileName)
+import System.FilePath ((</>))
 import System.IO (hPutStr, hGetContents, hClose)
 import System.Posix.Directory (getWorkingDirectory)
 import qualified System.Process as Pr
