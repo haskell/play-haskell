@@ -1,9 +1,12 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE TypeApplications #-}
 module Play (playModule) where
 
+import Data.Maybe
 import Control.Concurrent (getNumCapabilities)
+import Control.Monad
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Builder as BSB
@@ -18,6 +21,7 @@ import qualified Text.JSON as JSON
 import Text.JSON (JSValue(..))
 import Text.JSON.String (runGetJSON)
 import Text.Read (readMaybe)
+import Safe
 
 import GHCPool
 import Paste.DB (getPaste, Contents(..))
@@ -106,13 +110,16 @@ handleRequest gctx (Context pool) = \what -> case what of
                     Right (JSObject (JSON.fromJSObject -> obj))
                       | Just (JSString (JSON.fromJSString -> source))  <- lookup "source" obj
                       , Just (JSString (JSON.fromJSString -> version)) <- lookup "version" obj
-                      , Just (JSString (JSON.fromJSString -> opt))     <- lookup "opt" obj
                       -> do runner <- case what of
                                         Run -> pure CRun
                                         Core -> pure CCore
                                         Asm -> pure CAsm
                                         _ -> fail ("Unexpexted what value: " <> show what)
-                            res <- liftIO $ runInPool pool runner (Version version) (read opt) source
+                            opt <- case lookup "opt" obj of
+                              Just (JSString (JSON.fromJSString -> opt))
+                                | Just opt' <- readMay @Optimization opt -> pure opt'
+                              _ -> pure O1
+                            res <- liftIO $ runInPool pool runner (Version version) opt source
                             case res of
                               Left err -> httpError 500 err
                               Right result -> do
