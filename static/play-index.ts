@@ -139,6 +139,8 @@ function doRun(run: Runner) {
 window.addEventListener("load", function() {
 	// // This is broken with the codemirror editor, of course, which rebinds
 	// // ctrl-enter to "insert blank line".
+	// // Note, if this is reinstated, please add a title= tooltip to the
+	// // relevant buttons in the html
 	// document.getElementById("editor").addEventListener("keypress", function(ev) {
 	//     if ((ev.key == "Enter" || ev.keyCode == 13) && ev.ctrlKey) {
 	//         doRun();
