@@ -1,5 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 module Play (playModule) where
 
@@ -18,6 +19,7 @@ import qualified Text.JSON as JSON
 import Text.JSON (JSValue(..))
 import Text.JSON.String (runGetJSON)
 import Text.Read (readMaybe)
+import Safe
 
 import GHCPool
 import Paste.DB (getPaste, Contents(..))
@@ -32,7 +34,7 @@ data WhatRequest
   = Index
   | FromPaste ByteString (Maybe Int)
   | Versions
-  | Run
+  | RunGHC Command
   deriving (Show)
 
 parseRequest :: Method -> [ByteString] -> Maybe WhatRequest
@@ -42,7 +44,9 @@ parseRequest method comps = case (method, comps) of
   (GET, ["play", "paste", key, idxs])
     | Just idx <- readMaybe (Char8.unpack idxs) -> Just (FromPaste key (Just idx))
   (GET, ["play", "versions"]) -> Just Versions
-  (POST, ["play", "run"]) -> Just Run
+  (POST, ["play", "run"]) -> Just (RunGHC CRun)
+  (POST, ["play", "core"]) -> Just (RunGHC CCore)
+  (POST, ["play", "asm"]) -> Just (RunGHC CAsm)
   _ -> Nothing
 
 streamReadMaxN :: Int -> InputStream ByteString -> IO (Maybe ByteString)
@@ -86,7 +90,7 @@ handleRequest gctx (Context pool) = \case
     versions <- liftIO availableVersions
     writeJSON $ JSArray (map (JSString . JSON.toJSString) versions)
 
-  Run -> do
+  RunGHC runner -> do
     req <- getRequest
     isSpam <- liftIO $ recordCheckSpam Spam.PlayRunStart (gcSpam gctx) (rqClientAddr req)
     if isSpam
@@ -100,11 +104,18 @@ handleRequest gctx (Context pool) = \case
                 Right postdata -> do
                   case runGetJSON JSON.readJSValue (UTF8.toString postdata) of
                     Right (JSObject (JSON.fromJSObject -> obj))
-                      | Just (JSString (JSON.fromJSString -> source)) <- lookup "source" obj
+                      | Just (JSString (JSON.fromJSString -> source))  <- lookup "source" obj
                       , Just (JSString (JSON.fromJSString -> version)) <- lookup "version" obj
-                      -> do res <- liftIO $ runInPool pool CRun (Version version) source
+                      -> do let opt | Just (JSString s) <- lookup "opt" obj
+                                    , Just opt' <- readMay @Optimization (JSON.fromJSString s)
+                                    = opt'
+                                    | otherwise
+                                    = O1
+                            res <- liftIO $ runInPool pool runner (Version version) opt source
                             case res of
-                              Left err -> httpError 500 err
+                              Left EQueueFull -> httpError 500 "The queue is currently full, try again later"
+                              Left ETimeOut ->
+                                writeJSON $ JSON.makeObj [("ec", JSRational False (-1))]
                               Right result -> do
                                 -- Record the run as a spam-checking action, but don't actually act
                                 -- on the return value yet; that will come on the next user action

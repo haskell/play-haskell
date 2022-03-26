@@ -4,56 +4,60 @@ module GHCPool (
   availableVersions,
   runTimeoutMicrosecs,
   Command(..),
+  Optimization(..),
   Version(..),
   Pool,
   makePool,
   Result(..),
+  RunPoolError(..),
   runInPool,
 ) where
 
 import Control.Concurrent
 import Control.Exception (evaluate)
 import Control.Monad (replicateM)
-import Data.Char (isDigit)
-import Data.List (sort)
 import qualified System.Clock as Clock
-import System.Directory (listDirectory)
-import System.Environment (getEnv)
 import System.Exit (ExitCode(..))
-import System.FilePath ((</>), takeFileName)
+import System.FilePath ((</>))
 import System.IO (hPutStr, hGetContents, hClose)
 import System.Posix.Directory (getWorkingDirectory)
 import qualified System.Process as Pr
 import System.Timeout (timeout)
+import Safe
+import Data.Maybe
 
 import Data.Queue (Queue)
 import qualified Data.Queue as Queue
 
-
-ghcupHomeDir :: IO String
-ghcupHomeDir = getEnv "HOME"
 
 runTimeoutMicrosecs :: Int
 runTimeoutMicrosecs = 5_000_000
 
 availableVersions :: IO [String]
 availableVersions = do
-  homedir <- ghcupHomeDir
-  files <- listDirectory (homedir </> ".ghcup" </> "bin")
-  return $ sort
-    [version
-    | f <- files
-    , let fname = takeFileName f
-    , let (prefix, version) = splitAt 4 fname
-    , prefix == "ghc-"
-    , all (\c -> isDigit c || c == '.') version
-    , filter (== '.') version == ".."]
+  out <- Pr.readCreateProcess (Pr.proc "ghcup" ["--offline", "list", "-t", "ghc", "-c", "installed", "-r"]) []
+  let ghc_versions = catMaybes $ fmap (`atMay` 1) $ fmap words $ lines out
+  return ghc_versions
 
 data Command = CRun
+             | CCore
+             | CAsm
   deriving (Show)
 
 commandString :: Command -> String
 commandString CRun = "run"
+commandString CCore = "core"
+commandString CAsm = "asm"
+
+data Optimization = O0
+                  | O1
+                  | O2
+  deriving (Show, Read)
+
+optimizationString :: Optimization -> String
+optimizationString O0 = "-O0"
+optimizationString O1 = "-O1"
+optimizationString O2 = "-O2"
 
 newtype Version = Version String deriving (Show)
 
@@ -69,7 +73,7 @@ data RunResult = TimeOut | Finished Result
   deriving (Show)
 
 data Worker = Worker ThreadId
-                     (MVar (Command, Version, String))  -- ^ input
+                     (MVar (Command, Optimization, Version, String))  -- ^ input
                      (MVar RunResult)  -- ^ output
 
 data PoolData = PoolData
@@ -84,16 +88,15 @@ makeWorker = do
   mvar <- newEmptyMVar
   resultvar <- newEmptyMVar
   thread <- forkIO $ do
-    homedir <- ghcupHomeDir
     workdir <- getWorkingDirectory
-    let spec = (Pr.proc (workdir </> "bwrap-files/start.sh") [homedir])
+    let spec = (Pr.proc (workdir </> "bwrap-files/start.sh") [])
                   { Pr.std_in = Pr.CreatePipe
                   , Pr.std_out = Pr.CreatePipe
                   , Pr.std_err = Pr.CreatePipe }
     Pr.withCreateProcess spec $ \(Just inh) (Just outh) (Just errh) proch -> do
-      (cmd, Version ver, source) <- readMVar mvar
+      (cmd, opt, Version ver, source) <- readMVar mvar
       _ <- forkIO $ do
-        hPutStr inh (commandString cmd ++ "\n" ++ ver ++ "\n" ++ source)
+        hPutStr inh (commandString cmd ++ "\n" ++ optimizationString opt ++ "\n" ++ ver ++ "\n" ++ source)
         hClose inh
       stdoutmvar <- newEmptyMVar
       _ <- forkIO $ hGetContents outh >>= evaluate . forceString >>= putMVar stdoutmvar
@@ -124,8 +127,11 @@ data ObtainedWorker = Obtained Worker
                     | Queued (MVar Worker)
                     | QueueFull
 
-runInPool :: Pool -> Command -> Version -> String -> IO (Either String Result)
-runInPool pool cmd ver source = do
+data RunPoolError = EQueueFull
+                  | ETimeOut
+
+runInPool :: Pool -> Command -> Version -> Optimization -> String -> IO (Either RunPoolError Result)
+runInPool pool cmd ver opt source = do
   result <- modifyMVar (pDataVar pool) $ \pd ->
               case pdAvailable pd of
                 w:ws ->
@@ -140,11 +146,11 @@ runInPool pool cmd ver source = do
   case result of
     Obtained worker -> useWorker worker
     Queued receptor -> readMVar receptor >>= useWorker
-    QueueFull -> return (Left "The queue is currently full, try again later")
+    QueueFull -> return (Left EQueueFull)
   where
-    useWorker :: Worker -> IO (Either String Result)
+    useWorker :: Worker -> IO (Either RunPoolError Result)
     useWorker (Worker _tid invar outvar) = do
-      putMVar invar (cmd, ver, source)
+      putMVar invar (cmd, opt, ver, source)
       result <- readMVar outvar
       _ <- forkIO $ do
         newWorker <- makeWorker
@@ -157,7 +163,7 @@ runInPool pool cmd ver source = do
               return pd { pdAvailable = newWorker : pdAvailable pd }
       case result of
         Finished res -> return (Right res)
-        TimeOut -> return (Left "Running your code resulted in a timeout")
+        TimeOut -> return (Left ETimeOut)
 
 forceString :: String -> String
 forceString = foldr seq >>= id

@@ -4,4 +4,4 @@ node_modules/
 static/bundle.js
 static/play-index.js
 static/package-lock.json
-
+bwrap-files/ubuntu-base/
