@@ -62,12 +62,24 @@ function performXHR(method: string, path: string, responseType: string, successc
 }
 
 function setWorking(yes: boolean) {
-	let elt: HTMLElement = document.getElementById("btn-run");
-	if (yes) elt.setAttribute("disabled", ""); else elt.removeAttribute("disabled");
+	const btns: Element[] = Array.from(document.getElementsByClassName("button"));
+	const rightspinner: HTMLElement = document.getElementById("output-spinner");
+	const rightoutput: HTMLElement = document.getElementById("output-pane");
+	if (yes) {
+		btns.forEach(btn => {
+			btn.setAttribute("disabled", "");
+		});
+		rightspinner.classList.remove("invisible");
+		rightoutput.classList.add("invisible");
+	} else {
+		btns.forEach(btn => {
+			btn.removeAttribute("disabled");
+		});
+		rightspinner.classList.add("invisible");
+		rightoutput.classList.remove("invisible");
+	}
 
-	elt = document.getElementById("rightcol");
-	if (yes) elt.classList.add("greytext");
-	else elt.classList.remove("greytext");
+// <div class="lds-roller"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
 }
 
 function getVersions(cb: (response: string) => void) {
@@ -76,8 +88,8 @@ function getVersions(cb: (response: string) => void) {
 	});
 }
 
-function sendRun(source: string, version: string, opt: string, run: Runner, cb: (response: json) => void) {
-	const payload: string = JSON.stringify({source, version, opt});
+function sendRun(source: string, version: string, opt: string, run: Runner, cb: (response: json) => void, input?: string) {
+	const payload: string = JSON.stringify({source, version, opt, input});
 	setWorking(true);
 	let ep: string = null;
 	switch (run) {
