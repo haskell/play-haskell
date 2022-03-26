@@ -9,3 +9,4 @@ Play:
 - Stretch goal: ghci on the playground module?
 - Haskell syntax highlighting in codemirror
 - Button for code formatting using a formatter
+- Memory limit using ulimit
