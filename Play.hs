@@ -121,7 +121,9 @@ handleRequest gctx (Context pool) = \what -> case what of
                               _ -> pure O1
                             res <- liftIO $ runInPool pool runner (Version version) opt source
                             case res of
-                              Left err -> httpError 500 err
+                              Left EQueueFull -> httpError 500 "The queue is currently full, try again later"
+                              Left ETimeOut ->
+                                writeJSON $ JSON.makeObj [("ec", JSRational False (-1))]
                               Right result -> do
                                 -- Record the run as a spam-checking action, but don't actually act
                                 -- on the return value yet; that will come on the next user action

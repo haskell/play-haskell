@@ -9,6 +9,7 @@ module GHCPool (
   Pool,
   makePool,
   Result(..),
+  RunPoolError(..),
   runInPool,
 ) where
 
@@ -130,7 +131,10 @@ data ObtainedWorker = Obtained Worker
                     | Queued (MVar Worker)
                     | QueueFull
 
-runInPool :: Pool -> Command -> Version -> Optimization -> String -> IO (Either String Result)
+data RunPoolError = EQueueFull
+                  | ETimeOut
+
+runInPool :: Pool -> Command -> Version -> Optimization -> String -> IO (Either RunPoolError Result)
 runInPool pool cmd ver opt source = do
   result <- modifyMVar (pDataVar pool) $ \pd ->
               case pdAvailable pd of
@@ -146,9 +150,9 @@ runInPool pool cmd ver opt source = do
   case result of
     Obtained worker -> useWorker worker
     Queued receptor -> readMVar receptor >>= useWorker
-    QueueFull -> return (Left "The queue is currently full, try again later")
+    QueueFull -> return (Left EQueueFull)
   where
-    useWorker :: Worker -> IO (Either String Result)
+    useWorker :: Worker -> IO (Either RunPoolError Result)
     useWorker (Worker _tid invar outvar) = do
       putMVar invar (cmd, opt, ver, source)
       result <- readMVar outvar
@@ -163,7 +167,7 @@ runInPool pool cmd ver opt source = do
               return pd { pdAvailable = newWorker : pdAvailable pd }
       case result of
         Finished res -> return (Right res)
-        TimeOut -> return (Left "Running your code resulted in a timeout")
+        TimeOut -> return (Left ETimeOut)
 
 forceString :: String -> String
 forceString = foldr seq >>= id

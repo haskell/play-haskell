@@ -123,7 +123,10 @@ function doRun(run: Runner) {
 
 	sendRun(source, version, opt, run, function(response: {[key: string]: json}) {
 		const ecNote: HTMLElement = document.getElementById("exitcode-note");
-		if (response.ec != 0) {
+		if (response.ec === -1) {
+			ecNote.classList.remove("invisible");
+			ecNote.textContent = "Command timed out :(";
+		} else if (response.ec != 0) {
 			ecNote.classList.remove("invisible");
 			ecNote.textContent = "Command exited with code " + response.ec + ".";
 		} else {
