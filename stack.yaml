@@ -1,0 +1,10 @@
+resolver: lts-18.28
+
+packages:
+- .
+
+extra-deps:
+- libarchive-3.0.3.2@sha256:cb34d5105720c02a7d167250ae2b674dcf23d3406530f4f8bcae7e05a2748845,12836
+- chs-cabal-0.1.1.0
+- chs-deps-0.1.0.0@sha256:0cdada6d2c682c41b20331b8c63c2ecfc7e806928585195fd544c9d41f3074fd,2496
+- composition-prelude-3.0.0.2@sha256:1ffed216bd28d810fce0b5be83a661e2a892696d73b3f8de5c0f5edb9b5f0090,1216
