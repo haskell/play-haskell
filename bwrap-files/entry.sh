@@ -21,17 +21,17 @@ fi
 case "$command" in
 	run)
 		cat >input.hs
-		ghcup --offline run --ghc "${version}" -- ghc -rtsopts -o Main "${opt}" input.hs 2>/tmp/null 1>/tmp/null
+		ghcup --offline run --ghc "${version}" -- ghc -rtsopts -o Main "${opt}" input.hs 2>/tmp/ghc.err 1>/tmp/ghc.out || { err=$? ; >&2 cat /tmp/ghc.err ; cat /tmp/ghc.out ; exit $err ; } 
 		./Main +RTS -M100m -RTS
 		;;
 	core)
 		cat >input.hs
-		ghcup --offline run --ghc "${version}" -- ghc -ddump-simpl -ddump-to-file -o Main "${opt}" input.hs 2>/tmp/null 1>/tmp/null
+		ghcup --offline run --ghc "${version}" -- ghc -ddump-simpl -ddump-to-file -o Main "${opt}" input.hs 2>/tmp/null 1>/tmp/null || { err=$? ; >&2 cat /tmp/ghc.err ; cat /tmp/ghc.out ; exit $err ; }
 		cat input.dump-simpl
 		;;
 	asm)
 		cat >input.hs
-		ghcup --offline run --ghc "${version}" -- ghc -ddump-asm -ddump-to-file -o Main "${opt}" input.hs 2>/tmp/null 1>/tmp/null
+		ghcup --offline run --ghc "${version}" -- ghc -ddump-asm -ddump-to-file -o Main "${opt}" input.hs 2>/tmp/null 1>/tmp/null || { err=$? ; >&2 cat /tmp/ghc.err ; cat /tmp/ghc.out ; exit $err ; }
 		cat input.dump-asm
 		;;
 
