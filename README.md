@@ -40,8 +40,10 @@ Please don't abuse, but then the whole service is "please don't abuse".
     # Change "-r 60" to "-r 3600" in /etc/default/earlyoom (less spammy logs)
     sudo systemctl restart earlyoom
 
+    sudo apt install build-essential curl libffi-dev libffi7 libgmp-dev libgmp10 libncurses-dev libncurses5 libtinfo5
     # Install ghcup: https://www.haskell.org/ghcup/ (skip HLS and stack)
     # Open a new terminal to get ghcup in PATH
 
+    sudo apt install zlib1g-dev pkg-config libarchive-dev
     make  # equivalent to `make chroot frontend-dependencies frontend`
     cabal run
