@@ -32,3 +32,16 @@ number of files to paste. An empty filename results in a file without a name on
 the paste read page.
 
 Please don't abuse, but then the whole service is "please don't abuse".
+
+
+# Playground
+
+    sudo apt update && sudo apt install earlyoom bubblewrap make npm
+    # Change "-r 60" to "-r 3600" in /etc/default/earlyoom (less spammy logs)
+    sudo systemctl restart earlyoom
+
+    # Install ghcup: https://www.haskell.org/ghcup/ (skip HLS and stack)
+    # Open a new terminal to get ghcup in PATH
+
+    make  # equivalent to `make chroot frontend-dependencies frontend`
+    cabal run
