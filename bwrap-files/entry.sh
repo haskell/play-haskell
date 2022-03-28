@@ -18,20 +18,24 @@ if ! ghcup --offline whereis ghc "${version}" 2>/tmp/null 1>/tmp/null ; then
 	exit 1
 fi
 
+function ghcup_run() {
+	ghcup --offline run --ghc "$version" -- "$@" 1>/tmp/ghc.out 2>/tmp/ghc.err || { err=$? ; cat /tmp/ghc.out ; cat /tmp/ghc.err >&2 ; exit $err ; }
+}
+
 case "$command" in
 	run)
 		cat >input.hs
-		ghcup --offline run --ghc "${version}" -- ghc -rtsopts -o Main "${opt}" input.hs 2>/tmp/null 1>/tmp/null
+		ghcup_run ghc -rtsopts -o Main "${opt}" input.hs
 		./Main +RTS -M100m -RTS
 		;;
 	core)
 		cat >input.hs
-		ghcup --offline run --ghc "${version}" -- ghc -ddump-simpl -ddump-to-file -o Main "${opt}" input.hs 2>/tmp/null 1>/tmp/null
+		ghcup_run ghc -ddump-simpl -ddump-to-file -o Main "${opt}" input.hs
 		cat input.dump-simpl
 		;;
 	asm)
 		cat >input.hs
-		ghcup --offline run --ghc "${version}" -- ghc -ddump-asm -ddump-to-file -o Main "${opt}" input.hs 2>/tmp/null 1>/tmp/null
+		ghcup_run ghc -ddump-asm -ddump-to-file -o Main "${opt}" input.hs
 		cat input.dump-asm
 		;;
 
