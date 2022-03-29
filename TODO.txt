@@ -10,3 +10,5 @@ Play:
 - Haskell syntax highlighting in codemirror
 - Button for code formatting using a formatter
 - Memory limit using ulimit
+- Handshake in run call to avoid calling ghc for spurious POSTs
+- Default -N to get host parallelism
