@@ -20,6 +20,11 @@ body {
 	flex-grow: 1;
 	display: flex;
 	flex-direction: row;
+
+	/* ensure #main only grows until the body is full and no further, even if
+	   the contents are larger than what would normally fit
+	   https://www.w3.org/TR/css-flexbox-1/#min-size-auto */
+	min-height: 0;
 }
 header {
 	padding: 5px;
@@ -52,6 +57,7 @@ header {
 	background-color: #eee;
 	width: 50%;
 	font-size: x-large;
+	overflow-y: scroll;
 }
 #rightcol pre {
 	background-color: #fafafa;
