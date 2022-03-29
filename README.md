@@ -36,6 +36,8 @@ Please don't abuse, but then the whole service is "please don't abuse".
 
 # Playground
 
+On ubuntu (though 20.04 doesn't work because libarchive is too old)
+
     sudo apt update && sudo apt install earlyoom bubblewrap make npm
     # Change "-r 60" to "-r 3600" in /etc/default/earlyoom (less spammy logs)
     sudo systemctl restart earlyoom
@@ -45,5 +47,24 @@ Please don't abuse, but then the whole service is "please don't abuse".
     # Open a new terminal to get ghcup in PATH
 
     sudo apt install zlib1g-dev pkg-config libarchive-dev
-    make  # equivalent to `make chroot frontend-dependencies frontend`
+    make  # equivalent to `make chroot frontend-dependencies frontend`; note, `make chroot` is interactive
     cabal run
+
+Or on arch linux:
+
+    sudo pacman -Syu earlyoom bubblewrap make npm
+    sudo systemctl enable --now earlyoom
+
+    sudo pacman -S base-devel
+    # Install ghcup: https://www.haskell.org/ghcup/ (skip HLS and stack)
+    # Open a new terminal to get ghcup in PATH
+
+    make  # equivalent to `make chroot frontend-dependencies frontend`; note, `make chroot` is interactive
+    cabal run
+
+Optionally, if the machine you're building on does not have enough RAM, do this and use `cabal build -j1`:
+
+    sudo fallocate -l 4G /swapfile
+    sudo chmod go-rw /swapfile
+    sudo mkswap /swapfile
+    sudo swapon /swapfile
