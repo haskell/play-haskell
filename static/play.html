@@ -62,18 +62,30 @@ header {
 #rightcol pre {
 	background-color: #fafafa;
 }
+
+#rightcol:not(.loading) div#output-spinner {
+	display: none;
+}
+
+#rightcol.loading div#output-pane {
+	display: none;
+}
+
+#rightcol.loading div#rightcol-body {
+	display: flex;
+	align-items: center;
+	overflow: hidden;
+}
+
 .invisible {
 	display: none !important;
 }
 .lds-roller {
   display: block;
-  position: block;
   width: 80px;
   height: 80px;
   margin-left: auto;
   margin-right: auto;
-  margin-top: 50%;
-  margin-bottom: 50%;
 }
 .lds-roller div {
   animation: lds-roller 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
@@ -185,7 +197,7 @@ header {
 		<div id=editor></div>
 	</div>
 	<div id="rightcol">	
-		<div id="output-spinner" class="lds-roller invisible"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
+		<div id="output-spinner" class="lds-roller"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
 		<div id="output-pane">
 			<div id="exitcode-note" class="invisible"></div>
 			<div style="border-bottom: 1px #ccc solid">Errors</div>

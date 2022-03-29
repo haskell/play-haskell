@@ -63,20 +63,17 @@ function performXHR(method: string, path: string, responseType: string, successc
 
 function setWorking(yes: boolean) {
 	const btns: Element[] = Array.from(document.getElementsByClassName("button"));
-	const rightspinner: HTMLElement = document.getElementById("output-spinner");
-	const rightoutput: HTMLElement = document.getElementById("output-pane");
+	const rightcol: HTMLElement = document.getElementById("rightcol");
 	if (yes) {
 		btns.forEach(btn => {
 			btn.setAttribute("disabled", "");
 		});
-		rightspinner.classList.remove("invisible");
-		rightoutput.classList.add("invisible");
+		rightcol.classList.add("loading");
 	} else {
 		btns.forEach(btn => {
 			btn.removeAttribute("disabled");
 		});
-		rightspinner.classList.add("invisible");
-		rightoutput.classList.remove("invisible");
+		rightcol.classList.remove("loading");
 	}
 }
 
