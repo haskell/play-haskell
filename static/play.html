@@ -52,17 +52,19 @@ header {
 	flex-grow: 1;
 }
 #leftcol {
-	padding: 5px;
 	width: 50%;
 }
 #rightcol {
 	padding: 5px;
 	background-color: #eee;
 	width: 50%;
-	font-size: x-large;
+}
+#rightcol-body {
+	height: 100%;
+	font-size: large;
 	overflow-y: scroll;
 }
-#rightcol pre {
+#rightcol-body pre {
 	background-color: #fafafa;
 }
 
@@ -171,7 +173,7 @@ header {
 .cm-editor {
 	height: 100%;
 	border: 1px solid #ddd;
-	font-size: x-large;
+	font-size: large;
 }
 .cm-scroller { overflow: auto; }
 #exitcode {
@@ -199,14 +201,16 @@ header {
 	<div id="leftcol">	
 		<div id=editor></div>
 	</div>
-	<div id="rightcol">	
-		<div id="output-spinner" class="lds-roller"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
-		<div id="output-pane">
-			<div id="exitcode-note" class="invisible"></div>
-			<div style="border-bottom: 1px #ccc solid">Errors</div>
-			<pre id="out-stderr"></pre>
-			<div style="border-bottom: 1px #ccc solid">Output</div>
-			<pre id="out-stdout"></pre>
+	<div id="rightcol">
+		<div id="rightcol-body">
+			<div id="output-spinner" class="lds-roller"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
+			<div id="output-pane">
+				<div id="exitcode-note" class="invisible"></div>
+				<div style="border-bottom: 1px #ccc solid">Errors</div>
+				<pre id="out-stderr"></pre>
+				<div style="border-bottom: 1px #ccc solid">Output</div>
+				<pre id="out-stdout"></pre>
+			</div>
 		</div>
 	</div>
 </div>
