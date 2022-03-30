@@ -185,7 +185,15 @@ header {
 	height: 100%;
 }
 </style>
-<script type="module" src="bundle.js"></script>
+<script>
+{{#preload}}
+preload_script = {{&preload}};
+{{/preload}}
+{{^preload}}
+preload_script = null;
+{{/preload}}
+</script>
+<script type="module" src="/bundle.js"></script>
 </head>
 <body>
 <header>

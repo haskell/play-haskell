@@ -22,6 +22,7 @@ import Text.Read (readMaybe)
 import Safe
 
 import GHCPool
+import Pages
 import Paste.DB (getPaste, Contents(..))
 import ServerModule
 import SpamDetect hiding (Action(..))
@@ -62,18 +63,23 @@ streamReadMaxN maxlen stream = fmap mconcat <$> go 0
 
 handleRequest :: GlobalContext -> Context -> WhatRequest -> Snap ()
 handleRequest gctx (Context pool) = \case
-  Index -> staticFile "text/html" "play.html"
+  Index -> do
+    renderer <- liftIO $ getPageFromGCtx pPlay gctx
+    writeHTML (renderer Nothing)
 
   FromPaste key midx -> do
     res <- liftIO $ getPaste (gcDb gctx) key
+    let buildPage contents = do
+          renderer <- liftIO $ getPageFromGCtx pPlay gctx
+          writeHTML (renderer (Just contents))
     case (res, midx) of
       -- TODO: Actually put this in a playground page instead of returning the text as-is
       (Just (_, Contents ((_, source):_) _ _), Nothing) ->
-        writeBS source
+        buildPage source
       (Just (_, Contents l _ _), Just idx)
         | idx >= 1
         , (_, source) : _ <- drop (idx - 1) l ->
-            writeBS source
+            buildPage source
 
       (Just (_, Contents [] _ _), Nothing) -> do
         modifyResponse (setContentType (Char8.pack "text/plain"))

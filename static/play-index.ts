@@ -1,7 +1,7 @@
 import {EditorState, EditorView, basicSetup} from "@codemirror/basic-setup";
 import {javascript} from "@codemirror/lang-javascript";
 
-const snippets: string[] = [
+const example_snippets: string[] = [
 	`import Data.List (partition)
 
 main :: IO ()
@@ -61,9 +61,13 @@ merge xs []         = xs
 merge (x:xs) (y:ys)
   | x <= y          = x : merge xs (y:ys)
   | otherwise       = y : merge (x:xs) ys`
-]
+];
 
-let state = EditorState.create({doc: snippets[Math.floor(Math.random() * 3)], extensions: [
+// defined in a <script> block in play.mustache
+declare var preload_script: string | null;
+const snippet = preload_script != null ? preload_script : example_snippets[Math.floor(Math.random() * 3)];
+
+const state = EditorState.create({doc: snippet, extensions: [
   basicSetup,
   javascript(),
 ]});

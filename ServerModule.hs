@@ -51,5 +51,10 @@ staticFile mime path = do
     modifyResponse (applyStaticFileHeaders mime)
     sendFile ("static" </> path)
 
+writeHTML :: MonadSnap m => ByteString -> m ()
+writeHTML bs = do
+    modifyResponse $ setContentType (Char8.pack "text/html; charset=utf-8")
+    writeBS bs
+
 getPageFromGCtx :: (Pages -> a) -> GlobalContext -> IO a
 getPageFromGCtx f gctx = f <$> readTVarIO (gcPagesVar gctx)

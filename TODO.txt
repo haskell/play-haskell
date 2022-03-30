@@ -5,7 +5,6 @@ Play:
 - Hotkey for Run
 - Create paste from playground
   - It can return the text of a paste file as text/plain, but now also in a playground window
-- Create playground from paste
 - Stretch goal: ghci on the playground module?
 - Haskell syntax highlighting in codemirror
 - Button for code formatting using a formatter

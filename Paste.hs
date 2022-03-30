@@ -45,11 +45,6 @@ genKey gen =
         intoAlphabet n = BS.index alphabet (fromIntegral n `rem` BS.length alphabet)
     in (BS.map intoAlphabet bs, gen')
 
-writeHTML :: MonadSnap m => ByteString -> m ()
-writeHTML bs = do
-    modifyResponse $ setContentType "text/html; charset=utf-8"
-    writeBS bs
-
 data Context = Context
     { cHighlightCSS :: ByteString }
 
