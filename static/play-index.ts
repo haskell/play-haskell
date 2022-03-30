@@ -1,18 +1,69 @@
 import {EditorState, EditorView, basicSetup} from "@codemirror/basic-setup";
 import {javascript} from "@codemirror/lang-javascript";
 
-let state = EditorState.create({doc: `main :: IO ()
+const snippets: string[] = [
+	`import Data.List (partition)
+
+main :: IO ()
 main = do
   let unsorted = [10,9..1]
   putStrLn $ show $ quicksort unsorted
 
 quicksort :: Ord a => [a] -> [a]
 quicksort []     = []
-quicksort (x:xs) = let lesser  = filter (< x) xs
-                       greater = filter (> x) xs
-                   in quicksort lesser ++ [x] ++ quicksort greater
+quicksort (x:xs) = let (lesser, greater) = partition (<= x) xs
+                   in quicksort lesser ++ [x] ++ quicksort greater`,
+	`import Data.Bifunctor (first, second)
 
-`, extensions: [
+main :: IO ()
+main = do
+  let unsorted = [10,9..1]
+  putStrLn $ show $ mergesort unsorted
+
+mergesort :: Ord a => [a] -> [a]
+mergesort [] = []
+mergesort [x] = [x]
+mergesort l =
+  let toleft []      = ([], [])
+      toleft (x:xs)  = first (x :) (toright xs)
+      toright []     = ([], [])
+      toright (x:xs) = second (x :) (toright xs)
+      (l1, l2) = toleft l
+  in mergesort l1 \`merge\` mergesort l2
+
+merge :: Ord a => [a] -> [a] -> [a]
+merge [] ys         = ys
+merge xs []         = xs
+merge (x:xs) (y:ys)
+  | x <= y          = x : merge xs (y:ys)
+  | otherwise       = y : merge (x:xs) ys`,
+	`main :: IO ()
+main = do
+  let unsorted = [10,9..1]
+  putStrLn $ show $ mergesort unsorted
+
+mergesort :: Ord a => [a] -> [a]
+mergesort = mergeUp . map pure
+  where
+    mergeUp :: Ord a => [[a]] -> [a]
+    mergeUp []      = []
+    mergeUp [chunk] = chunk
+    mergeUp chunks  = mergeUp (map (uncurry merge) (pairs chunks))
+
+    pairs :: Monoid a => [a] -> [(a, a)]
+    pairs []        = []
+    pairs [x]       = [(x, mempty)]
+    pairs (x:y:xs)  = (x, y) : pairs xs
+
+merge :: Ord a => [a] -> [a] -> [a]
+merge [] ys         = ys
+merge xs []         = xs
+merge (x:xs) (y:ys)
+  | x <= y          = x : merge xs (y:ys)
+  | otherwise       = y : merge (x:xs) ys`
+]
+
+let state = EditorState.create({doc: snippets[Math.floor(Math.random() * 3)], extensions: [
   basicSetup,
   javascript(),
 ]});
