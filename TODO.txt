@@ -13,3 +13,7 @@ Play:
 - Handshake in run call to avoid calling ghc for spurious POSTs
 - Default -N to get host parallelism
 - Randomise initial code?
+- Resizable code/output panes
+- Tab key doesn't work in code pane
+- Vim bindings for code pane?
+  - Perhaps using this: https://codemirror.net/6/docs/ref/#state.StateEffect%5Ereconfigure
