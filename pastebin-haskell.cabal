@@ -19,11 +19,11 @@ executable pastebin-haskell
     Data.Queue
     GHCPool
     Options
+    Pages
     Paste
     Paste.Archive
     Paste.DB
     Paste.HighlightCSS
-    Paste.Pages
     Play
     ServerModule
     SpamDetect

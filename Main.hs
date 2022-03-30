@@ -1,5 +1,6 @@
 module Main (main) where
 
+import Control.Concurrent.STM
 import Control.Monad
 import Data.Bifunctor (first)
 import qualified Data.ByteString as BS
@@ -18,6 +19,7 @@ import qualified System.Posix.Signals as Signal
 import qualified Options as Opt
 import Paste
 import Paste.DB (withDatabase)
+import Pages
 import Play
 import ServerModule
 import SpamDetect
@@ -25,8 +27,7 @@ import SpamDetect
 
 data InstantiatedModule = InstantiatedModule
     { imHandler :: Method -> [ByteString] -> Maybe (Snap ())
-    , imStatics :: Map ByteString MimeType
-    , imRefreshPages :: IO () }
+    , imStatics :: Map ByteString MimeType }
 
 instantiate :: GlobalContext -> Options -> ServerModule -> (InstantiatedModule -> IO ()) -> IO ()
 instantiate gctx options m k =
@@ -34,14 +35,12 @@ instantiate gctx options m k =
       ServerModule { smMakeContext = make
                    , smParseRequest = parse
                    , smHandleRequest = handle
-                   , smStaticFiles = statics
-                   , smReloadPages = refresh } ->
+                   , smStaticFiles = statics } ->
           make gctx options $ \ctx ->
               k $ InstantiatedModule
                     { imHandler = \method path ->
                                       (\req -> handle gctx ctx req) <$> parse method path
-                    , imStatics = Map.fromList (map (first Char8.pack) statics)
-                    , imRefreshPages = refresh ctx }
+                    , imStatics = Map.fromList (map (first Char8.pack) statics) }
 
 instantiates :: GlobalContext -> Options -> [ServerModule] -> ([InstantiatedModule] -> IO ()) -> IO ()
 instantiates _ _ [] f = f []
@@ -67,6 +66,11 @@ handleStaticFiles ms [component] =
     [] -> Nothing
     _ -> error $ "Multiple handlers for the same static file:" ++ show component
 handleStaticFiles _ _ = Nothing
+
+refreshPages :: TVar Pages -> IO ()
+refreshPages var = do
+    pagesFromDisk >>= atomically . writeTVar var
+    putStrLn "Reloaded pages"
 
 server :: Options -> [InstantiatedModule] -> Snap ()
 server options modules = do
@@ -105,14 +109,16 @@ main = do
         ,("-h", Opt.Help)]
 
     spam <- initSpamDetect
+    pagesvar <- pagesFromDisk >>= newTVarIO
+
+    _ <- Signal.installHandler Signal.sigUSR1 (Signal.Catch (refreshPages pagesvar)) Nothing
 
     withDatabase (oDBDir options) $ \db -> do
         let gctx = GlobalContext
                      { gcSpam = spam
-                     , gcDb = db }
+                     , gcDb = db
+                     , gcPagesVar = pagesvar }
 
         let modules = [pasteModule, playModule]
         instantiates gctx options modules $ \modules' -> do
-            forM_ modules' $ \m ->
-                void $ Signal.installHandler Signal.sigUSR1 (Signal.Catch (imRefreshPages m)) Nothing
             httpServe config (server options modules')

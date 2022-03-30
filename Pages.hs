@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TypeApplications #-}
-module Paste.Pages (
+module Pages (
     Pages(..), pagesFromDisk
 ) where
 

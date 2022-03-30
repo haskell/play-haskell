@@ -1,6 +1,7 @@
 {-# LANGUAGE ExistentialQuantification #-}
 module ServerModule where
 
+import Control.Concurrent.STM (TVar, readTVarIO)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as Char8
 import Data.String (fromString)
@@ -8,6 +9,7 @@ import Snap.Core hiding (path)
 import System.FilePath ((</>))
 
 import Paste.DB (Database)
+import Pages (Pages)
 import SpamDetect
 
 
@@ -21,7 +23,8 @@ defaultOptions = Options False "."
 
 data GlobalContext = GlobalContext
   { gcSpam :: SpamDetect ByteString
-  , gcDb :: Database }
+  , gcDb :: Database
+  , gcPagesVar :: TVar Pages }
 
 type MimeType = String
 
@@ -30,8 +33,7 @@ data ServerModule =
         { smMakeContext :: GlobalContext -> Options -> (ctx -> IO ()) -> IO ()  -- bracket
         , smParseRequest :: Method -> [ByteString] -> Maybe req
         , smHandleRequest :: GlobalContext -> ctx -> req -> Snap ()
-        , smStaticFiles :: [(FilePath, MimeType)]
-        , smReloadPages :: ctx -> IO () }
+        , smStaticFiles :: [(FilePath, MimeType)] }
 
 
 httpError :: Int -> String -> Snap ()
@@ -48,3 +50,6 @@ staticFile :: String -> FilePath -> Snap ()
 staticFile mime path = do
     modifyResponse (applyStaticFileHeaders mime)
     sendFile ("static" </> path)
+
+getPageFromGCtx :: (Pages -> a) -> GlobalContext -> IO a
+getPageFromGCtx f gctx = f <$> readTVarIO (gcPagesVar gctx)

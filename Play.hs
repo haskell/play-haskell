@@ -139,7 +139,6 @@ playModule = ServerModule
   , smParseRequest = parseRequest
   , smHandleRequest = handleRequest
   , smStaticFiles = [("bundle.js", "text/javascript")]
-  , smReloadPages = \_ -> return ()
   }
 
 writeJSON :: JSValue -> Snap ()

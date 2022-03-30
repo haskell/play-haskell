@@ -24,7 +24,7 @@ import Paste.Archive
 import qualified Paste.DB as DB
 import Paste.DB (Database, ClientAddr, KeyType, Contents(..))
 import Paste.HighlightCSS
-import Paste.Pages
+import Pages
 import ServerModule
 import SpamDetect hiding (Action(..))
 import qualified SpamDetect as Spam (Action(..))
@@ -54,15 +54,12 @@ data Context = Context
     { cHighlightCSS :: ByteString }
 
 data State = State
-    { sRandGen :: StdGen
-    , sPages :: Pages }
+    { sRandGen :: StdGen }
 
 type AtomicState = TVar State
 
-newState :: StdGen -> Pages -> State
-newState randgen pages =
-    State { sRandGen = randgen
-          , sPages = pages }
+newState :: StdGen -> State
+newState randgen = State { sRandGen = randgen }
 
 genKey' :: AtomicState -> IO KeyType
 genKey' var = atomically $ do
@@ -70,10 +67,6 @@ genKey' var = atomically $ do
     let (key, gen') = genKey (sRandGen state)
     writeTVar var (state { sRandGen = gen' })
     return key
-
-stateGetPage :: (Pages -> a) -> AtomicState -> IO a
-stateGetPage f stvar =
-    f . sPages <$> readTVarIO stvar
 
 -- returns the generated key, or an error string
 genStorePaste :: GlobalContext -> AtomicState -> ClientAddr -> Contents -> IO (Either String KeyType)
@@ -91,14 +84,14 @@ genStorePaste gctx stvar srcip contents =
 getPaste :: GlobalContext -> KeyType -> IO (Maybe (Maybe POSIXTime, Contents))
 getPaste gctx = DB.getPaste (gcDb gctx)
 
-indexResponse :: AtomicState -> Contents -> IO ByteString
-indexResponse stvar contents = do
-    renderer <- stateGetPage pIndex stvar
+indexResponse :: GlobalContext -> Contents -> IO ByteString
+indexResponse gctx contents = do
+    renderer <- getPageFromGCtx pIndex gctx
     return $ renderer contents
 
-pasteReadResponse :: AtomicState -> KeyType -> Maybe POSIXTime -> Contents -> IO ByteString
-pasteReadResponse stvar key mdate contents = do
-    renderer <- stateGetPage pPasteRead stvar
+pasteReadResponse :: GlobalContext -> KeyType -> Maybe POSIXTime -> Contents -> IO ByteString
+pasteReadResponse gctx key mdate contents = do
+    renderer <- getPageFromGCtx pPasteRead gctx
     now <- getPOSIXTime
     return $ renderer now key mdate contents
 
@@ -160,16 +153,16 @@ parseRequest method comps =
 
 handleRequest :: GlobalContext -> Context -> AtomicState -> WhatRequest -> Snap ()
 handleRequest gctx context stvar = \case
-    GetIndex -> liftIO (indexResponse stvar (Contents [] Nothing Nothing)) >>= writeHTML
+    GetIndex -> liftIO (indexResponse gctx (Contents [] Nothing Nothing)) >>= writeHTML
     EditPaste key -> do
         liftIO (getPaste gctx key) >>= \case
             Just (_, Contents files _ _) ->
                 -- Replace parent (if any) with the edited paste
-                liftIO (indexResponse stvar (Contents files (Just key) Nothing)) >>= writeHTML
+                liftIO (indexResponse gctx (Contents files (Just key) Nothing)) >>= writeHTML
             Nothing -> httpError 404 "Paste not found"
     ReadPaste key -> do
         liftIO (getPaste gctx key) >>= \case
-            Just (mdate, contents) -> liftIO (pasteReadResponse stvar key mdate contents) >>= writeHTML
+            Just (mdate, contents) -> liftIO (pasteReadResponse gctx key mdate contents) >>= writeHTML
             Nothing -> httpError 404 "Paste not found"
     ReadPasteRaw key idx -> do
         liftIO (getPaste gctx key) >>= \case
@@ -222,12 +215,6 @@ handleRequest gctx context stvar = \case
       | otherwise = do
           httpError 400 "Paste too large"
 
-refreshPages :: AtomicState -> IO ()
-refreshPages stvar = do
-    pages <- pagesFromDisk
-    atomically $ modifyTVar stvar $ \state -> state { sPages = pages }
-    putStrLn "Reloaded pages"
-
 startExpiredRemoveService :: Database -> IO ()
 startExpiredRemoveService db = void $ forkIO $ forever $ do
     threadDelay (6 * 3600 * 1000000)  -- 6 hours
@@ -241,8 +228,7 @@ pasteModule = ServerModule
 
           -- Create state
           randgen <- newStdGen
-          pages <- pagesFromDisk
-          stvar <- newTVarIO (newState randgen pages)
+          stvar <- newTVarIO (newState randgen)
 
           -- Start services
           startExpiredRemoveService (gcDb gctx)
@@ -254,5 +240,4 @@ pasteModule = ServerModule
     , smStaticFiles =
         [("highlight.pack.js", "text/javascript")
         -- ,("highlight.pack.css", "text/css")  -- this one is generated, not a static file
-        ,("robots.txt", "text/plain")]
-    , smReloadPages = \(_, stvar) -> refreshPages stvar }
+        ,("robots.txt", "text/plain")] }
