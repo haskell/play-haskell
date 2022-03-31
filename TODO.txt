@@ -13,6 +13,9 @@ Play:
 - Default -N to get host parallelism
 - Randomise initial code?
 - Resizable code/output panes
+- Different editor?
+  - https://www.npmjs.com/package/monaco-editor (doesn't support mobile browsers, uses some odd web workers)
 - Tab key doesn't work in code pane
 - Vim bindings for code pane?
   - Perhaps using this: https://codemirror.net/6/docs/ref/#state.StateEffect%5Ereconfigure
+- https
