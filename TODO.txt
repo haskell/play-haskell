@@ -1,20 +1,23 @@
-Play:
-- Audit the bwrap command in bwrap-files/start.sh
+Priority:
+- https
+- Tab key doesn't work in code pane
+- Handshake in run call to avoid calling ghc for spurious POSTs
+- Memory limit using ulimit
 - Do we need to SIGKILL ghc processes?
+
+Medium:
+- Audit the bwrap command in bwrap-files/start.sh
 - Better CSS!
 - Hotkey for Run
 - Create paste from playground
   - It can return the text of a paste file as text/plain, but now also in a playground window
-- Stretch goal: ghci on the playground module?
 - Haskell syntax highlighting in codemirror
-- Button for code formatting using a formatter
-- Memory limit using ulimit
-- Handshake in run call to avoid calling ghc for spurious POSTs
-- Randomise initial code?
 - Resizable code/output panes
+
+Backlog:
+- Button for code formatting using a formatter
+- Stretch goal: ghci on the playground module?
 - Different editor?
   - https://www.npmjs.com/package/monaco-editor (doesn't support mobile browsers, uses some odd web workers)
-- Tab key doesn't work in code pane
 - Vim bindings for code pane?
   - Perhaps using this: https://codemirror.net/6/docs/ref/#state.StateEffect%5Ereconfigure
-- https
