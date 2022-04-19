@@ -3,7 +3,6 @@ Priority:
 - Tab key doesn't work in code pane
 - Handshake in run call to avoid calling ghc for spurious POSTs
 - Memory limit using ulimit
-- Do we need to SIGKILL ghc processes?
 
 Medium:
 - Audit the bwrap command in bwrap-files/start.sh

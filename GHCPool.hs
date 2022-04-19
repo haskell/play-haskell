@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE TupleSections #-}
 module GHCPool (
@@ -21,7 +22,9 @@ import System.Exit (ExitCode(..))
 import System.FilePath ((</>))
 import System.IO (hPutStr, hGetContents, hClose)
 import System.Posix.Directory (getWorkingDirectory)
+import System.Posix.Signals (signalProcess, sigKILL)
 import qualified System.Process as Pr
+import qualified System.Process.Internals as PrI
 import System.Timeout (timeout)
 import Safe
 import Data.Maybe
@@ -109,8 +112,11 @@ makeWorker = do
           err <- readMVar stderrmvar
           putMVar resultvar (Finished (Result ec out err dur))
         Nothing -> do
-          Pr.terminateProcess proch
-          -- TODO: do we need to SIGKILL as well?
+          -- Paranoid termination is technically unnecessary since bwrap seems
+          -- to kill its child with SIGKILL if it is itself killed using
+          -- SIGTERM, which is what Pr.terminateProcess sends. However, let's
+          -- be safe.
+          terminateParanoid proch
           putMVar resultvar TimeOut
   return (Worker thread mvar resultvar)
 
@@ -181,3 +187,17 @@ duration action = do
   let diff = Clock.diffTimeSpec starttm endtm
       secs = fromIntegral (Clock.sec diff) + fromIntegral (Clock.nsec diff) / 1e9
   return (secs, res)
+
+terminateParanoid :: Pr.ProcessHandle -> IO ()
+terminateParanoid ph = do
+  Pr.terminateProcess ph
+  -- Wait 50ms to let the process exit somewhat cleanly (more cleanly than SIGKILL, at least)
+  mec <- timeout 50_000 $ Pr.waitForProcess ph
+  case mec of
+    Just _ -> return ()
+    Nothing -> do
+      putStrLn "(Had to SIGKILL process...)"
+      PrI.withProcessHandle ph $ \case
+        PrI.OpenHandle pid -> signalProcess sigKILL pid
+        PrI.OpenExtHandle pid _ -> signalProcess sigKILL pid
+        PrI.ClosedHandle _ -> return ()
