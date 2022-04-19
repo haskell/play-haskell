@@ -136,7 +136,7 @@ runInPool pool cmd ver opt source = do
               case pdAvailable pd of
                 w:ws ->
                   return (pd { pdAvailable = ws }, Obtained w)
-                [] | Queue.size (pdQueue pd) <= pMaxQueueLen pool -> do
+                [] | Queue.size (pdQueue pd) < pMaxQueueLen pool -> do
                        receptor <- newEmptyMVar
                        return (pd { pdQueue = Queue.push (pdQueue pd) receptor }
                               ,Queued receptor)
