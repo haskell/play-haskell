@@ -117,6 +117,7 @@ makeWorker = do
 -- | makePool numWorkers maxQueueLen
 makePool :: Int -> Int -> IO Pool
 makePool numWorkers maxQueueLen = do
+  -- putStrLn $ "Making a GHCPool with numWorkers=" ++ show numWorkers ++ " maxQueueLen=" ++ show maxQueueLen
   workers <- replicateM numWorkers makeWorker
   let pd = PoolData { pdAvailable = workers
                     , pdQueue = Queue.empty }
@@ -124,7 +125,7 @@ makePool numWorkers maxQueueLen = do
   return (Pool pdvar maxQueueLen)
 
 data ObtainedWorker = Obtained Worker
-                    | Queued (MVar Worker)
+                    | Queued (MVar Worker) Int
                     | QueueFull
 
 data RunPoolError = EQueueFull
@@ -138,15 +139,19 @@ runInPool pool cmd ver opt source = do
                   return (pd { pdAvailable = ws }, Obtained w)
                 [] | Queue.size (pdQueue pd) < pMaxQueueLen pool -> do
                        receptor <- newEmptyMVar
-                       return (pd { pdQueue = Queue.push (pdQueue pd) receptor }
-                              ,Queued receptor)
+                       let newq = Queue.push (pdQueue pd) receptor
+                       return (pd { pdQueue = newq }
+                              ,Queued receptor (Queue.size newq))
                    | otherwise ->
                        return (pd, QueueFull)
 
   case result of
-    Obtained worker -> useWorker worker
-    Queued receptor -> readMVar receptor >>= useWorker
-    QueueFull -> return (Left EQueueFull)
+    Obtained worker -> do -- putStrLn "[obtained]"
+                          useWorker worker
+    Queued receptor _newlen -> do -- putStrLn ("[queued len=" ++ show newlen ++ "]")
+                                  readMVar receptor >>= useWorker
+    QueueFull -> do -- putStrLn "[queue full]"
+                    return (Left EQueueFull)
   where
     useWorker :: Worker -> IO (Either RunPoolError Result)
     useWorker (Worker _tid invar outvar) = do
