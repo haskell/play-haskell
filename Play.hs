@@ -119,7 +119,7 @@ handleRequest gctx (Context pool) = \case
                                     = O1
                             res <- liftIO $ runInPool pool runner (Version version) opt source
                             case res of
-                              Left EQueueFull -> httpError 500 "The queue is currently full, try again later"
+                              Left EQueueFull -> httpError 503 "The queue is currently full, try again later"
                               Left ETimeOut ->
                                 writeJSON $ JSON.makeObj [("ec", JSRational False (-1))]
                               Right result -> do
