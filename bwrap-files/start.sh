@@ -31,4 +31,7 @@ args=(
   /bin/bash "/tmp/entry.sh"
 )
 
+# Limit memory to 1GiB.
+ulimit -d $(( 1024 * 1024 ))
+
 exec bwrap "${args[@]}" 4<"${filesdir}/entry.sh"
