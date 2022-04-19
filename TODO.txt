@@ -10,7 +10,6 @@ Play:
 - Button for code formatting using a formatter
 - Memory limit using ulimit
 - Handshake in run call to avoid calling ghc for spurious POSTs
-- Default -N to get host parallelism
 - Randomise initial code?
 - Resizable code/output panes
 - Different editor?
