@@ -26,7 +26,7 @@ case "$command" in
 	run)
 		cat >input.hs
 		ghcup_run ghc -rtsopts -o Main "${opt}" input.hs
-		./Main +RTS -M100m -RTS
+		./Main +RTS -M500m -RTS
 		;;
 	core)
 		cat >input.hs

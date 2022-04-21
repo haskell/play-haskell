@@ -31,7 +31,9 @@ args=(
   /bin/bash "/tmp/entry.sh"
 )
 
-# Limit memory to 1GiB.
-ulimit -d $(( 1024 * 1024 ))
+# Limit memory to 600 MiB. Note that the compiled program gets a 500 MiB memory
+# limit via the GHC RTS, so this limit is 1. to constrain GHC itself (including
+# any TH code), and 2. as a second-layer defense.
+ulimit -d $(( 600 * 1024 ))
 
 exec bwrap "${args[@]}" 4<"${filesdir}/entry.sh"
