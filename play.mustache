@@ -65,29 +65,26 @@ html, body {
 	word-break: break-word;  /* deprecated, but replacement not supported in safari? */
 }
 
-#rightcol:not(.loading) div#output-spinner {
-	display: none;
+#output-overlay {
+	grid-column: 2;
+	grid-row: 2;
+	background-color: rgba(238, 238, 238, 0.5);
 }
 
-#rightcol.loading div#output-pane {
+#main:not(.loading) div#output-overlay, #main:not(.loading) div.lds-roller {
 	display: none;
-}
-
-#rightcol.loading div#rightcol {
-	display: flex;
-	align-items: center;
-	overflow: hidden;
 }
 
 .invisible {
 	display: none !important;
 }
 .lds-roller {
+  grid-column: 2;
+  grid-row: 2;
   display: block;
   width: 80px;
   height: 80px;
-  margin-left: auto;
-  margin-right: auto;
+  margin: auto;
 }
 .lds-roller div {
   animation: lds-roller 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
@@ -202,7 +199,6 @@ preload_script = null;
 	</div id="header">
 	<div id="leftcol"></div>
 	<div id="rightcol">
-		<div id="output-spinner" class="lds-roller"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
 		<div id="output-pane">
 			<div id="exitcode-note" class="invisible"></div>
 			<div style="border-bottom: 1px #ccc solid">Errors</div>
@@ -211,5 +207,7 @@ preload_script = null;
 			<pre id="out-stdout"></pre>
 		</div>
 	</div>
+	<div id="output-overlay"></div>
+	<div class="lds-roller"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
 </div>
 </body>

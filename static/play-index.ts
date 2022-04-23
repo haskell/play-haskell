@@ -133,12 +133,12 @@ function setWorking(yes: boolean) {
 		btns.forEach(btn => {
 			btn.setAttribute("disabled", "");
 		});
-		rightcol.classList.add("loading");
+		document.getElementById("main").classList.add("loading");
 	} else {
 		btns.forEach(btn => {
 			btn.removeAttribute("disabled");
 		});
-		rightcol.classList.remove("loading");
+		document.getElementById("main").classList.remove("loading");
 	}
 }
 
