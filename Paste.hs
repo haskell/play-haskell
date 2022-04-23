@@ -12,7 +12,7 @@ import Data.ByteString (ByteString)
 import Data.Either (isLeft)
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict (Map)
-import Data.Maybe (maybeToList, isNothing)
+import Data.Maybe (isNothing)
 import qualified Data.Text.Encoding as Enc
 import Data.Time.Clock (nominalDay)
 import Data.Time.Clock.POSIX (POSIXTime, getPOSIXTime)
@@ -91,16 +91,16 @@ pasteReadResponse gctx key mdate contents = do
     return $ renderer now key mdate contents
 
 collectContentsFromPost :: POSIXTime -> Map ByteString [ByteString] -> Contents
-collectContentsFromPost now mp =
-    let params = [(key, value) | (key, value:_) <- Map.assocs mp]
-        codes = Map.fromList (collectPrefixed "code" params)
-        names = Map.fromList (collectPrefixed "name" params)
+collectContentsFromPost now params =
+    let paramslist = [(key, value) | (key, value:_) <- Map.assocs params]
+        codes = Map.fromList (collectPrefixed "code" paramslist)
+        names = Map.fromList (collectPrefixed "name" paramslist)
         names' = Map.map (\bs -> if BS.null bs then Nothing else Just bs) names
         files = Map.elems $ Map.intersectionWith (,) names' codes
-        mparent = case Map.lookup "parent" mp of
+        mparent = case Map.lookup "parent" params of
                     Just (parent : _) -> Just parent
                     _ -> Nothing
-        mexpire = case Map.lookup "expire" mp of
+        mexpire = case Map.lookup "expire" params of
                     Just (expire : _) -> case expire of
                         "never" -> Nothing
                         "day" -> Just (now + nominalDay)
@@ -115,8 +115,7 @@ collectContentsFromPost now mp =
     collectPrefixed prefix pairs =
         [(idx, value)
         | (key, value) <- pairs
-        , BS.take 4 key == prefix
-        , (idx, rest) <- maybeToList (Char8.readInt (BS.drop 4 key))
+        , Just (idx, rest) <- [BS.stripPrefix prefix key >>= Char8.readInt]
         , BS.null rest]
 
 data WhatRequest
