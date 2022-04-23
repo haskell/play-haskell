@@ -1,5 +1,7 @@
 import {EditorState, EditorView, basicSetup} from "@codemirror/basic-setup";
 import {javascript} from "@codemirror/lang-javascript";
+import {keymap} from "@codemirror/view";
+import {indentWithTab} from "@codemirror/commands";
 
 const example_snippets: string[] = [
 	`import Data.List (partition)
@@ -67,10 +69,14 @@ merge (x:xs) (y:ys)
 declare var preload_script: string | null;
 const snippet = preload_script != null ? preload_script : example_snippets[Math.floor(Math.random() * example_snippets.length)];
 
-const state = EditorState.create({doc: snippet, extensions: [
-  basicSetup,
-  javascript(),
-]});
+const state = EditorState.create({
+	doc: snippet,
+	extensions: [
+		basicSetup,
+		javascript(),
+		keymap.of([indentWithTab]),
+	]
+});
 (window as any).view = new EditorView({state, parent: document.getElementById("leftcol")!});
 
 let currentChallenge: string | null = null;

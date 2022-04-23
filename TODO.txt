@@ -1,5 +1,4 @@
 Priority:
-- Tab key doesn't work in code pane
 
 Medium:
 - Audit the bwrap command in bwrap-files/start.sh
