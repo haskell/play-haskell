@@ -5,8 +5,6 @@ Medium:
 - Audit the bwrap command in bwrap-files/start.sh
 - Better CSS!
 - Hotkey for Run
-- Create paste from playground
-  - It can return the text of a paste file as text/plain, but now also in a playground window
 - Haskell syntax highlighting in codemirror
 - Resizable code/output panes
 

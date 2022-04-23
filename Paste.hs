@@ -120,18 +120,20 @@ collectContentsFromPost now params =
 
 data WhatRequest
     = GetIndex
+    | PostedIndex
     | ReadPaste ByteString
     | ReadPasteRaw ByteString Int
     | ReadPasteOld ByteString
-    | EditPaste ByteString
     | HighlightCSS
     | StorePaste
+    | EditPaste ByteString
     | DownloadPaste ByteString
 
 parseRequest :: Method -> [ByteString] -> Maybe WhatRequest
 parseRequest method comps =
     case (method, comps) of
         (GET, []) -> Just GetIndex
+        (POST, []) -> Just PostedIndex
         (GET, [x]) | canBeKey x -> Just (ReadPaste x)
         (GET, [x, "edit"]) | canBeKey x -> Just (EditPaste x)
         (GET, [x, "raw"]) | canBeKey x -> Just (ReadPasteRaw x 1)
@@ -154,6 +156,10 @@ handleRequest gctx context stvar = \case
                 -- Replace parent (if any) with the edited paste
                 liftIO (indexResponse gctx (Contents files (Just key) Nothing)) >>= writeHTML
             Nothing -> httpError 404 "Paste not found"
+    PostedIndex -> do
+        req <- getRequest
+        now <- liftIO getPOSIXTime
+        liftIO (indexResponse gctx (collectContentsFromPost now (rqPostParams req))) >>= writeHTML
     ReadPaste key -> do
         liftIO (getPaste gctx key) >>= \case
             Just (mdate, contents) -> liftIO (pasteReadResponse gctx key mdate contents) >>= writeHTML

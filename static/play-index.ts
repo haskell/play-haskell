@@ -219,6 +219,29 @@ function doRun(run: Runner) {
 	});
 }
 
+function doOpenAsPaste() {
+	const form = document.createElement("form");
+	form.action = "/";
+	form.method = "POST";
+	form.target = "_blank";
+	form.setAttribute("style", "display: none");
+
+	const input = document.createElement("input");
+	input.type = "text";
+	input.name = "name1";
+	input.value = "Main.hs";
+	form.appendChild(input);
+
+	const textarea = document.createElement("textarea");
+	textarea.name = "code1";
+	textarea.value = (window as any).view.state.doc.toString();
+	form.appendChild(textarea);
+
+	document.body.appendChild(form);
+	form.submit();
+	document.body.removeChild(form);
+}
+
 window.addEventListener("load", function() {
 	// // This is broken with the codemirror editor, of course, which rebinds
 	// // ctrl-enter to "insert blank line".
@@ -257,3 +280,4 @@ window.addEventListener("load", function() {
 document.getElementById("btn-run").addEventListener('click', () => { doRun(Runner.Run) });
 document.getElementById("btn-core").addEventListener('click', () => { doRun(Runner.Core) });
 document.getElementById("btn-asm").addEventListener('click', () => { doRun(Runner.Asm) });
+document.getElementById("btn-openaspaste").addEventListener('click', () => { doOpenAsPaste() });

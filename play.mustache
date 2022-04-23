@@ -45,6 +45,10 @@ header {
 #toolbar input[type="button"] {
 	margin: 0 5px;
 }
+#toolbar #btn-openaspaste {
+	margin-top: auto;
+	margin-bottom: auto;
+}
 #ghcversionselect {
 	margin-left: 5px;
 }
@@ -204,10 +208,11 @@ preload_script = null;
 		<input id="btn-asm" type="button" class="button" value="Asm">
 		<select id="ghcversionselect"></select>
 		<select id="optselect"></select>
+		<input id="btn-openaspaste" type="button" style="margin-left: 50px" value="Create paste from this">
 	</div>
 </header>
 <div id="main">
-	<div id="leftcol">	
+	<div id="leftcol">
 		<div id="editor"></div>
 	</div>
 	<div id="rightcol">
