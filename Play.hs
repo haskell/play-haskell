@@ -12,16 +12,19 @@ import qualified Data.ByteString.Builder as BSB
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as Char8
 import qualified Data.ByteString.UTF8 as UTF8
+import Data.Time (secondsToDiffTime)
 import Snap.Core hiding (path, method)
 import System.Exit (ExitCode(..))
 import qualified System.IO.Streams as Streams
 import System.IO.Streams (InputStream)
+import qualified Data.Text as T
 import qualified Text.JSON as JSON
 import Text.JSON (JSValue(..))
 import Text.JSON.String (runGetJSON)
 import Text.Read (readMaybe)
 import Safe
 
+import Challenge
 import ExitEarly
 import GHCPool
 import Pages
@@ -31,12 +34,13 @@ import SpamDetect hiding (Action(..))
 import qualified SpamDetect as Spam (Action(..))
 
 
-data Context = Context Pool
+data Context = Context Pool ChallengeKey
 
 data WhatRequest
   = Index
   | FromPaste ByteString (Maybe Int)
   | Versions
+  | CurrentChallenge
   | RunGHC Command
   deriving (Show)
 
@@ -47,6 +51,7 @@ parseRequest method comps = case (method, comps) of
   (GET, ["play", "paste", key, idxs])
     | Just idx <- readMaybe (Char8.unpack idxs) -> Just (FromPaste key (Just idx))
   (GET, ["play", "versions"]) -> Just Versions
+  (GET, ["play", "challenge"]) -> Just CurrentChallenge
   (POST, ["play", "run"]) -> Just (RunGHC CRun)
   (POST, ["play", "core"]) -> Just (RunGHC CCore)
   (POST, ["play", "asm"]) -> Just (RunGHC CAsm)
@@ -64,7 +69,7 @@ streamReadMaxN maxlen stream = fmap mconcat <$> go 0
                          return Nothing
 
 handleRequest :: GlobalContext -> Context -> WhatRequest -> Snap ()
-handleRequest gctx (Context pool) = \case
+handleRequest gctx (Context pool challenge) = \case
   Index -> do
     renderer <- liftIO $ getPageFromGCtx pPlay gctx
     writeHTML (renderer Nothing)
@@ -98,6 +103,11 @@ handleRequest gctx (Context pool) = \case
     versions <- liftIO availableVersions
     writeJSON $ JSArray (map (JSString . JSON.toJSString) versions)
 
+  CurrentChallenge -> do
+    modifyResponse (setContentType (Char8.pack "text/plain"))
+    key <- liftIO $ servingChallenge challenge
+    writeText key
+
   -- Open a local exit-early block instead of using Snap's early-exit
   -- functionality, because this is more local.
   RunGHC runner -> execExitEarlyT $ do
@@ -113,13 +123,19 @@ handleRequest gctx (Context pool) = \case
         Just s -> return (Right s)
     postdata <- okOrExitEarly mpostdata $ \(code, err) -> lift (httpError code err)
 
-    (obj, source, version) <- case runGetJSON JSON.readJSValue (UTF8.toString postdata) of
+    (givenkey, obj, source, version) <- case runGetJSON JSON.readJSValue (UTF8.toString postdata) of
       Right (JSObject (JSON.fromJSObject -> obj))
-        | Just (JSString (JSON.fromJSString -> source))  <- lookup "source" obj
-        , Just (JSString (JSON.fromJSString -> version)) <- lookup "version" obj
-        -> return (obj, source, version)
+        | Just (JSString (JSON.fromJSString -> givenkey)) <- lookup "challenge" obj
+        , Just (JSString (JSON.fromJSString -> source))   <- lookup "source" obj
+        , Just (JSString (JSON.fromJSString -> version))  <- lookup "version" obj
+        -> return (givenkey, obj, source, version)
       _ -> do lift (httpError 400 "Invalid JSON")
               exitEarly ()
+
+    liftIO (checkChallenge challenge (T.pack givenkey)) >>= \case
+      True -> return ()
+      False -> do lift (httpError 400 "Invalid challenge, request again")
+                  exitEarly ()
 
     let opt = case lookup "opt" obj of
                 Just (JSString s)
@@ -149,7 +165,8 @@ playModule = ServerModule
       nprocs <- getNumCapabilities
       -- TODO: the max queue length is a completely arbitrary value
       pool <- makePool nprocs nprocs
-      k (Context pool)
+      challenge <- makeRefreshingChallenge (secondsToDiffTime (24 * 3600))
+      k (Context pool challenge)
   , smParseRequest = parseRequest
   , smHandleRequest = handleRequest
   , smStaticFiles = [("bundle.js", "text/javascript")]

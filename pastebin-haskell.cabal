@@ -16,6 +16,7 @@ executable pastebin-haskell
   main-is:
     Main.hs
   other-modules:
+    Challenge
     Data.Queue
     ExitEarly
     GHCPool

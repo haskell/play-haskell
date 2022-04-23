@@ -73,6 +73,8 @@ const state = EditorState.create({doc: snippet, extensions: [
 ]});
 (window as any).view = new EditorView({state, parent: document.querySelector("#editor")!});
 
+let currentChallenge: string | null = null;
+
 type json =
 | string
 | number
@@ -88,7 +90,15 @@ enum Runner {
 }
 
 
-function performXHR(method: string, path: string, responseType: string, successcb: (response: json) => void, failcb: (xhr: XMLHttpRequest) => void, mcontentType?: string, mdata?: string) {
+function performXHR(
+	method: string,
+	path: string,
+	responseType: string,
+	successcb: (response: json) => void,
+	failcb: (xhr: XMLHttpRequest) => void,
+	mcontentType?: string,
+	mdata?: string)
+{
 	const xhr: XMLHttpRequest = new XMLHttpRequest();
 
 	xhr.onreadystatechange = function(){
@@ -138,8 +148,23 @@ function getVersions(cb: (response: string) => void) {
 	});
 }
 
-function sendRun(source: string, version: string, opt: string, run: Runner, cb: (response: json) => void) {
-	const payload: string = JSON.stringify({source, version, opt});
+function refreshChallenge(cb?: () => void) {
+	performXHR("GET", "/play/challenge", "text",
+		function(challenge) {
+			if (typeof challenge == "string") {
+				currentChallenge = challenge;
+				if (cb) cb();
+			} else {
+				alert("Error getting challenge for submitting run requests (not a string: " + challenge + ")");
+			}
+		}, function(xhr) {
+			alert("Error getting challenge for submitting run requests (status " + xhr.status + "): " + xhr.responseText);
+		}
+	);
+}
+
+function sendRun(source: string, version: string, opt: string, run: Runner, cb: (response: json) => void, retryChallenge: boolean = true) {
+	const payload: string = JSON.stringify({challenge: currentChallenge, source, version, opt});
 	setWorking(true);
 	let ep: string = null;
 	switch (run) {
@@ -158,8 +183,14 @@ function sendRun(source: string, version: string, opt: string, run: Runner, cb: 
 			setWorking(false);
 			cb(res);
 		}, function(xhr) {
-			setWorking(false);
-			alert("Failed to submit run job (status " + xhr.status + "): " + xhr.responseText);
+			if (retryChallenge) {
+				refreshChallenge(function() {
+					sendRun(source, version, opt, run, cb, false);
+				});
+			} else {
+				setWorking(false);
+				alert("Failed to submit run job (status " + xhr.status + "): " + xhr.responseText);
+			}
 		}, "text/plain", payload
 	);
 }
@@ -209,6 +240,10 @@ window.addEventListener("load", function() {
 			sel.appendChild(opt);
 		}
 	});
+
+	refreshChallenge();
+	setInterval(refreshChallenge, 3600 * 1000);  // once per hour
+
 	const sel: HTMLElement = document.getElementById("optselect");
 	["O0", "O1", "O2"].forEach(o => {
 		const opt: HTMLOptionElement = document.createElement("option");
@@ -216,7 +251,7 @@ window.addEventListener("load", function() {
 		opt.textContent = "-" + o;
 		if (o == "O1") opt.setAttribute("selected", "");
 		sel.appendChild(opt);
-	})
+	});
 });
 
 document.getElementById("btn-run").addEventListener('click', () => { doRun(Runner.Run) });

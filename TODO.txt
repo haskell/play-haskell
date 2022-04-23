@@ -1,7 +1,6 @@
 Priority:
 - https
 - Tab key doesn't work in code pane
-- Handshake in run call to avoid calling ghc for spurious POSTs
 
 Medium:
 - Audit the bwrap command in bwrap-files/start.sh
