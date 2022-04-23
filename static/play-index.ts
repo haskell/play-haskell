@@ -242,7 +242,7 @@ window.addEventListener("load", function() {
 	});
 
 	refreshChallenge();
-	setInterval(refreshChallenge, 3600 * 1000);  // once per hour
+	setInterval(refreshChallenge, 12 * 3600 * 1000);  // once per half a day (i.e. half the server refresh interval)
 
 	const sel: HTMLElement = document.getElementById("optselect");
 	["O0", "O1", "O2"].forEach(o => {
