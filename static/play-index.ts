@@ -252,9 +252,9 @@ function handleSeparatorDragEvents(sepelem: HTMLElement, containerelem: HTMLElem
 	function currentWidth() {
 		return leftchild.getBoundingClientRect().width;
 	}
-	function setWidth(wid) {
+	function setWidth(wid: number | null) {
 		containerelem.style.gridTemplateColumns =
-			"[left-start] " + wid + "px [left-end] 4px [right-start] 1fr [right-end]";
+			"[left-start] " + (wid == null ? "1fr" : wid + "px") + " [left-end] 4px [right-start] 1fr [right-end]";
 	}
 
 	let initmousex: number | null = null;
@@ -286,6 +286,10 @@ function handleSeparatorDragEvents(sepelem: HTMLElement, containerelem: HTMLElem
 		document.body.addEventListener("mousemove", movehandler);
 		document.body.addEventListener("mouseup", cancelhandler);
 		document.body.addEventListener("mouseleave", cancelhandler);
+	});
+
+	sepelem.addEventListener("dblclick", function(ev) {
+		setWidth(null);  // reset to 50%
 	});
 }
 
