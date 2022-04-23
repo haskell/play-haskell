@@ -22,6 +22,7 @@ import Paste.DB (withDatabase)
 import Pages
 import Play
 import ServerModule
+import Shim
 import SpamDetect
 
 
@@ -75,7 +76,7 @@ refreshPages var = do
 server :: Options -> [InstantiatedModule] -> Snap ()
 server options modules = do
     -- If we're proxied, set the source IP from the X-Forwarded-For header.
-    when (oProxied options) ipHeaderFilter
+    when (oProxied options) ipHeaderFilterSupportingIPv6
 
     req <- getRequest
     let path = rqContextPath req `BS.append` rqPathInfo req

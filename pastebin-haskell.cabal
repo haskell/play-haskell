@@ -27,6 +27,7 @@ executable pastebin-haskell
     Paste.HighlightCSS
     Play
     ServerModule
+    Shim
     SpamDetect
   build-depends:
     base >= 4.13 && < 4.15,
