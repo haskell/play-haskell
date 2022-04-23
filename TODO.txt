@@ -3,10 +3,13 @@ Priority:
 Medium:
 - Audit the bwrap command in bwrap-files/start.sh
 - Better CSS!
+  - Dark mode?
 - Hotkey for Run
 - Haskell syntax highlighting in codemirror
+- Horizontally scalable backend
 
 Backlog:
+- Access to stackage LTS packages
 - Button for code formatting using a formatter
 - Stretch goal: ghci on the playground module?
 - Different editor?
