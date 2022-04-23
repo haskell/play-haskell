@@ -71,7 +71,7 @@ const state = EditorState.create({doc: snippet, extensions: [
   basicSetup,
   javascript(),
 ]});
-(window as any).view = new EditorView({state, parent: document.querySelector("#editor")!});
+(window as any).view = new EditorView({state, parent: document.getElementById("leftcol")!});
 
 let currentChallenge: string | null = null;
 
