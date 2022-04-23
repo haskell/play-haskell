@@ -38,7 +38,7 @@ data Context = Context Pool ChallengeKey
 
 data WhatRequest
   = Index
-  | FromPaste ByteString (Maybe Int)
+  | FromPaste ByteString Int
   | Versions
   | CurrentChallenge
   | RunGHC Command
@@ -47,9 +47,9 @@ data WhatRequest
 parseRequest :: Method -> [ByteString] -> Maybe WhatRequest
 parseRequest method comps = case (method, comps) of
   (GET, ["play"]) -> Just Index
-  (GET, ["play", "paste", key]) -> Just (FromPaste key Nothing)
+  (GET, ["play", "paste", key]) -> Just (FromPaste key 1)
   (GET, ["play", "paste", key, idxs])
-    | Just idx <- readMaybe (Char8.unpack idxs) -> Just (FromPaste key (Just idx))
+    | Just idx <- readMaybe (Char8.unpack idxs) -> Just (FromPaste key idx)
   (GET, ["play", "versions"]) -> Just Versions
   (GET, ["play", "challenge"]) -> Just CurrentChallenge
   (POST, ["play", "run"]) -> Just (RunGHC CRun)
@@ -74,27 +74,25 @@ handleRequest gctx (Context pool challenge) = \case
     renderer <- liftIO $ getPageFromGCtx pPlay gctx
     writeHTML (renderer Nothing)
 
-  FromPaste key midx -> do
+  FromPaste key idx -> do
     res <- liftIO $ getPaste (gcDb gctx) key
     let buildPage contents = do
           renderer <- liftIO $ getPageFromGCtx pPlay gctx
           writeHTML (renderer (Just contents))
-    case (res, midx) of
-      -- TODO: Actually put this in a playground page instead of returning the text as-is
-      (Just (_, Contents ((_, source):_) _ _), Nothing) ->
-        buildPage source
-      (Just (_, Contents l _ _), Just idx)
+    case res of
+      Just (_, Contents [] _ _) -> do
+        modifyResponse (setContentType (Char8.pack "text/plain"))
+        writeBS (Char8.pack "That paste seems to have no files?")
+
+      Just (_, Contents l _ _)
         | idx >= 1
         , (_, source) : _ <- drop (idx - 1) l ->
             buildPage source
 
-      (Just (_, Contents [] _ _), Nothing) -> do
-        modifyResponse (setContentType (Char8.pack "text/plain"))
-        writeBS (Char8.pack "That paste seems to have no files?")
-      (Just (_, Contents _ _ _), Just _) -> do
+      Just (_, Contents _ _ _) -> do
         modifyResponse (setContentType (Char8.pack "text/plain"))
         writeBS (Char8.pack "File index out of range")
-      (Nothing, _) -> do
+      Nothing -> do
         modifyResponse (setContentType (Char8.pack "text/plain"))
         writeBS (Char8.pack "That paste does not exist!")
 
