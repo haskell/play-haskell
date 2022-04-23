@@ -22,4 +22,4 @@ frontend-dependencies:
 	$(MAKE) -C static/ dependencies
 
 reload-pages:
-	kill -s USR1 $$(ps -o pid,cmd -ww a | grep '/pastebin-haskell$$' | awk '{print $$1}')
+	kill -s USR1 $$(ps -o pid,cmd -ww a -e | grep '^ *[0-9]* *[^ ]*/pastebin-haskell\b' | awk '{print $$1}')
