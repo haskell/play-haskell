@@ -242,6 +242,47 @@ function doOpenAsPaste() {
 	document.body.removeChild(form);
 }
 
+function handleSeparatorDragEvents(sepelem: HTMLElement, containerelem: HTMLElement, leftchild: HTMLElement) {
+	function currentWidth() {
+		return leftchild.getBoundingClientRect().width;
+	}
+	function setWidth(wid) {
+		containerelem.style.gridTemplateColumns =
+			"[left-start] " + wid + "px [left-end] 4px [right-start] 1fr [right-end]";
+	}
+
+	let initmousex: number | null = null;
+	let initwidth: number | null = null;
+
+	function movehandler(ev) {
+		if (initmousex == null) {cancelhandler(ev); return;}
+		const margin = 50;
+		let newWidth = initwidth + ev.clientX - initmousex;
+		newWidth = Math.max(newWidth, margin);
+		newWidth = Math.min(newWidth, containerelem.getBoundingClientRect().width - margin);
+		setWidth(newWidth);
+	}
+
+	function cancelhandler(ev) {
+		initmousex = initwidth = null;
+		document.body.style.userSelect = "auto";
+		document.body.removeEventListener("mousemove", movehandler);
+		document.body.removeEventListener("mouseup", cancelhandler);
+		document.body.removeEventListener("mouseleave", cancelhandler);
+	}
+
+	sepelem.addEventListener("mousedown", function(ev) {
+		initmousex = ev.clientX;
+		initwidth = currentWidth();
+		setWidth(initwidth);  // should be unnecessary, but eh
+		document.body.style.userSelect = "none";
+
+		document.body.addEventListener("mousemove", movehandler);
+		document.body.addEventListener("mouseup", cancelhandler);
+		document.body.addEventListener("mouseleave", cancelhandler);
+	});
+}
+
 window.addEventListener("load", function() {
 	// // This is broken with the codemirror editor, of course, which rebinds
 	// // ctrl-enter to "insert blank line".
@@ -281,3 +322,4 @@ document.getElementById("btn-run").addEventListener('click', () => { doRun(Runne
 document.getElementById("btn-core").addEventListener('click', () => { doRun(Runner.Core) });
 document.getElementById("btn-asm").addEventListener('click', () => { doRun(Runner.Asm) });
 document.getElementById("btn-openaspaste").addEventListener('click', () => { doOpenAsPaste() });
+handleSeparatorDragEvents(document.getElementById("colseparator"), document.getElementById("main"), document.getElementById("leftcol"));

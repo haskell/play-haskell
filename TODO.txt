@@ -6,7 +6,6 @@ Medium:
 - Better CSS!
 - Hotkey for Run
 - Haskell syntax highlighting in codemirror
-- Resizable code/output panes
 
 Backlog:
 - Button for code formatting using a formatter
