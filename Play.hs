@@ -5,6 +5,7 @@
 module Play (playModule) where
 
 import Control.Concurrent (getNumCapabilities)
+import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Builder as BSB
@@ -21,6 +22,7 @@ import Text.JSON.String (runGetJSON)
 import Text.Read (readMaybe)
 import Safe
 
+import ExitEarly
 import GHCPool
 import Pages
 import Paste.DB (getPaste, Contents(..))
@@ -96,44 +98,50 @@ handleRequest gctx (Context pool) = \case
     versions <- liftIO availableVersions
     writeJSON $ JSArray (map (JSString . JSON.toJSString) versions)
 
-  RunGHC runner -> do
-    req <- getRequest
+  -- Open a local exit-early block instead of using Snap's early-exit
+  -- functionality, because this is more local.
+  RunGHC runner -> execExitEarlyT $ do
+    req <- lift getRequest
     isSpam <- liftIO $ recordCheckSpam Spam.PlayRunStart (gcSpam gctx) (rqClientAddr req)
-    if isSpam
-      then httpError 429 "Please slow down a bit, you're rate limited"
-      else do mpostdata <- runRequestBody $ \stream ->
-                streamReadMaxN 100000 stream >>= \case
-                  Nothing -> return $ Left (413, "Program too large")
-                  Just s -> return (Right s)
-              case mpostdata of
-                Left (code, err) -> httpError code err
-                Right postdata -> do
-                  case runGetJSON JSON.readJSValue (UTF8.toString postdata) of
-                    Right (JSObject (JSON.fromJSObject -> obj))
-                      | Just (JSString (JSON.fromJSString -> source))  <- lookup "source" obj
-                      , Just (JSString (JSON.fromJSString -> version)) <- lookup "version" obj
-                      -> do let opt | Just (JSString s) <- lookup "opt" obj
-                                    , Just opt' <- readMay @Optimization (JSON.fromJSString s)
-                                    = opt'
-                                    | otherwise
-                                    = O1
-                            res <- liftIO $ runInPool pool runner (Version version) opt source
-                            case res of
-                              Left EQueueFull -> httpError 503 "The queue is currently full, try again later"
-                              Left ETimeOut ->
-                                writeJSON $ JSON.makeObj [("ec", JSRational False (-1))]
-                              Right result -> do
-                                -- Record the run as a spam-checking action, but don't actually act
-                                -- on the return value yet; that will come on the next user action
-                                let timeFraction = realToFrac (resTimeTaken result) / (fromIntegral runTimeoutMicrosecs / 1e6)
-                                _ <- liftIO $ recordCheckSpam (Spam.PlayRunTimeoutFraction timeFraction) (gcSpam gctx) (rqClientAddr req)
+    when isSpam $ do
+      lift (httpError 429 "Please slow down a bit, you're rate limited")
+      exitEarly ()
 
-                                modifyResponse (setContentType (Char8.pack "text/json"))
-                                writeJSON $ JSON.makeObj
-                                              [("ec", JSRational False (fromIntegral (exitCode (resExitCode result))))
-                                              ,("out", JSString (JSON.toJSString (resStdout result)))
-                                              ,("err", JSString (JSON.toJSString (resStderr result)))]
-                    _ -> httpError 400 "Invalid JSON"
+    mpostdata <- lift $ runRequestBody $ \stream ->
+      streamReadMaxN 100000 stream >>= \case
+        Nothing -> return $ Left (413, "Program too large")
+        Just s -> return (Right s)
+    postdata <- okOrExitEarly mpostdata $ \(code, err) -> lift (httpError code err)
+
+    (obj, source, version) <- case runGetJSON JSON.readJSValue (UTF8.toString postdata) of
+      Right (JSObject (JSON.fromJSObject -> obj))
+        | Just (JSString (JSON.fromJSString -> source))  <- lookup "source" obj
+        , Just (JSString (JSON.fromJSString -> version)) <- lookup "version" obj
+        -> return (obj, source, version)
+      _ -> do lift (httpError 400 "Invalid JSON")
+              exitEarly ()
+
+    let opt = case lookup "opt" obj of
+                Just (JSString s)
+                  | Just opt' <- readMay @Optimization (JSON.fromJSString s)
+                  -> opt'
+                _ -> O1
+
+    res <- liftIO $ runInPool pool runner (Version version) opt source
+    result <- okOrExitEarly res $ \case
+                EQueueFull -> lift (httpError 503 "The queue is currently full, try again later")
+                ETimeOut -> lift $ writeJSON $ JSON.makeObj [("ec", JSRational False (-1))]
+
+    -- Record the run as a spam-checking action, but don't actually act
+    -- on the return value yet; that will come on the next user action
+    let timeFraction = realToFrac (resTimeTaken result) / (fromIntegral runTimeoutMicrosecs / 1e6)
+    _ <- liftIO $ recordCheckSpam (Spam.PlayRunTimeoutFraction timeFraction) (gcSpam gctx) (rqClientAddr req)
+
+    lift $ modifyResponse (setContentType (Char8.pack "text/json"))
+    lift $ writeJSON $ JSON.makeObj
+      [("ec", JSRational False (fromIntegral (exitCode (resExitCode result))))
+      ,("out", JSString (JSON.toJSString (resStdout result)))
+      ,("err", JSString (JSON.toJSString (resStderr result)))]
 
 playModule :: ServerModule
 playModule = ServerModule

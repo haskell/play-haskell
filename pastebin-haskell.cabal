@@ -17,6 +17,7 @@ executable pastebin-haskell
     Main.hs
   other-modules:
     Data.Queue
+    ExitEarly
     GHCPool
     Options
     Pages
@@ -46,6 +47,7 @@ executable pastebin-haskell
     snap-server >= 1.1.1.2 && < 1.2,
     snap-core >= 1.0.5.0 && < 1.1,
     sqlite-simple >= 0.4.18 && < 0.5,
+    transformers ^>= 0.5.6.2,
     text,
     time >= 1.9.3 && < 1.11,
     unix >= 2.7.2 && < 2.8,
