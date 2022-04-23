@@ -65,7 +65,7 @@ merge (x:xs) (y:ys)
 
 // defined in a <script> block in play.mustache
 declare var preload_script: string | null;
-const snippet = preload_script != null ? preload_script : example_snippets[Math.floor(Math.random() * 3)];
+const snippet = preload_script != null ? preload_script : example_snippets[Math.floor(Math.random() * example_snippets.length)];
 
 const state = EditorState.create({doc: snippet, extensions: [
   basicSetup,
