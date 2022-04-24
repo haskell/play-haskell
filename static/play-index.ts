@@ -1,7 +1,9 @@
 import {EditorState, EditorView, basicSetup} from "@codemirror/basic-setup";
+import {Compartment} from "@codemirror/state";
 import {javascript} from "@codemirror/lang-javascript";
 import {keymap} from "@codemirror/view";
 import {indentWithTab} from "@codemirror/commands";
+import {basicDark} from "cm6-theme-basic-dark";
 
 const example_snippets: string[] = [
 	`import Data.List (partition)
@@ -69,15 +71,34 @@ merge (x:xs) (y:ys)
 declare var preload_script: string | null;
 const snippet = preload_script != null ? preload_script : example_snippets[Math.floor(Math.random() * example_snippets.length)];
 
+const themeCompartment = new Compartment();
+
 const state = EditorState.create({
 	doc: snippet,
 	extensions: [
 		basicSetup,
 		javascript(),
 		keymap.of([indentWithTab]),
+		themeCompartment.of([]),
 	]
 });
 (window as any).view = new EditorView({state, parent: document.getElementById("leftcol")!});
+
+function handleColorSchemeChange(ql) {
+	if (ql.matches) (window as any).view.dispatch({effects: themeCompartment.reconfigure([basicDark])});
+	else (window as any).view.dispatch({effects: themeCompartment.reconfigure([])});
+}
+
+if ("matchMedia" in window) {
+	const queryList = window.matchMedia("(prefers-color-scheme: dark)");
+	// Call it once to get the current media setting
+	handleColorSchemeChange(queryList);
+	// Apparently older Safari doesn't have addEventListener here yet
+	if ("addEventListener" in queryList) queryList.addEventListener("change", handleColorSchemeChange);
+	else if ("addListener" in queryList) queryList.addListener(function() {
+		handleColorSchemeChange(window.matchMedia("(prefers-color-scheme: dark)"));
+	});
+}
 
 let currentChallenge: string | null = null;
 

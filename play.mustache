@@ -18,6 +18,11 @@ html, body {
 	width: 100vw;
 	height: 100vh;
 }
+@media (prefers-color-scheme: dark) {
+	#main {
+		background-color: #444;
+	}
+}
 #header {
 	grid-column: left-start / right-end;
 	grid-row: 1;
@@ -27,6 +32,7 @@ html, body {
 	background-color: #3e3a3f;
 	color: #e8e8e8;
 }
+
 #title {
 	align-self: center;
 	height: 31px;
@@ -38,6 +44,11 @@ html, body {
 	flex-direction: row;
 	height: 100%;
 }
+#toolbar select {
+	margin-left: 5px;
+	border: 1px #eee solid;
+	border-radius: 4px;
+}
 #toolbar button {
 	margin: 0 2px;
 }
@@ -46,9 +57,20 @@ html, body {
 	margin-bottom: auto;
 	font-size: small;
 	background-color: #bbb;
+	margin-left: 50px;
 }
-#ghcversionselect {
-	margin-left: 5px;
+@media (prefers-color-scheme: dark) {
+	#toolbar button {
+		background-color: #bbb;
+	}
+	#toolbar select {
+		background-color: #242522;
+		color: white;
+		border: 1px #888 solid;
+	}
+	#toolbar #btn-openaspaste {
+		background-color: #999;
+	}
 }
 #leftcol {
 	grid-column: left-start / left-end;
@@ -67,6 +89,15 @@ html, body {
 	padding: 5px;
 	background-color: #eee;
 	overflow-y: auto;
+}
+@media (prefers-color-scheme: dark) {
+	#colseparator {
+		background-color: #555;
+	}
+	#rightcol {
+		background-color: #222;
+		color: #ddd;
+	}
 }
 #exitcode-note {
 	margin-bottom: 9px;
@@ -93,11 +124,21 @@ html, body {
 	word-break: break-word;  /* deprecated, but replacement not supported in safari? */
 	margin: 5px 0 20px 0;
 }
+@media (prefers-color-scheme: dark) {
+	#rightcol pre {
+		background-color: #333;
+	}
+}
 
 #output-overlay {
 	grid-column: right-start / right-end;
 	grid-row: 2;
 	background-color: rgba(238, 238, 238, 0.5);
+}
+@media (prefers-color-scheme: dark) {
+	#output-overlay {
+		background-color: rgba(51, 51, 51, 0.5);
+	}
 }
 
 #main:not(.loading) div#output-overlay, #main:not(.loading) div.lds-roller {
@@ -126,8 +167,13 @@ html, body {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #000;
+  background-color: #000;
   margin: -4px 0 0 -4px;
+}
+@media (prefers-color-scheme: dark) {
+	.lds-roller div:after {
+		background-color: #eee;
+	}
 }
 .lds-roller div:nth-child(1) {
   animation-delay: -0.036s;
@@ -196,7 +242,6 @@ html, body {
 .cm-editor {
 	width: 100%;
 	height: 100%;
-	border: 1px solid #ddd;
 	font-size: large;
 }
 #exitcode {
@@ -224,7 +269,7 @@ preload_script = null;
 			<button id="btn-asm" class="pure-button">Asm</button>
 			<select id="ghcversionselect"></select>
 			<select id="optselect"></select>
-			<button id="btn-openaspaste" class="pure-button" style="margin-left: 50px">Create paste from code &nearr;</button>
+			<button id="btn-openaspaste" class="pure-button">Create paste from code &nearr;</button>
 		</div>
 	</div id="header">
 	<div id="leftcol"></div>
