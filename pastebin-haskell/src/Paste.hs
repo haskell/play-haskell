@@ -26,8 +26,8 @@ import Paste.DB (Database, ClientAddr, KeyType, Contents(..))
 import Paste.HighlightCSS
 import Pages
 import ServerModule
-import SpamDetect hiding (Action(..))
-import qualified SpamDetect as Spam (Action(..))
+import Snap.Server.Utils
+import Snap.Server.Utils.SpamDetect
 
 
 alphabet :: ByteString
@@ -175,7 +175,7 @@ handleRequest gctx context stvar = \case
     ReadPasteOld name -> redirect' (Char8.cons '/' name) 301  -- moved permanently
     StorePaste -> do
         req <- getRequest
-        isSpam <- liftIO $ recordCheckSpam Spam.Post (gcSpam gctx) (rqClientAddr req)
+        isSpam <- liftIO $ recordCheckSpam Post (gcSpam gctx) (rqClientAddr req)
         now <- liftIO getPOSIXTime
         if isSpam
             then httpError 429 "Please slow down a bit, you're rate limited"

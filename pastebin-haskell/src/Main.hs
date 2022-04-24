@@ -16,14 +16,15 @@ import Snap.Http.Server
 import System.IO
 import qualified System.Posix.Signals as Signal
 
-import qualified Options as Opt
 import Paste
 import Paste.DB (withDatabase)
 import Pages
 import Play
 import ServerModule
-import Shim
-import SpamDetect
+import Snap.Server.Utils
+import qualified Snap.Server.Utils.Options as Opt
+import Snap.Server.Utils.Shim
+import Snap.Server.Utils.SpamDetect
 
 
 data InstantiatedModule = InstantiatedModule
@@ -97,6 +98,20 @@ config =
        . setPort 8123
        $ defaultConfig
 
+actionPenalty :: SpamAction -> Float
+actionPenalty Post = 1.4
+actionPenalty PlayRunStart = 0.2
+-- curved increase from 0 at tm=0 to 2 at tm=1
+actionPenalty (PlayRunTimeoutFraction tm) = (1 - 1 / (tm + 1)) * (2 / (1 - (1 / (1 + 1))))
+
+spamConfig :: SpamConfig SpamAction
+spamConfig = SpamConfig
+  { spamActionPenalty = actionPenalty
+  , spamHalfTimeSecs = 10
+  , spamThreshold = 3.0
+  , spamForgetBelowScore = 0.1
+  , spamForgetIntervalSecs = 3600 }
+
 main :: IO ()
 main = do
     options <- Opt.parseOptions $ Opt.Interface defaultOptions $ Map.fromList
@@ -109,7 +124,7 @@ main = do
         ,("--help", Opt.Help)
         ,("-h", Opt.Help)]
 
-    spam <- initSpamDetect
+    spam <- initSpamDetect spamConfig
     pagesvar <- pagesFromDisk >>= newTVarIO
 
     _ <- Signal.installHandler Signal.sigUSR1 (Signal.Catch (refreshPages pagesvar)) Nothing

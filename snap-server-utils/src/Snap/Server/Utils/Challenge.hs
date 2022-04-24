@@ -1,5 +1,12 @@
 {-# LANGUAGE NumericUnderscores #-}
-module Challenge (
+{-| A key that refreshes once in a while.
+
+Create a new self-refreshing key using 'makeRefreshingChallenge';
+'servingChallenge' then returns the current text to be given to clients.
+'checkChallenge' returns whether the given text is equal to either the current
+challenge or the previous one.
+-}
+module Snap.Server.Utils.Challenge (
   ChallengeKey,
   makeRefreshingChallenge,
   servingChallenge,

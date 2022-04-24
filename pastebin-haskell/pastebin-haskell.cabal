@@ -16,11 +16,8 @@ executable pastebin-haskell
   main-is:
     Main.hs
   other-modules:
-    Challenge
     Data.Queue
-    ExitEarly
     GHCPool
-    Options
     Pages
     Paste
     Paste.Archive
@@ -28,10 +25,9 @@ executable pastebin-haskell
     Paste.HighlightCSS
     Play
     ServerModule
-    Shim
-    SpamDetect
   build-depends:
     base >= 4.13 && < 4.15,
+    snap-server-utils ^>= 0.1,
     array >= 0.5.4 && < 0.6,
     bytestring >= 0.10.12 && < 0.11,
     containers >= 0.6.3.1 && < 0.7,

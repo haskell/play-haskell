@@ -1,4 +1,4 @@
-module ExitEarly (
+module Snap.Server.Utils.ExitEarly (
   ExitEarlyT,
   exitEarly,
   execExitEarlyT,

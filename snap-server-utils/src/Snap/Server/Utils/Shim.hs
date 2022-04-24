@@ -1,5 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
-module Shim where
+module Snap.Server.Utils.Shim where
 
 import qualified Data.ByteString.Char8 as S
 import Data.String (fromString)

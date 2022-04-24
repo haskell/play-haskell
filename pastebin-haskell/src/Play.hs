@@ -24,14 +24,14 @@ import Text.JSON.String (runGetJSON)
 import Text.Read (readMaybe)
 import Safe
 
-import Challenge
-import ExitEarly
 import GHCPool
 import Pages
 import Paste.DB (getPaste, Contents(..))
 import ServerModule
-import SpamDetect hiding (Action(..))
-import qualified SpamDetect as Spam (Action(..))
+import Snap.Server.Utils
+import Snap.Server.Utils.Challenge
+import Snap.Server.Utils.ExitEarly
+import Snap.Server.Utils.SpamDetect
 
 
 data Context = Context Pool ChallengeKey
@@ -110,7 +110,7 @@ handleRequest gctx (Context pool challenge) = \case
   -- functionality, because this is more local.
   RunGHC runner -> execExitEarlyT $ do
     req <- lift getRequest
-    isSpam <- liftIO $ recordCheckSpam Spam.PlayRunStart (gcSpam gctx) (rqClientAddr req)
+    isSpam <- liftIO $ recordCheckSpam PlayRunStart (gcSpam gctx) (rqClientAddr req)
     when isSpam $ do
       lift (httpError 429 "Please slow down a bit, you're rate limited")
       exitEarly ()
@@ -149,7 +149,7 @@ handleRequest gctx (Context pool challenge) = \case
     -- Record the run as a spam-checking action, but don't actually act
     -- on the return value yet; that will come on the next user action
     let timeFraction = realToFrac (resTimeTaken result) / (fromIntegral runTimeoutMicrosecs / 1e6)
-    _ <- liftIO $ recordCheckSpam (Spam.PlayRunTimeoutFraction timeFraction) (gcSpam gctx) (rqClientAddr req)
+    _ <- liftIO $ recordCheckSpam (PlayRunTimeoutFraction timeFraction) (gcSpam gctx) (rqClientAddr req)
 
     lift $ modifyResponse (setContentType (Char8.pack "text/json"))
     lift $ writeJSON $ JSON.makeObj

@@ -1,6 +1,10 @@
-packages: pastebin-haskell/
+packages:
+    snap-server-utils/
+    pastebin-haskell/
 
 source-repository-package
     type: git
     location: https://github.com/hasufell/snap-server
     tag: 0f87bc06d36f4ac90ba4feded96b98469e095ae2
+
+-- vim: set et sw=4 ts=8:
