@@ -5,6 +5,19 @@ import {keymap} from "@codemirror/view";
 import {indentWithTab} from "@codemirror/commands";
 import {basicDark} from "cm6-theme-basic-dark";
 
+function addMediaListener(querystr: string, fallbackevent: string | null, cb: (q: MediaQueryList | MediaQueryListEvent | null) => void) {
+	if ("matchMedia" in window) {
+		const queryList = window.matchMedia(querystr);
+		// Invoke the callback once to get the current media setting
+		cb(queryList);
+		// Apparently older Safari doesn't have addEventListener here yet
+		if ("addEventListener" in queryList) queryList.addEventListener("change", cb);
+		else if ("addListener" in queryList) queryList.addListener(function() { cb(window.matchMedia(querystr)); });
+	} else if (fallbackevent != null) {
+		document.addEventListener(fallbackevent, function() { cb(null); });
+	}
+}
+
 const example_snippets: string[] = [
 	`import Data.List (partition)
 
@@ -84,21 +97,10 @@ const state = EditorState.create({
 });
 (window as any).view = new EditorView({state, parent: document.getElementById("leftcol")!});
 
-function handleColorSchemeChange(ql) {
+addMediaListener("(prefers-color-scheme: dark)", null, function(ql) {
 	if (ql.matches) (window as any).view.dispatch({effects: themeCompartment.reconfigure([basicDark])});
 	else (window as any).view.dispatch({effects: themeCompartment.reconfigure([])});
-}
-
-if ("matchMedia" in window) {
-	const queryList = window.matchMedia("(prefers-color-scheme: dark)");
-	// Call it once to get the current media setting
-	handleColorSchemeChange(queryList);
-	// Apparently older Safari doesn't have addEventListener here yet
-	if ("addEventListener" in queryList) queryList.addEventListener("change", handleColorSchemeChange);
-	else if ("addListener" in queryList) queryList.addListener(function() {
-		handleColorSchemeChange(window.matchMedia("(prefers-color-scheme: dark)"));
-	});
-}
+});
 
 let currentChallenge: string | null = null;
 
@@ -277,13 +279,20 @@ function doOpenAsPaste() {
 	document.body.removeChild(form);
 }
 
-function handleSeparatorDragEvents(sepelem: HTMLElement, containerelem: HTMLElement, leftchild: HTMLElement) {
+function setSeparatorToWidth(wid: number | null) {
+	const containerelem = document.getElementById("main");
+	if (wid == null) containerelem.style.gridTemplateColumns = "";
+	else containerelem.style.gridTemplateColumns =
+			"[left-start] " + wid + "px [left-end] 4px [right-start] 1fr [right-end]";
+}
+
+function handleSeparatorDragEvents() {
+	const sepelem = document.getElementById("colseparator");
+	const containerelem = document.getElementById("main");
+	const leftchild = document.getElementById("leftcol");
+
 	function currentWidth() {
 		return leftchild.getBoundingClientRect().width;
-	}
-	function setWidth(wid: number | null) {
-		containerelem.style.gridTemplateColumns =
-			"[left-start] " + (wid == null ? "1fr" : wid + "px") + " [left-end] 4px [right-start] 1fr [right-end]";
 	}
 
 	let initmousex: number | null = null;
@@ -295,7 +304,7 @@ function handleSeparatorDragEvents(sepelem: HTMLElement, containerelem: HTMLElem
 		let newWidth = initwidth + ev.clientX - initmousex;
 		newWidth = Math.max(newWidth, margin);
 		newWidth = Math.min(newWidth, containerelem.getBoundingClientRect().width - margin);
-		setWidth(newWidth);
+		setSeparatorToWidth(newWidth);
 	}
 
 	function cancelhandler(ev) {
@@ -309,7 +318,7 @@ function handleSeparatorDragEvents(sepelem: HTMLElement, containerelem: HTMLElem
 	sepelem.addEventListener("mousedown", function(ev) {
 		initmousex = ev.clientX;
 		initwidth = currentWidth();
-		setWidth(initwidth);  // should be unnecessary, but eh
+		setSeparatorToWidth(initwidth);  // should be unnecessary, but eh
 		document.body.style.userSelect = "none";
 
 		document.body.addEventListener("mousemove", movehandler);
@@ -318,7 +327,7 @@ function handleSeparatorDragEvents(sepelem: HTMLElement, containerelem: HTMLElem
 	});
 
 	sepelem.addEventListener("dblclick", function(ev) {
-		setWidth(null);  // reset to 50%
+		setSeparatorToWidth(null);  // reset to 50%
 	});
 }
 
@@ -361,4 +370,7 @@ document.getElementById("btn-run").addEventListener('click', () => { doRun(Runne
 document.getElementById("btn-core").addEventListener('click', () => { doRun(Runner.Core) });
 document.getElementById("btn-asm").addEventListener('click', () => { doRun(Runner.Asm) });
 document.getElementById("btn-openaspaste").addEventListener('click', () => { doOpenAsPaste() });
-handleSeparatorDragEvents(document.getElementById("colseparator"), document.getElementById("main"), document.getElementById("leftcol"));
+handleSeparatorDragEvents();
+addMediaListener("screen and (max-width: 800px)", "resize", function(ql) {
+	if (ql && ql.matches) setSeparatorToWidth(null);
+});
