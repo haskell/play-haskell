@@ -167,7 +167,8 @@ playModule = ServerModule
       k (Context pool challenge)
   , smParseRequest = parseRequest
   , smHandleRequest = handleRequest
-  , smStaticFiles = [("bundle.js", "text/javascript")]
+  , smStaticFiles = [("bundle.js", "text/javascript")
+                    ,("haskell-logo-tw.svg", "image/svg+xml")]
   }
 
 writeJSON :: JSValue -> Snap ()

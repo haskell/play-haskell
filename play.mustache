@@ -24,10 +24,12 @@ html, body {
 	padding: 5px;
 	display: flex;
 	flex-direction: row;
+	background-color: #3e3a3f;
+	color: #e8e8e8;
 }
 #title {
-	font-size: 30px;
 	align-self: center;
+	height: 31px;
 }
 #toolbar {
 	margin-left: 20px;
@@ -36,12 +38,14 @@ html, body {
 	flex-direction: row;
 	height: 100%;
 }
-#toolbar input[type="button"] {
-	margin: 0 5px;
+#toolbar button {
+	margin: 0 2px;
 }
 #toolbar #btn-openaspaste {
 	margin-top: auto;
 	margin-bottom: auto;
+	font-size: small;
+	background-color: #bbb;
 }
 #ghcversionselect {
 	margin-left: 5px;
@@ -63,12 +67,31 @@ html, body {
 	padding: 5px;
 	background-color: #eee;
 	overflow-y: auto;
-	font-size: large;
+}
+#exitcode-note {
+	margin-bottom: 9px;
+}
+#rightcol .output-header {
+	font-variant: small-caps;
+	display: flex;
+}
+#rightcol .output-header:before, #rightcol .output-header:after {
+	border-top: 1px #ccc solid;
+	content: "";
+	flex: 1 1 auto;
+	margin: auto 0;
+}
+#rightcol .output-header:before {
+	margin-right: 15px;
+}
+#rightcol .output-header:after {
+	margin-left: 15px;
 }
 #rightcol pre {
 	background-color: #fafafa;
 	white-space: pre-wrap;
 	word-break: break-word;  /* deprecated, but replacement not supported in safari? */
+	margin: 5px 0 20px 0;
 }
 
 #output-overlay {
@@ -180,6 +203,7 @@ html, body {
 	margin-bottom: 25px;
 }
 </style>
+<link rel="stylesheet" href="https://unpkg.com/purecss@2.0.3/build/pure-min.css" integrity="sha384-cg6SkqEOCV1NbJoCu11+bm0NvBRc8IYLRGXkmNrqUBfTjmMYwNKPWBTIKyw9mHNJ" crossorigin="anonymous">
 <script>
 {{#preload}}
 preload_script = {{&preload}};
@@ -193,25 +217,29 @@ preload_script = null;
 <body>
 <div id="main">
 	<div id="header">
-		<div id="title">Haskell playground</div>
+		<img id="title" src="/haskell-logo-tw.svg">
 		<div id="toolbar">
-			<input id="btn-run" type="button" class="button" value="Run">
-			<input id="btn-core" type="button" class="button" value="Core">
-			<input id="btn-asm" type="button" class="button" value="Asm">
+			<button id="btn-run" class="pure-button">Run</button>
+			<button id="btn-core" class="pure-button">Core</button>
+			<button id="btn-asm" class="pure-button">Asm</button>
 			<select id="ghcversionselect"></select>
 			<select id="optselect"></select>
-			<input id="btn-openaspaste" type="button" style="margin-left: 50px" value="Create paste from this">
+			<button id="btn-openaspaste" class="pure-button" style="margin-left: 50px">Create paste from code &nearr;</button>
 		</div>
 	</div id="header">
 	<div id="leftcol"></div>
 	<div id="colseparator"></div>
 	<div id="rightcol">
 		<div id="output-pane">
-			<div id="exitcode-note" class="invisible"></div>
-			<div style="border-bottom: 1px #ccc solid">Errors</div>
-			<pre id="out-stderr"></pre>
-			<div style="border-bottom: 1px #ccc solid">Output</div>
-			<pre id="out-stdout"></pre>
+			<div id="exitcode-note">Click the Run button to execute the code on the left.</div>
+			<div id="out-container-stderr" class="invisible">
+				<div class="output-header">Errors</div>
+				<pre id="out-stderr"></pre>
+			</div>
+			<div id="out-container-stdout" class="invisible">
+				<div class="output-header">Output</div>
+				<pre id="out-stdout"></pre>
+			</div>
 		</div>
 	</div>
 	<div id="output-overlay"></div>

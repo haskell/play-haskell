@@ -209,16 +209,24 @@ function doRun(run: Runner) {
 	if (typeof opt != "string" || opt == "") opt = "O1";
 
 	sendRun(source, version, opt, run, function(response: {[key: string]: json}) {
+		function setInvisible(elem, yes) {
+			if (yes) elem.classList.add("invisible");
+			else elem.classList.remove("invisible");
+		}
+
 		const ecNote: HTMLElement = document.getElementById("exitcode-note");
 		if (response.ec === -1) {
-			ecNote.classList.remove("invisible");
+			setInvisible(ecNote, false);
 			ecNote.textContent = "Command timed out :(";
 		} else if (response.ec != 0) {
-			ecNote.classList.remove("invisible");
+			setInvisible(ecNote, false);
 			ecNote.textContent = "Command exited with code " + response.ec + ".";
 		} else {
-			ecNote.classList.add("invisible");
+			setInvisible(ecNote, true);
 		}
+
+		setInvisible(document.getElementById("out-container-stdout"), (response.out as string).length == 0);
+		setInvisible(document.getElementById("out-container-stderr"), (response.err as string).length == 0);
 
 		document.getElementById("out-stdout").textContent = response.out as string;
 		document.getElementById("out-stderr").textContent = response.err as string;
