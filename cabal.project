@@ -1,5 +1,6 @@
 packages:
     snap-server-utils/
+    play-haskell-worker/
     pastebin-haskell/
 
 source-repository-package
