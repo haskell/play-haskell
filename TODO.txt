@@ -8,6 +8,7 @@ Medium:
 
 Backlog:
 - Access to stackage LTS packages
+- Additional flags for Core output (-dsuppress-all?)
 - Button for code formatting using a formatter
 - Stretch goal: ghci on the playground module?
 - Different editor?
