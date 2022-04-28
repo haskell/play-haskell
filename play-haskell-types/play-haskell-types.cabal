@@ -1,0 +1,24 @@
+cabal-version:       2.0
+name:                play-haskell-types
+synopsis:            Shared types for play-haskell
+version:             0.1.0.0
+license:             MIT
+license-file:        LICENSE
+author:              Tom Smeding
+maintainer:          tom@tomsmeding.com
+build-type:          Simple
+homepage:            https://github.com/tomsmeding/pastebin-haskell
+
+library
+  exposed-modules:
+    PlayHaskellTypes
+  build-depends:
+    base >= 4.13 && < 4.15,
+    json >= 0.10 && < 0.11
+  hs-source-dirs:      src
+  default-language:    Haskell2010
+  ghc-options:         -Wall -O2
+
+source-repository head
+  type: git
+  location: https://github.com/tomsmeding/pastebin-haskell
