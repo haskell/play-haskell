@@ -12,9 +12,13 @@ homepage:            https://github.com/tomsmeding/pastebin-haskell
 library
   exposed-modules:
     PlayHaskellTypes
+    PlayHaskellTypes.Sign
   build-depends:
     base >= 4.13 && < 4.15,
-    json >= 0.10 && < 0.11
+    bytestring >= 0.10.12 && < 0.11,
+    cryptonite >= 0.30 && < 0.31,
+    json >= 0.10 && < 0.11,
+    memory >= 0.17 && < 0.18
   hs-source-dirs:      src
   default-language:    Haskell2010
   ghc-options:         -Wall -O2
