@@ -36,8 +36,7 @@ data RunRequest = RunRequest
   { runreqCommand :: Command
   , runreqSource :: String
   , runreqVersion :: Version
-  , runreqOpt :: Optimisation
-  , runreqChallenge :: String }
+  , runreqOpt :: Optimisation }
   deriving (Show)
 
 -- | Body payload for a response to a 'RunRequest'.
@@ -85,23 +84,21 @@ instance JSON RunError where
 instance JSON RunRequest where
   readJSON (JSObject obj) =
     case sequence (map (`lookup` fromJSObject obj)
-                       ["cmd", "src", "ver", "opt", "chal"]) of
-      Just [cmd, src, ver, opt, chal] ->
+                       ["cmd", "src", "ver", "opt"]) of
+      Just [cmd, src, ver, opt] ->
         RunRequest <$> readJSON cmd
                    <*> (fromJSString <$> readJSON src)
                    <*> readJSON ver
                    <*> readJSON opt
-                   <*> (fromJSString <$> readJSON chal)
       _ -> fail "Unable to read RunRequest"
   readJSON _ = fail "Unable to read RunRequest"
 
-  showJSON (RunRequest cmd src ver opt chal) =
+  showJSON (RunRequest cmd src ver opt) =
     JSObject $ toJSObject
       [("cmd", showJSON cmd)
       ,("src", showJSON (toJSString src))
       ,("ver", showJSON ver)
-      ,("opt", showJSON opt)
-      ,("chal", showJSON (toJSString chal))]
+      ,("opt", showJSON opt)]
 
 instance JSON RunResponse where
   readJSON (JSObject obj) =

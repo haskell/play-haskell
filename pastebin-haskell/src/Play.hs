@@ -7,7 +7,6 @@ module Play (playModule) where
 import Control.Concurrent (getNumCapabilities)
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
-import qualified Data.ByteString as BS
 import qualified Data.ByteString.Builder as BSB
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as Char8
@@ -15,8 +14,6 @@ import qualified Data.ByteString.UTF8 as UTF8
 import Data.Time (secondsToDiffTime)
 import Snap.Core hiding (path, method)
 import System.Exit (ExitCode(..))
-import qualified System.IO.Streams as Streams
-import System.IO.Streams (InputStream)
 import qualified Data.Text as T
 import qualified Text.JSON as JSON
 import Text.JSON (JSValue(..))
@@ -56,17 +53,6 @@ parseRequest method comps = case (method, comps) of
   (POST, ["play", "core"]) -> Just (RunGHC CCore)
   (POST, ["play", "asm"]) -> Just (RunGHC CAsm)
   _ -> Nothing
-
-streamReadMaxN :: Int -> InputStream ByteString -> IO (Maybe ByteString)
-streamReadMaxN maxlen stream = fmap mconcat <$> go 0
-  where go :: Int -> IO (Maybe [ByteString])
-        go yet = Streams.read stream >>= \case
-                   Nothing -> return (Just [])
-                   Just chunk
-                     | yet + BS.length chunk <= maxlen ->
-                         fmap (chunk :) <$> go (yet + BS.length chunk)
-                     | otherwise ->
-                         return Nothing
 
 handleRequest :: GlobalContext -> Context -> WhatRequest -> Snap ()
 handleRequest gctx (Context pool challenge) = \case

@@ -5,13 +5,9 @@
 module GHCPool (
   availableVersions,
   runTimeoutMicrosecs,
-  Command(..),
-  Optimization(..),
-  Version(..),
   Pool,
   makePool,
   Result(..),
-  RunPoolError(..),
   runInPool,
 ) where
 
@@ -30,6 +26,7 @@ import System.Timeout (timeout)
 
 import Data.Queue (Queue)
 import qualified Data.Queue as Queue
+import PlayHaskellTypes (Command(..), Optimisation(..), Version(..), RunError(..))
 
 
 runTimeoutMicrosecs :: Int
@@ -41,27 +38,15 @@ availableVersions = do
   let ghc_versions = [ver | (words -> _ : ver : _) <- lines out]
   return ghc_versions
 
-data Command = CRun
-             | CCore
-             | CAsm
-  deriving (Show)
-
 commandString :: Command -> String
 commandString CRun = "run"
 commandString CCore = "core"
 commandString CAsm = "asm"
 
-data Optimization = O0
-                  | O1
-                  | O2
-  deriving (Show, Read)
-
-optimizationString :: Optimization -> String
-optimizationString O0 = "-O0"
-optimizationString O1 = "-O1"
-optimizationString O2 = "-O2"
-
-newtype Version = Version String deriving (Show)
+optimisationString :: Optimisation -> String
+optimisationString O0 = "-O0"
+optimisationString O1 = "-O1"
+optimisationString O2 = "-O2"
 
 data Result = Result
   { resExitCode :: ExitCode
@@ -71,19 +56,17 @@ data Result = Result
   }
   deriving (Show)
 
-data RunResult = TimeOut | Finished Result
-  deriving (Show)
+type RunResult = Either RunError Result
 
 data Worker = Worker ThreadId
-                     (MVar (Command, Optimization, Version, String))  -- ^ input
+                     (MVar (Command, Optimisation, Version, String))  -- ^ input
                      (MVar RunResult)  -- ^ output
 
 data PoolData = PoolData
   { pdAvailable :: [Worker]
   , pdQueue :: Queue (MVar Worker) }
 
-data Pool = Pool { pDataVar :: MVar PoolData
-                 , pMaxQueueLen :: Int }
+data Pool = Pool { pDataVar :: MVar PoolData }
 
 makeWorker :: IO Worker
 makeWorker = do
@@ -98,7 +81,7 @@ makeWorker = do
     Pr.withCreateProcess spec $ \(Just inh) (Just outh) (Just errh) proch -> do
       (cmd, opt, Version ver, source) <- readMVar mvar
       _ <- forkIO $ do
-        hPutStr inh (commandString cmd ++ "\n" ++ optimizationString opt ++ "\n" ++ ver ++ "\n" ++ source)
+        hPutStr inh (commandString cmd ++ "\n" ++ optimisationString opt ++ "\n" ++ ver ++ "\n" ++ source)
         hClose inh
       stdoutmvar <- newEmptyMVar
       _ <- forkIO $ hGetContents outh >>= evaluate . forceString >>= putMVar stdoutmvar
@@ -109,56 +92,48 @@ makeWorker = do
         Just ec -> do
           out <- readMVar stdoutmvar
           err <- readMVar stderrmvar
-          putMVar resultvar (Finished (Result ec out err dur))
+          putMVar resultvar (Right (Result ec out err dur))
         Nothing -> do
           -- Paranoid termination is technically unnecessary since bwrap seems
           -- to kill its child with SIGKILL if it is itself killed using
           -- SIGTERM, which is what Pr.terminateProcess sends. However, let's
           -- be safe.
           terminateParanoid proch
-          putMVar resultvar TimeOut
+          putMVar resultvar (Left RETimeOut)
   return (Worker thread mvar resultvar)
 
 -- | makePool numWorkers maxQueueLen
-makePool :: Int -> Int -> IO Pool
-makePool numWorkers maxQueueLen = do
-  -- putStrLn $ "Making a GHCPool with numWorkers=" ++ show numWorkers ++ " maxQueueLen=" ++ show maxQueueLen
+makePool :: Int -> IO Pool
+makePool numWorkers = do
+  -- putStrLn $ "Making a GHCPool with numWorkers=" ++ show numWorkers
   workers <- replicateM numWorkers makeWorker
   let pd = PoolData { pdAvailable = workers
                     , pdQueue = Queue.empty }
   pdvar <- newMVar pd
-  return (Pool pdvar maxQueueLen)
+  return (Pool pdvar)
 
 data ObtainedWorker = Obtained Worker
                     | Queued (MVar Worker) Int
-                    | QueueFull
 
-data RunPoolError = EQueueFull
-                  | ETimeOut
-
-runInPool :: Pool -> Command -> Version -> Optimization -> String -> IO (Either RunPoolError Result)
+runInPool :: Pool -> Command -> Version -> Optimisation -> String -> IO (Either RunError Result)
 runInPool pool cmd ver opt source = do
   result <- modifyMVar (pDataVar pool) $ \pd ->
               case pdAvailable pd of
                 w:ws ->
                   return (pd { pdAvailable = ws }, Obtained w)
-                [] | Queue.size (pdQueue pd) < pMaxQueueLen pool -> do
-                       receptor <- newEmptyMVar
-                       let newq = Queue.push (pdQueue pd) receptor
-                       return (pd { pdQueue = newq }
-                              ,Queued receptor (Queue.size newq))
-                   | otherwise ->
-                       return (pd, QueueFull)
+                [] -> do
+                  receptor <- newEmptyMVar
+                  let newq = Queue.push (pdQueue pd) receptor
+                  return (pd { pdQueue = newq }
+                         ,Queued receptor (Queue.size newq))
 
   case result of
     Obtained worker -> do -- putStrLn "[obtained]"
                           useWorker worker
     Queued receptor _newlen -> do -- putStrLn ("[queued len=" ++ show newlen ++ "]")
                                   readMVar receptor >>= useWorker
-    QueueFull -> do -- putStrLn "[queue full]"
-                    return (Left EQueueFull)
   where
-    useWorker :: Worker -> IO (Either RunPoolError Result)
+    useWorker :: Worker -> IO (Either RunError Result)
     useWorker (Worker _tid invar outvar) = do
       putMVar invar (cmd, opt, ver, source)
       result <- readMVar outvar
@@ -171,9 +146,7 @@ runInPool pool cmd ver opt source = do
               return pd { pdQueue = qu' }
             Nothing ->
               return pd { pdAvailable = newWorker : pdAvailable pd }
-      case result of
-        Finished res -> return (Right res)
-        TimeOut -> return (Left ETimeOut)
+      return result
 
 forceString :: String -> String
 forceString = foldr seq >>= id

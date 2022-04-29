@@ -1,10 +1,14 @@
+{-# LANGUAGE LambdaCase #-}
 module Snap.Server.Utils where
 
 import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as Char8
 import Data.String (fromString)
 import Snap.Core hiding (path)
 import System.FilePath ((</>))
+import System.IO.Streams (InputStream)
+import qualified System.IO.Streams as Streams
 
 
 httpError :: Int -> String -> Snap ()
@@ -28,3 +32,14 @@ writeHTML :: MonadSnap m => ByteString -> m ()
 writeHTML bs = do
     modifyResponse $ setContentType (Char8.pack "text/html; charset=utf-8")
     writeBS bs
+
+streamReadMaxN :: Int -> InputStream ByteString -> IO (Maybe ByteString)
+streamReadMaxN maxlen stream = fmap mconcat <$> go 0
+  where go :: Int -> IO (Maybe [ByteString])
+        go yet = Streams.read stream >>= \case
+                   Nothing -> return (Just [])
+                   Just chunk
+                     | yet + BS.length chunk <= maxlen ->
+                         fmap (chunk :) <$> go (yet + BS.length chunk)
+                     | otherwise ->
+                         return Nothing
