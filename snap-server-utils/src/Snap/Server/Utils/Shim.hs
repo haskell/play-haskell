@@ -6,7 +6,7 @@ import Data.String (fromString)
 import Snap.Core
 
 
--- | This functoin does the same as 'ipHeaderFilter', except that it also
+-- | This function does the same as 'ipHeaderFilter', except that it also
 -- allows `:` and `a-fA-F` in IPs. This is to support IPv6 addresses.
 ipHeaderFilterSupportingIPv6 :: MonadSnap m => m ()
 ipHeaderFilterSupportingIPv6 = do
