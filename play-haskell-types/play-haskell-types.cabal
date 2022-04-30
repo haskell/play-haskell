@@ -15,6 +15,7 @@ library
     PlayHaskellTypes.Sign
   build-depends:
     base >= 4.13 && < 4.15,
+    snap-server-utils,
     bytestring >= 0.10.12 && < 0.11,
     cryptonite >= 0.30 && < 0.31,
     json >= 0.10 && < 0.11,
