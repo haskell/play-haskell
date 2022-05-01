@@ -1,5 +1,6 @@
 module Snap.Server.Utils.Hex where
 
+import Data.ByteString (ByteString)
 import qualified Data.ByteString.Short as BSS
 import Data.Char (ord, chr)
 import Data.Word (Word8)
@@ -9,7 +10,8 @@ hexDecode :: String -> Maybe BSS.ShortByteString
 hexDecode s = BSS.pack <$> go s
   where
     go "" = Just []
-    go (c1:c2:cs) = (:) <$> ((+) <$> digit c1 <*> digit c2) <*> go cs
+    go (c1:c2:cs) = (:) <$> ((+) <$> ((16*) <$> digit c1) <*> digit c2)
+                        <*> go cs
     go _ = Nothing
 
     digit :: Char -> Maybe Word8
@@ -17,6 +19,9 @@ hexDecode s = BSS.pack <$> go s
             | ord 'a' <= ord c, ord c <= ord 'f' = Just $ fromIntegral $ ord c - ord 'a' + 10
             | ord 'A' <= ord c, ord c <= ord 'F' = Just $ fromIntegral $ ord c - ord 'A' + 10
             | otherwise = Nothing
+
+hexDecodeBS :: String -> Maybe ByteString
+hexDecodeBS = fmap BSS.fromShort . hexDecode
 
 hexEncode :: BSS.ShortByteString -> String
 hexEncode = concatMap go . BSS.unpack

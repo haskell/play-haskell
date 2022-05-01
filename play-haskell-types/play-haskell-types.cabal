@@ -24,6 +24,18 @@ library
   default-language:    Haskell2010
   ghc-options:         -Wall -O2
 
+executable gen-secret-key
+  main-is: GenSecretKey.hs
+  build-depends:
+    base,
+    snap-server-utils,
+    play-haskell-types,
+    bytestring,
+    unix >= 2.7.2 && < 2.8
+  hs-source-dirs:      .
+  default-language:    Haskell2010
+  ghc-options:         -Wall -O2
+
 source-repository head
   type: git
   location: https://github.com/tomsmeding/pastebin-haskell

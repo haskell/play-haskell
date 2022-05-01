@@ -7,19 +7,17 @@ import Control.Concurrent (getNumCapabilities)
 import Control.Monad
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Builder as BSB
-import qualified Data.ByteString.Char8 as Char8
 import qualified Data.ByteString.Char8 as Char8
 import Data.ByteString (ByteString)
 import Data.Char (ord)
 import qualified Data.Map.Strict as Map
 import Snap.Core hiding (path, method)
 import Snap.Http.Server
+import System.Exit
 import System.IO
-import qualified Text.JSON as JSON
 
-import PlayHaskellTypes (Message(..), RunRequest(..), RunResponse(..))
-import PlayHaskellTypes.Sign (PublicKey)
+import PlayHaskellTypes (Message(..), RunRequest(..), RunResponse(..), signingBytes, signMessage)
+import PlayHaskellTypes.Sign (PublicKey, SecretKey)
 import qualified PlayHaskellTypes.Sign as Sign
 import Snap.Server.Utils
 import Snap.Server.Utils.ExitEarly
@@ -32,7 +30,8 @@ import GHCPool
 
 data Context = Context
   { ctxPool :: Pool
-  , ctxKnownServers :: [PublicKey] }
+  , ctxSecretKey :: SecretKey
+  , ctxTrustedServers :: [PublicKey] }
 
 data WhatRequest
   = SubmitJob
@@ -46,10 +45,17 @@ parseRequest method comps = case (method, comps) of
 handleRequest :: Context -> WhatRequest -> Snap ()
 handleRequest ctx = \case
   SubmitJob -> execExitEarlyT $ do
-    -- TODO: check signing keys here
-
     msg <- getRequestBodyEarlyExitJSON 1000_000 "Program too large"
+
+    when (sesmsgPublicKey msg `notElem` ctxTrustedServers ctx) $ do
+      lift $ httpError 401 "Public key not in trusted list"
+      exitEarly ()
+
     let runreq = sesmsgContent msg
+
+    when (not (Sign.verify (sesmsgPublicKey msg) (signingBytes runreq) (sesmsgSignature msg))) $ do
+      lift $ httpError 400 "Invalid signature"
+      exitEarly ()
 
     result <- liftIO $ runInPool (ctxPool ctx)
                 (runreqCommand runreq)
@@ -64,8 +70,7 @@ handleRequest ctx = \case
                          , runresStderr = resStderr res
                          , runresTimeTakenSecs = resTimeTaken res }
     
-    lift $ modifyResponse (setContentType (Char8.pack "text/json"))
-    lift $ writeLBS . BSB.toLazyByteString . BSB.stringUtf8 $ JSON.encode response
+    lift $ writeJSON (signMessage (ctxSecretKey ctx) response)
 
 splitPath :: ByteString -> Maybe [ByteString]
 splitPath path
@@ -104,7 +109,7 @@ config =
 
 data Options = Options { oProxied :: Bool
                        , oSecKeyFile :: FilePath
-                       , oServerKeyFile :: FilePath }
+                       , oTrustedKeys :: FilePath }
   deriving (Show)
 
 defaultOptions :: Options
@@ -123,20 +128,31 @@ main = do
         \of this worker. The file should contain 32 random bytes \
         \in hexadecimal notation."
         (\o s -> o { oSecKeyFile = s }))
-    ,("--serverkeys", Opt.Setter
+    ,("--trustedkeys", Opt.Setter
         "Required. Path to file that contains the public keys of \
         \play-haskell servers that this worker trusts. The \
         \file should contain a number of hexadecimal strings, \
-        \each encoding a public key of length 32 bytes."
-        (\o s -> o { oServerKeyFile = s }))
+        \each encoding a public key of length 32 bytes, separated \
+        \by spaces or newlines."
+        (\o s -> o { oTrustedKeys = s }))
     ,("--help", Opt.Help)
     ,("-h", Opt.Help)]
 
-  skey <- Sign.readSecretKey <$> BS.readFile (oSecKeyFile options) >>= \case
-            Nothing -> die $ "Cannot open secret key file '" ++ oSecKeyFile options ++ "'"
+  when (oSecKeyFile options == "") $ die "'--secretkey' is required"
+  skey <- (hexDecodeBS >=> Sign.readSecretKey) <$> readFile (oSecKeyFile options) >>= \case
+            Nothing -> die "Secret key file contains invalid key"
+            Just skey -> return skey
+
+  when (oTrustedKeys options == "") $ die "'--trustedkeys is required"
+  pkeys <- mapM (hexDecodeBS >=> Sign.readPublicKey) . words <$> readFile (oTrustedKeys options) >>= \case
+             Nothing -> die "Trusted public keys file of invalid format"
+             Just pkeys -> return pkeys
+
+  let Sign.PublicKey ownPkey = Sign.publicKey skey
+  putStrLn $ "My public key: " ++ hexEncode ownPkey
 
   nprocs <- getNumCapabilities
   pool <- makePool nprocs
-  let ctx = Context pool _
+  let ctx = Context pool skey pkeys
 
   httpServe config (server options ctx)

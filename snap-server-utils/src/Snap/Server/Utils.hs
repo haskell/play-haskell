@@ -3,6 +3,7 @@ module Snap.Server.Utils where
 
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Builder as BSB
 import qualified Data.ByteString.Char8 as Char8
 import qualified Data.ByteString.UTF8 as UTF8
 import Data.String (fromString)
@@ -38,6 +39,11 @@ writeHTML bs = do
   modifyResponse $ setContentType (Char8.pack "text/html; charset=utf-8")
   writeBS bs
 
+writeJSON :: (MonadSnap m, JSON a) => a -> m ()
+writeJSON value = do
+  modifyResponse $ setContentType (Char8.pack "text/json")
+  writeBuilder (BSB.stringUtf8 (JSON.encode value))
+
 streamReadMaxN :: Int -> InputStream ByteString -> IO (Maybe ByteString)
 streamReadMaxN maxlen stream = fmap mconcat <$> go 0
   where go :: Int -> IO (Maybe [ByteString])
@@ -68,5 +74,5 @@ getRequestBodyEarlyExitJSON sizelimit oversizeerror = do
   postdata <- getRequestBodyEarlyExit sizelimit oversizeerror
   case JSON.decode (UTF8.toString postdata) of
     JSON.Ok value -> return value
-    _ -> do lift (httpError 400 "Invalid JSON")
-            exitEarly ()
+    JSON.Error err -> do lift (httpError 400 ("Invalid JSON: " ++ err))
+                         exitEarly ()

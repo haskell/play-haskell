@@ -5,6 +5,7 @@ module PlayHaskellTypes.Sign (
   SecretKey,
   Signature(..),
   readSecretKey,
+  readPublicKey,
   revealSecretKey,
   publicKey,
 
@@ -27,7 +28,7 @@ import Snap.Server.Utils.Hex
 
 -- | 32 bytes.
 newtype PublicKey = PublicKey BSS.ShortByteString
-  deriving (Show)
+  deriving (Show, Eq)
 
 -- | Generate a secret key by applying 'readSecretKey' to 32 random bytes.
 --
@@ -44,6 +45,11 @@ readSecretKey :: ByteString -> Maybe SecretKey
 readSecretKey bs = case Cr.secretKey bs of
                      Cr.CryptoPassed key -> Just (SecretKey key)
                      Cr.CryptoFailed{} -> Nothing
+
+-- | Returns 'Nothing' if the input is not 32 bytes long.
+readPublicKey :: ByteString -> Maybe PublicKey
+readPublicKey bs | BS.length bs == Cr.publicKeySize = Just (PublicKey (BSS.toShort bs))
+                 | otherwise = Nothing
 
 -- | Use this function with care; do this only in a short-lived process that
 -- puts the revealed key in a good place. The output is 32 bytes.
