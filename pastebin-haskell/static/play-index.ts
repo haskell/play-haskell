@@ -248,11 +248,11 @@ function doRun(run: Runner) {
 			setInvisible(ecNote, true);
 		}
 
-		setInvisible(document.getElementById("out-container-stdout"), (response.out as string).length == 0);
-		setInvisible(document.getElementById("out-container-stderr"), (response.err as string).length == 0);
+		if (response.out) setInvisible(document.getElementById("out-container-stdout"), (response.out as string).length == 0);
+		if (response.err) setInvisible(document.getElementById("out-container-stderr"), (response.err as string).length == 0);
 
-		document.getElementById("out-stdout").textContent = response.out as string;
-		document.getElementById("out-stderr").textContent = response.err as string;
+		if (response.out) document.getElementById("out-stdout").textContent = response.out as string;
+		if (response.err) document.getElementById("out-stderr").textContent = response.err as string;
 	});
 }
 
