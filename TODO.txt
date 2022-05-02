@@ -1,6 +1,7 @@
 Priority:
 - Horizontally scalable backend
 - Audit the bwrap command in bwrap-files/start.sh
+- Limit output size
 
 Medium:
 - Hotkey for Run
