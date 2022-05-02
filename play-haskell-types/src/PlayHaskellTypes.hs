@@ -19,15 +19,20 @@ module PlayHaskellTypes (
   SigningBytes(..),
 ) where
 
+import Control.Applicative ((<|>))
+import qualified Data.Aeson as J
+import qualified Data.Aeson.Encoding as JE
+import qualified Data.Aeson.Types as J
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder as BSB
 import qualified Data.ByteString.Lazy as Lazy
 import Data.Int (Int64)
+import Data.String (fromString)
+import qualified Data.Text as T
 import Data.Word (Word64)
 import System.Exit
-import Text.JSON
 
 import PlayHaskellTypes.Sign (PublicKey, SecretKey, Signature)
 import qualified PlayHaskellTypes.Sign as Sign
@@ -81,108 +86,114 @@ data RunResponse
   = RunResponseErr RunError
   | RunResponseOk
       { runresExitCode :: ExitCode
-      , runresStdout :: String
-      , runresStderr :: String
+      , runresStdout :: Lazy.ByteString
+      , runresStderr :: Lazy.ByteString
       , runresTimeTakenSecs :: Double }
   deriving (Show)
 
-instance JSON Command where
-  readJSON (JSString s) = case fromJSString s of
+instance J.FromJSON Command where
+  parseJSON (J.String s) = case T.unpack s of
     "run" -> return CRun ; "core" -> return CCore ; "asm" -> return CAsm ;
-    _ -> fail "Unable to read Command"
-  readJSON _ = fail "Unable to read Command"
+    _ -> fail "Invalid Command string"
+  parseJSON val = J.prependFailure "parsing Command failed, " (J.typeMismatch "String" val)
 
-  showJSON cmd = JSString $ toJSString $ case cmd of
+instance J.ToJSON Command where
+  toJSON cmd = J.String $ T.pack $ case cmd of
     CRun -> "run" ; CCore -> "core" ; CAsm -> "asm"
+  toEncoding cmd = case cmd of
+    CRun -> JE.string "run" ; CCore -> JE.string "core" ; CAsm -> JE.string "asm"
 
-instance JSON Optimisation where
-  readJSON (JSString s) = case fromJSString s of
+instance J.FromJSON Optimisation where
+  parseJSON (J.String s) = case T.unpack s of
     "O0" -> return O0 ; "O1" -> return O1 ; "O2" -> return O2 ;
-    _ -> fail "Unable to read Optimisation"
-  readJSON _ = fail "Unable to read Optimisation"
+    _ -> fail "Invalid Optimisation string"
+  parseJSON val = J.prependFailure "parsing Optimisation failed, " (J.typeMismatch "String" val)
 
-  showJSON cmd = JSString $ toJSString $ case cmd of
+instance J.ToJSON Optimisation where
+  toJSON opt = J.String $ T.pack $ case opt of
     O0 -> "O0" ; O1 -> "O1" ; O2 -> "O2"
+  toEncoding opt = case opt of
+    O0 -> JE.string "O0" ; O1 -> JE.string "O1" ; O2 -> JE.string "O2"
 
-instance JSON Version where
-  readJSON (JSString s) = return (Version (fromJSString s))
-  readJSON _ = fail "Unable to read Version"
+instance J.FromJSON Version where
+  parseJSON (J.String s) = return (Version (T.unpack s))
+  parseJSON val = J.prependFailure "parsing Version failed, " (J.typeMismatch "String" val)
 
-  showJSON (Version s) = JSString (toJSString s)
+instance J.ToJSON Version where
+  toJSON (Version s) = J.String (T.pack s)
+  toEncoding (Version s) = JE.string s
 
-instance JSON RunError where
-  readJSON (JSString s) = case fromJSString s of
-                            "timeout" -> return RETimeOut
-                            _ -> fail "Unable to read RunError"
-  readJSON _ = fail "Unable to read RunError"
+instance J.FromJSON RunError where
+  parseJSON (J.String s) = case T.unpack s of
+    "timeout" -> return RETimeOut
+    _ -> fail "Invalid RunError string"
+  parseJSON val = J.prependFailure "parsing RunError failed, " (J.typeMismatch "String" val)
 
-  showJSON RETimeOut = JSString (toJSString "timeout")
+instance J.ToJSON RunError where
+  toJSON RETimeOut = J.String (T.pack "timeout")
+  toEncoding RETimeOut = JE.string "timeout"
 
-instance JSON a => JSON (Message a) where
-  readJSON (JSObject obj) =
-    case mapM (`lookup` fromJSObject obj) ["sig", "pkey", "con"] of
-      Just [sig, pkey, con] ->
-        Message <$> readJSON sig
-                <*> readJSON pkey
-                <*> readJSON con
-      _ -> fail "Unable to read Message"
-  readJSON _ = fail "Unable to read Message"
+instance J.FromJSON a => J.FromJSON (Message a) where
+  parseJSON (J.Object v) =
+    Message <$> v J..: fromString "sig"
+            <*> v J..: fromString "pkey"
+            <*> v J..: fromString "con"
+  parseJSON val = J.prependFailure "parsing Message failed, " (J.typeMismatch "Object" val)
 
-  showJSON (Message sig pkey con) =
-    JSObject $ toJSObject
-      [("sig", showJSON sig)
-      ,("pkey", showJSON pkey)
-      ,("con", showJSON con)]
+instance J.ToJSON a => J.ToJSON (Message a) where
+  toJSON (Message sig pkey con) =
+    J.object [fromString "sig" J..= sig
+             ,fromString "pkey" J..= pkey
+             ,fromString "con" J..= con]
+  toEncoding (Message sig pkey con) =
+    JE.pairs (fromString "sig" J..= sig
+           <> fromString "pkey" J..= pkey
+           <> fromString "con" J..= con)
 
-instance JSON RunRequest where
-  readJSON (JSObject obj) =
-    case mapM (`lookup` fromJSObject obj) ["cmd", "src", "ver", "opt"] of
-      Just [cmd, src, ver, opt] ->
-        RunRequest <$> readJSON cmd
-                   <*> (fromJSString <$> readJSON src)
-                   <*> readJSON ver
-                   <*> readJSON opt
-      _ -> fail "Unable to read RunRequest"
-  readJSON _ = fail "Unable to read RunRequest"
+instance J.FromJSON RunRequest where
+  parseJSON (J.Object v) =
+    RunRequest <$> v J..: fromString "cmd"
+               <*> v J..: fromString "src"
+               <*> v J..: fromString "ver"
+               <*> v J..: fromString "opt"
+  parseJSON val = J.prependFailure "parsing RunRequest failed, " (J.typeMismatch "Object" val)
 
-  showJSON (RunRequest cmd src ver opt) =
-    JSObject $ toJSObject
-      [("cmd", showJSON cmd)
-      ,("src", showJSON (toJSString src))
-      ,("ver", showJSON ver)
-      ,("opt", showJSON opt)]
+instance J.ToJSON RunRequest where
+  toJSON (RunRequest cmd src ver opt) =
+    J.object [fromString "cmd" J..= cmd
+             ,fromString "src" J..= src
+             ,fromString "ver" J..= ver
+             ,fromString "opt" J..= opt]
+  toEncoding (RunRequest cmd src ver opt) =
+    JE.pairs (fromString "cmd" J..= cmd
+           <> fromString "src" J..= src
+           <> fromString "ver" J..= ver
+           <> fromString "opt" J..= opt)
 
-instance JSON RunResponse where
-  readJSON (JSObject obj) =
-    case lookup "err" (fromJSObject obj) of
-      Just err -> RunResponseErr <$> readJSON err
-      Nothing ->
-        case mapM (`lookup` fromJSObject obj) ["ec", "sout", "serr", "timesecs"] of
-          Just [ec, sout, serr, timesecs] ->
-            RunResponseOk <$> readJSON ec
-                          <*> (fromJSString <$> readJSON sout)
-                          <*> (fromJSString <$> readJSON serr)
-                          <*> readJSON timesecs
-          _ -> fail "Unable to read RunResponse"
-  readJSON _ = fail "Unable to read RunResponse"
+instance J.FromJSON RunResponse where
+  parseJSON (J.Object v) =
+    (RunResponseErr <$> v J..: fromString "err")
+    <|> (RunResponseOk <$> (toExitCode <$> (v J..: fromString "ec"))
+                       <*> v J..: fromString "sout"
+                       <*> v J..: fromString "serr"
+                       <*> v J..: fromString "timesecs")
+    where toExitCode 0 = ExitSuccess
+          toExitCode n = ExitFailure n
+  parseJSON val = J.prependFailure "parsing RunResponse failed, " (J.typeMismatch "Object" val)
 
-  showJSON (RunResponseErr err) = JSObject $ toJSObject [("err", showJSON err)]
-  showJSON (RunResponseOk ec sout serr timesecs) =
-    JSObject $ toJSObject
-      [("ec", showJSON ec)
-      ,("sout", showJSON (toJSString sout))
-      ,("serr", showJSON (toJSString serr))
-      ,("timesecs", showJSON timesecs)]
-
--- | Encoded as an integer, with 0 mapping to 'ExitSuccess'.
-instance JSON ExitCode where
-  readJSON value = do
-    code <- readJSON value :: Result Int
-    case code of 0 -> return ExitSuccess
-                 _ -> return (ExitFailure code)
-
-  showJSON ExitSuccess = showJSON (0 :: Int)
-  showJSON (ExitFailure code) = showJSON code
+instance J.ToJSON RunResponse where
+  toJSON (RunResponseErr err) = J.object [fromString "err" J..= err]
+  toJSON (RunResponseOk ec sout serr timesecs) =
+    J.object [fromString "ec" J..= (case ec of ExitSuccess -> 0 ; ExitFailure n -> n)
+             ,fromString "sout" J..= sout
+             ,fromString "serr" J..= serr
+             ,fromString "timesecs" J..= timesecs]
+  toEncoding (RunResponseErr err) = JE.pairs (fromString "err" J..= err)
+  toEncoding (RunResponseOk ec sout serr timesecs) =
+    JE.pairs (fromString "ec" J..= (case ec of ExitSuccess -> 0 ; ExitFailure n -> n)
+           <> fromString "sout" J..= sout
+           <> fromString "serr" J..= serr
+           <> fromString "timesecs" J..= timesecs)
 
 -- | Build and sign a message using your secret key.
 signMessage :: SigningBytes a => SecretKey -> a -> Message a
@@ -204,6 +215,9 @@ class SigningBytes a where
 
 instance SigningBytes ByteString where
   signingBytesB bs = BSB.word64LE (fromIntegral @Int @Word64 (BS.length bs)) <> BSB.byteString bs
+
+instance SigningBytes Lazy.ByteString where
+  signingBytesB bs = BSB.word64LE (fromIntegral @Int64 @Word64 (Lazy.length bs)) <> BSB.lazyByteString bs
 
 newtype SigningBytesUTF8String = SigningBytesUTF8String String
 
@@ -240,8 +254,8 @@ instance SigningBytes RunResponse where
   signingBytesB (RunResponseOk ec sout serr timesecs) =
     mconcat [BSB.word8 1
             ,signingBytesB ec
-            ,signingBytesB (SigningBytesUTF8String sout)
-            ,signingBytesB (SigningBytesUTF8String serr)
+            ,signingBytesB sout
+            ,signingBytesB serr
             ,BSB.doubleLE timesecs]
 
 instance SigningBytes ExitCode where

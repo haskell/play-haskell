@@ -7,7 +7,6 @@ module Play (playModule) where
 import Control.Concurrent (getNumCapabilities)
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
-import qualified Data.ByteString.Builder as BSB
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as Char8
 import qualified Data.ByteString.UTF8 as UTF8
@@ -156,9 +155,6 @@ playModule = ServerModule
   , smStaticFiles = [("bundle.js", "text/javascript")
                     ,("haskell-logo-tw.svg", "image/svg+xml")]
   }
-
-writeJSON :: JSValue -> Snap ()
-writeJSON = writeLBS . BSB.toLazyByteString . BSB.stringUtf8 . flip JSON.showJSValue ""
 
 exitCode :: ExitCode -> Int
 exitCode ExitSuccess = 0

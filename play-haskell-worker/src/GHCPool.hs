@@ -12,12 +12,14 @@ module GHCPool (
 ) where
 
 import Control.Concurrent
+import Control.DeepSeq (force)
 import Control.Exception (evaluate)
 import Control.Monad (replicateM)
+import qualified Data.ByteString.Lazy as Lazy
 import qualified System.Clock as Clock
 import System.Exit (ExitCode(..))
 import System.FilePath ((</>))
-import System.IO (hPutStr, hGetContents, hClose)
+import System.IO (hPutStr, hClose)
 import System.Posix.Directory (getWorkingDirectory)
 import System.Posix.Signals (signalProcess, sigKILL)
 import qualified System.Process as Pr
@@ -50,8 +52,8 @@ optimisationString O2 = "-O2"
 
 data Result = Result
   { resExitCode :: ExitCode
-  , resStdout :: String
-  , resStderr :: String
+  , resStdout :: Lazy.ByteString
+  , resStderr :: Lazy.ByteString
   , resTimeTaken :: Double  -- ^ seconds
   }
   deriving (Show)
@@ -84,9 +86,9 @@ makeWorker = do
         hPutStr inh (commandString cmd ++ "\n" ++ optimisationString opt ++ "\n" ++ ver ++ "\n" ++ source)
         hClose inh
       stdoutmvar <- newEmptyMVar
-      _ <- forkIO $ hGetContents outh >>= evaluate . forceString >>= putMVar stdoutmvar
+      _ <- forkIO $ Lazy.hGetContents outh >>= evaluate . force >>= putMVar stdoutmvar
       stderrmvar <- newEmptyMVar
-      _ <- forkIO $ hGetContents errh >>= evaluate . forceString >>= putMVar stderrmvar
+      _ <- forkIO $ Lazy.hGetContents errh >>= evaluate . force >>= putMVar stderrmvar
       (dur, mec) <- duration $ timeout runTimeoutMicrosecs $ Pr.waitForProcess proch
       case mec of
         Just ec -> do
@@ -147,9 +149,6 @@ runInPool pool cmd ver opt source = do
             Nothing ->
               return pd { pdAvailable = newWorker : pdAvailable pd }
       return result
-
-forceString :: String -> String
-forceString = foldr seq >>= id
 
 duration :: IO a -> IO (Double, a)
 duration action = do

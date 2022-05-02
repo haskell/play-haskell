@@ -14,14 +14,16 @@ module PlayHaskellTypes.Sign (
   verify,
 ) where
 
+import qualified Crypto.Error as Cr
+import qualified Crypto.PubKey.Ed25519 as Cr
+import qualified Data.Aeson as J
+import qualified Data.Aeson.Encoding as JE
+import qualified Data.Aeson.Types as J
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Short as BSS
 import qualified Data.ByteArray as Mem
-import qualified Crypto.Error as Cr
-import qualified Crypto.PubKey.Ed25519 as Cr
-import Text.JSON (JSON)
-import qualified Text.JSON as JSON
+import qualified Data.Text as T
 
 import Snap.Server.Utils.Hex
 
@@ -73,20 +75,24 @@ verify (PublicKey pkey) msg (Signature sgn) =
     Cr.CryptoPassed (pkey', sgn') -> Cr.verify pkey' msg sgn'
     Cr.CryptoFailed{} -> error "Invalid public key or signature given to 'verify'"
 
-instance JSON PublicKey where
-  readJSON (JSON.JSString (JSON.fromJSString -> s)) =
-    case hexDecode s of
+instance J.FromJSON PublicKey where
+  parseJSON (J.String s) =
+    case hexDecode (T.unpack s) of
       Just sbs | BSS.length sbs == Cr.publicKeySize -> return (PublicKey sbs)
       _ -> fail "Invalid hex string in PublicKey JSON"
-  readJSON _ = fail "Unable to read PublicKey"
+  parseJSON val = J.prependFailure "parsing PublicKey failed, " (J.typeMismatch "String" val)
 
-  showJSON (PublicKey sbs) = JSON.JSString (JSON.toJSString (hexEncode sbs))
+instance J.ToJSON PublicKey where
+  toJSON (PublicKey sbs) = J.String (T.pack (hexEncode sbs))
+  toEncoding (PublicKey sbs) = JE.string (hexEncode sbs)
 
-instance JSON Signature where
-  readJSON (JSON.JSString (JSON.fromJSString -> s)) =
-    case hexDecode s of
+instance J.FromJSON Signature where
+  parseJSON (J.String s) =
+    case hexDecode (T.unpack s) of
       Just sbs | BSS.length sbs == Cr.signatureSize -> return (Signature sbs)
       _ -> fail "Invalid hex string in Signature JSON"
-  readJSON _ = fail "Unable to read Signature"
+  parseJSON val = J.prependFailure "parsing Signature failed, " (J.typeMismatch "String" val)
 
-  showJSON (Signature sbs) = JSON.JSString (JSON.toJSString (hexEncode sbs))
+instance J.ToJSON Signature where
+  toJSON (Signature sbs) = J.String (T.pack (hexEncode sbs))
+  toEncoding (Signature sbs) = JE.string (hexEncode sbs)
