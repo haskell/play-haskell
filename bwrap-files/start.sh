@@ -34,6 +34,9 @@ args=(
 # Turn off core files
 ulimit -c 0
 
+# Limit on the number of processes
+ulimit -u 10000
+
 # Limit memory to 600 MiB. Note that the compiled program gets a 500 MiB memory
 # limit via the GHC RTS, so this limit is 1. to constrain GHC itself (including
 # any TH code), and 2. as a second-layer defense.
