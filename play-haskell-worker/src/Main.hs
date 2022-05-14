@@ -35,11 +35,13 @@ data Context = Context
 
 data WhatRequest
   = SubmitJob
+  | Versions
   deriving (Show)
 
 parseRequest :: Method -> [ByteString] -> Maybe WhatRequest
 parseRequest method comps = case (method, comps) of
   (POST, ["job"]) -> Just SubmitJob
+  (GET, ["versions"]) -> Just Versions
   _ -> Nothing
 
 handleRequest :: Context -> WhatRequest -> Snap ()
@@ -71,6 +73,10 @@ handleRequest ctx = \case
                          , runresTimeTakenSecs = resTimeTaken res }
     
     lift $ writeJSON (signMessage (ctxSecretKey ctx) response)
+
+  Versions -> do
+    versions <- liftIO availableVersions
+    writeJSON versions
 
 splitPath :: ByteString -> Maybe [ByteString]
 splitPath path
