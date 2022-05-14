@@ -24,7 +24,6 @@ executable play-haskell-worker
     clock >= 0.8 && < 0.9,
     deepseq >= 1.4.4.0 && < 1.5,
     filepath >= 1.4.2.1 && < 1.5,
-    json >= 0.10 && < 0.11,
     process >= 1.6.13.2 && < 1.7,
     snap-server >= 1.1.1.2 && < 1.2,
     snap-core >= 1.0.5.0 && < 1.1,
@@ -44,8 +43,9 @@ test-suite worker-test
     base >= 4.13 && < 4.15,
     snap-server-utils,
     play-haskell-types,
-    json >= 0.10 && < 0.11,
-    HTTP >= 4000.4.0 && < 4000.5
+    aeson >= 2.0.3 && < 2.1,
+    HTTP >= 4000.4.0 && < 4000.5,
+    utf8-string >= 1.0.2 && < 1.1
   default-language:
     Haskell2010
   ghc-options: -Wall

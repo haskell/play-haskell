@@ -36,6 +36,7 @@ import System.Exit
 
 import PlayHaskellTypes.Sign (PublicKey, SecretKey, Signature)
 import qualified PlayHaskellTypes.Sign as Sign
+import PlayHaskellTypes.UTF8
 
 
 -- | JSON: string; "run", "core", "asm".
@@ -174,8 +175,8 @@ instance J.FromJSON RunResponse where
   parseJSON (J.Object v) =
     (RunResponseErr <$> v J..: fromString "err")
     <|> (RunResponseOk <$> (toExitCode <$> (v J..: fromString "ec"))
-                       <*> v J..: fromString "sout"
-                       <*> v J..: fromString "serr"
+                       <*> (getJSONUTF8LBS <$> v J..: fromString "sout")
+                       <*> (getJSONUTF8LBS <$> v J..: fromString "serr")
                        <*> v J..: fromString "timesecs")
     where toExitCode 0 = ExitSuccess
           toExitCode n = ExitFailure n
@@ -185,14 +186,14 @@ instance J.ToJSON RunResponse where
   toJSON (RunResponseErr err) = J.object [fromString "err" J..= err]
   toJSON (RunResponseOk ec sout serr timesecs) =
     J.object [fromString "ec" J..= (case ec of ExitSuccess -> 0 ; ExitFailure n -> n)
-             ,fromString "sout" J..= sout
-             ,fromString "serr" J..= serr
+             ,fromString "sout" J..= JSONUTF8LBS sout
+             ,fromString "serr" J..= JSONUTF8LBS serr
              ,fromString "timesecs" J..= timesecs]
   toEncoding (RunResponseErr err) = JE.pairs (fromString "err" J..= err)
   toEncoding (RunResponseOk ec sout serr timesecs) =
     JE.pairs (fromString "ec" J..= (case ec of ExitSuccess -> 0 ; ExitFailure n -> n)
-           <> fromString "sout" J..= sout
-           <> fromString "serr" J..= serr
+           <> fromString "sout" J..= JSONUTF8LBS sout
+           <> fromString "serr" J..= JSONUTF8LBS serr
            <> fromString "timesecs" J..= timesecs)
 
 -- | Build and sign a message using your secret key.

@@ -13,6 +13,8 @@ library
   exposed-modules:
     PlayHaskellTypes
     PlayHaskellTypes.Sign
+  other-modules:
+    PlayHaskellTypes.UTF8
   build-depends:
     base >= 4.13 && < 4.15,
     snap-server-utils,

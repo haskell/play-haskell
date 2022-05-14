@@ -27,14 +27,15 @@ executable pastebin-haskell
     ServerModule
   build-depends:
     base >= 4.13 && < 4.15,
-    snap-server-utils ^>= 0.1,
+    play-haskell-types,
+    snap-server-utils,
+    aeson >= 2.0.3 && < 2.1,
     array >= 0.5.4 && < 0.6,
     bytestring >= 0.10.12 && < 0.11,
     containers >= 0.6.3.1 && < 0.7,
     clock >= 0.8 && < 0.9,
     filepath >= 1.4.2.1 && < 1.5,
     io-streams,
-    json >= 0.10 && < 0.11,
     libarchive >= 3.0.2.2 && < 3.1,
     mustache >= 2.4.0 && < 2.5,
     parsec >= 3.1.14.0 && < 3.2,

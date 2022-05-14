@@ -7,6 +7,7 @@ module Play (playModule) where
 import Control.Concurrent (getNumCapabilities)
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
+import qualified Data.Aeson as J
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as Char8
 import qualified Data.ByteString.UTF8 as UTF8
@@ -14,9 +15,6 @@ import Data.Time (secondsToDiffTime)
 import Snap.Core hiding (path, method)
 import System.Exit (ExitCode(..))
 import qualified Data.Text as T
-import qualified Text.JSON as JSON
-import Text.JSON (JSValue(..))
-import Text.JSON.String (runGetJSON)
 import Text.Read (readMaybe)
 import Safe
 

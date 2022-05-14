@@ -3,10 +3,11 @@
 module Main where
 
 import Control.Monad
+import qualified Data.Aeson as J
+import qualified Data.ByteString.Lazy.UTF8 as UTF8
 import Network.HTTP
 import System.Environment
 import System.Exit
-import qualified Text.JSON as JSON
 
 import PlayHaskellTypes
 import PlayHaskellTypes.Sign (SecretKey)
@@ -25,15 +26,14 @@ runRequest skey cmd source version opt = do
   let req = postRequestWithBody
               ("http://localhost:8124/job")
               "text/json"
-              (JSON.encode msg)
+              (UTF8.toString (J.encode msg))
   simpleHTTP req >>= \case
     Left err -> error $ "Connection error: " ++ show err
     Right resp
       | rspCode resp == (2,0,0)
-      -> case JSON.decode (rspBody resp) of
-           JSON.Ok rr -> return rr
-           JSON.Error err -> error $ "JSON decode error: " ++ err ++ "\n\
-                                     \JSON: " ++ rspBody resp
+      -> case J.decode' (UTF8.fromString (rspBody resp)) of
+           Just rr -> return rr
+           Nothing -> error $ "JSON decode error: " ++ rspBody resp
       | otherwise
       -> error $ "Uncaught status code " ++ show (rspCode resp) ++ "\n\
                  \With body: " ++ show (rspBody resp)

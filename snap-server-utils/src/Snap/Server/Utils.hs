@@ -1,18 +1,15 @@
 {-# LANGUAGE LambdaCase #-}
 module Snap.Server.Utils where
 
+import qualified Data.Aeson as J
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Builder as BSB
 import qualified Data.ByteString.Char8 as Char8
-import qualified Data.ByteString.UTF8 as UTF8
 import Data.String (fromString)
 import Snap.Core hiding (path)
 import System.FilePath ((</>))
 import System.IO.Streams (InputStream)
 import qualified System.IO.Streams as Streams
-import Text.JSON (JSON)
-import qualified Text.JSON as JSON
 
 import Snap.Server.Utils.ExitEarly
 
@@ -39,10 +36,10 @@ writeHTML bs = do
   modifyResponse $ setContentType (Char8.pack "text/html; charset=utf-8")
   writeBS bs
 
-writeJSON :: (MonadSnap m, JSON a) => a -> m ()
+writeJSON :: (MonadSnap m, J.ToJSON a) => a -> m ()
 writeJSON value = do
   modifyResponse $ setContentType (Char8.pack "text/json")
-  writeBuilder (BSB.stringUtf8 (JSON.encode value))
+  writeLBS (J.encode value)
 
 streamReadMaxN :: Int -> InputStream ByteString -> IO (Maybe ByteString)
 streamReadMaxN maxlen stream = fmap mconcat <$> go 0
@@ -69,10 +66,10 @@ getRequestBodyEarlyExit sizelimit oversizeerror = do
   return body
 
 -- | Same as `getRequestBodyEarlyExit`, except the body is also JSON-decoded.
-getRequestBodyEarlyExitJSON :: JSON a => Int -> String -> ExitEarlyT () Snap a
+getRequestBodyEarlyExitJSON :: J.FromJSON a => Int -> String -> ExitEarlyT () Snap a
 getRequestBodyEarlyExitJSON sizelimit oversizeerror = do
   postdata <- getRequestBodyEarlyExit sizelimit oversizeerror
-  case JSON.decode (UTF8.toString postdata) of
-    JSON.Ok value -> return value
-    JSON.Error err -> do lift (httpError 400 ("Invalid JSON: " ++ err))
-                         exitEarly ()
+  case J.decodeStrict' postdata of
+    Just value -> return value
+    Nothing -> do lift (httpError 400 "Invalid JSON")
+                  exitEarly ()
