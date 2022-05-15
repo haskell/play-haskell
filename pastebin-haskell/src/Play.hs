@@ -18,7 +18,6 @@ import qualified Data.Text as T
 import Text.Read (readMaybe)
 import Safe
 
-import GHCPool
 import Pages
 import Paste.DB (getPaste, Contents(..))
 import ServerModule

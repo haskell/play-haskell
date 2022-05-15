@@ -24,6 +24,8 @@ executable pastebin-haskell
     Paste.DB
     Paste.HighlightCSS
     Play
+    Play.WorkerPool
+    Play.WorkerPool.WorkerReqs
     ServerModule
   build-depends:
     base >= 4.13 && < 4.15,
@@ -35,6 +37,8 @@ executable pastebin-haskell
     containers >= 0.6.3.1 && < 0.7,
     clock >= 0.8 && < 0.9,
     filepath >= 1.4.2.1 && < 1.5,
+    http-client >= 0.7.11 && < 0.8,
+    http-client-tls >= 0.3.6.1 && < 0.4,
     io-streams,
     libarchive >= 3.0.2.2 && < 3.1,
     mustache >= 2.4.0 && < 2.5,
