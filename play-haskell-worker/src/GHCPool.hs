@@ -12,14 +12,15 @@ module GHCPool (
 ) where
 
 import Control.Concurrent
-import Control.DeepSeq (force)
-import Control.Exception (evaluate)
 import Control.Monad (replicateM)
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Builder as BSB
 import qualified Data.ByteString.Lazy as Lazy
+import Foreign.Marshal.Alloc (allocaBytes)
 import qualified System.Clock as Clock
 import System.Exit (ExitCode(..))
 import System.FilePath ((</>))
-import System.IO (hPutStr, hClose)
+import System.IO (hPutStr, hClose, Handle, hGetBufSome)
 import System.Posix.Directory (getWorkingDirectory)
 import System.Posix.Signals (signalProcess, sigKILL)
 import qualified System.Process as Pr
@@ -33,6 +34,9 @@ import PlayHaskellTypes (Command(..), Optimisation(..), Version(..), RunError(..
 
 runTimeoutMicrosecs :: Int
 runTimeoutMicrosecs = 5_000_000
+
+maxOutputSizeBytes :: Int
+maxOutputSizeBytes = 100_000
 
 availableVersions :: IO [String]
 availableVersions = do
@@ -86,9 +90,9 @@ makeWorker = do
         hPutStr inh (commandString cmd ++ "\n" ++ optimisationString opt ++ "\n" ++ ver ++ "\n" ++ source)
         hClose inh
       stdoutmvar <- newEmptyMVar
-      _ <- forkIO $ Lazy.hGetContents outh >>= evaluate . force >>= putMVar stdoutmvar
+      _ <- forkIO $ hGetContentsUTF8Bounded maxOutputSizeBytes outh >>= putMVar stdoutmvar
       stderrmvar <- newEmptyMVar
-      _ <- forkIO $ Lazy.hGetContents errh >>= evaluate . force >>= putMVar stderrmvar
+      _ <- forkIO $ hGetContentsUTF8Bounded maxOutputSizeBytes errh >>= putMVar stderrmvar
       (dur, mec) <- duration $ timeout runTimeoutMicrosecs $ Pr.waitForProcess proch
       case mec of
         Just ec -> do
@@ -104,7 +108,7 @@ makeWorker = do
           putMVar resultvar (Left RETimeOut)
   return (Worker thread mvar resultvar)
 
--- | makePool numWorkers maxQueueLen
+-- | makePool numWorkers
 makePool :: Int -> IO Pool
 makePool numWorkers = do
   -- putStrLn $ "Making a GHCPool with numWorkers=" ++ show numWorkers
@@ -172,3 +176,24 @@ terminateParanoid ph = do
         PrI.OpenHandle pid -> signalProcess sigKILL pid
         PrI.OpenExtHandle pid _ -> signalProcess sigKILL pid
         PrI.ClosedHandle _ -> return ()
+
+-- | The passed 'Int' is the maximum number of bytes read. The rest of the
+-- handle is consumed but not stored.
+hGetContentsUTF8Bounded :: Int -> Handle -> IO Lazy.ByteString
+hGetContentsUTF8Bounded bound h = do
+  let bufsize = 16 * 1024
+  builder <- allocaBytes bufsize $ \ptr -> do
+    let loop numleft
+          | numleft <= 0 = do
+              -- read everything there is to read without storing it
+              nread <- hGetBufSome h ptr bufsize
+              if nread == 0 then return mempty else loop 0
+          | otherwise = do
+              nread <- hGetBufSome h ptr bufsize
+              if nread == 0
+                then do return mempty
+                else do let numprocessed = min nread numleft
+                        bs <- BS.packCStringLen (ptr, numprocessed)
+                        (BSB.byteString bs <>) <$> loop (numleft - numprocessed)
+    loop bound
+  return (BSB.toLazyByteString builder)
