@@ -14,6 +14,7 @@ module PlayHaskellTypes (
   signMessage,
   RunRequest(..),
   RunResponse(..),
+  VersionsResponse(..),
 
   -- * Signing utilities
   SigningBytes(..),
@@ -91,6 +92,10 @@ data RunResponse
       , runresStderr :: Lazy.ByteString
       , runresTimeTakenSecs :: Double }
   deriving (Show)
+
+newtype VersionsResponse = VersionsResponse [Version]
+  deriving (Show)
+  deriving (J.ToJSON, J.FromJSON) via [Version]
 
 instance J.FromJSON Command where
   parseJSON (J.String s) = case T.unpack s of
@@ -258,6 +263,11 @@ instance SigningBytes RunResponse where
             ,signingBytesB sout
             ,signingBytesB serr
             ,BSB.doubleLE timesecs]
+
+instance SigningBytes VersionsResponse where
+  signingBytesB (VersionsResponse l) =
+    BSB.word64LE (fromIntegral (length l))
+    <> mconcat (map (\(Version v) -> signingBytesB (SigningBytesUTF8String v)) l)
 
 instance SigningBytes ExitCode where
   signingBytesB ExitSuccess = BSB.int64LE 0

@@ -16,7 +16,7 @@ import Snap.Http.Server
 import System.Exit
 import System.IO
 
-import PlayHaskellTypes (Message(..), RunRequest(..), RunResponse(..), signingBytes, signMessage)
+import PlayHaskellTypes
 import PlayHaskellTypes.Sign (PublicKey, SecretKey)
 import qualified PlayHaskellTypes.Sign as Sign
 import Snap.Server.Utils
@@ -75,8 +75,8 @@ handleRequest ctx = \case
     lift $ writeJSON (signMessage (ctxSecretKey ctx) response)
 
   Versions -> do
-    versions <- liftIO availableVersions
-    writeJSON versions
+    response <- VersionsResponse . map Version <$> liftIO availableVersions
+    writeJSON (signMessage (ctxSecretKey ctx) response)
 
 splitPath :: ByteString -> Maybe [ByteString]
 splitPath path

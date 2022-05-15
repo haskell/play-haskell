@@ -30,7 +30,7 @@ import Snap.Server.Utils.Hex
 
 -- | 32 bytes.
 newtype PublicKey = PublicKey BSS.ShortByteString
-  deriving (Show, Eq)
+  deriving (Show, Eq, Ord)
 
 -- | Generate a secret key by applying 'readSecretKey' to 32 random bytes.
 --

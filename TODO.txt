@@ -2,6 +2,7 @@ Priority:
 - Horizontally scalable backend
 - Audit the bwrap command in bwrap-files/start.sh
 - Limit output size
+- Measure cpu time, not clock time, for timeout
 
 Medium:
 - Hotkey for Run
