@@ -1,0 +1,18 @@
+cradle:
+  multi:
+    - path: "./snap-server-utils"
+      config:
+        cradle:
+          cabal:
+    - path: "./play-haskell-types"
+      config:
+        cradle:
+          cabal:
+    - path: "./play-haskell-worker"
+      config:
+        cradle:
+          cabal:
+    - path: "./pastebin-haskell"
+      config:
+        cradle:
+          cabal:
