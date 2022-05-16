@@ -9,6 +9,7 @@ Medium:
 - Haskell syntax highlighting in codemirror
 
 Backlog:
+- Print service time in response
 - Access to stackage LTS packages
 - Additional flags for Core output (-dsuppress-all?)
 - Button for code formatting using a formatter
