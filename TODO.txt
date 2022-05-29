@@ -3,6 +3,7 @@ Priority:
 - Audit the bwrap command in bwrap-files/start.sh
 - Limit output size
 - Measure cpu time, not clock time, for timeout
+- Single click to link from playground (instead of 3)
 
 Medium:
 - Hotkey for Run
