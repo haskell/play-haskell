@@ -197,6 +197,8 @@ handleEvent wpool state mgr = \case
         let (idx, rng') = uniformR (0, Set.size (psIdle state) - 1) (psRNG state)
             addr@(Worker.Addr host _) = Set.elemAt idx (psIdle state)
             idle' = Set.deleteAt idx (psIdle state)
+        -- Yay, we've unqueued a job, so we can decrement the counter
+        atomically $ modifyTVar' (wpNumQueuedJobs wpool) pred
         -- TODO: What 'f wpool worker job mgr' should do is:
         -- - Send the request from 'job' to the worker over https using 'mgr'
         -- - Wait for the response to come in
