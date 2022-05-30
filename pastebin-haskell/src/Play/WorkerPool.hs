@@ -32,6 +32,48 @@ import PlayHaskellTypes.Sign (PublicKey)
 import qualified Play.WorkerPool.WorkerReqs as Worker
 
 
+-- Here be dragons. There are a number of "global" variables (i.e. members of
+-- 'WPool') that should be modified in the right places in order to keep the
+-- statistics consistent.
+--
+-- When a new 'WPool' is created (with 'newPool'), a thread is spawned
+-- ('poolHandlerLoop') that waits on events in the 'wpEventQueue'. If the queue
+-- is currently empty, it waits on 'wpWakeup' to signal that there is a new
+-- event in the queue. Hence, every time an event is pushed to the queue,
+-- 'wpWakeup' needs to be signalled (by storing a unit in it). The wakeup
+-- should be signalled /after/ the push to the queue to ensure that the handler
+-- loop doesn't miss anything.
+--
+-- There are two remaining fields in 'WPool': 'wpVersions' and
+-- 'wpNumQueuedJobs'.
+-- - 'wpVersions' records the GHC versions available in any workers. It is
+--   updated by the handlers for 'EVersionRefresh' in the event handler loop,
+--   and should not be modified (only read using 'getAvailableVersions') from
+--   the outside.
+-- - 'wpNumQueuedJobs' records the current number of jobs submitted but not yet
+--   being processed because all workers are already busy. The idea is that if
+--   this number is too large, new jobs should probably not be accepted
+--   anymore.
+--   The field is /incremented/ whenever an 'ENewJob' event is pushed to the
+--   event queue, and /decremented/ whenever a job is submitted to a worker. In
+--   the mean time, the job may spend some time in 'psBacklog' if no worker is
+--   available immediately.
+--
+-- The 'PoolState' is the local state of the event handler loop, and contains:
+-- - A map of all workers indexed by hostname to ensure there is only one per
+--   hostname ('psWorkers'),
+-- - Sets indicating the idle ('psIdle'), busy ('psBusy') and disabled
+--   ('psDisabled') workers, being disjoint and forming together the full set
+--   of workers.
+-- - The backlog of jobs whose 'ENewJob' event was already processed, but for
+--   which there is no worker available yet. These jobs still count towards
+--   'wpNumQueuedJobs'.
+-- - A random number generator.
+--
+-- TODO: describe 'WStatus' and check that the 'wStatus' is always in sync with
+-- the 'psIdle', 'psBusy', 'psDisabled' sets.
+
+
 data Job = Job RunRequest (RunResponse -> IO ())
 
 data Event = EAddWorker ByteString PublicKey
@@ -53,7 +95,8 @@ data PoolState = PoolState
   , psBusy :: Set Worker.Addr
   , psDisabled :: Set Worker.Addr
   , psBacklog :: Queue Job
-  , psRNG :: StdGen }
+  , psRNG :: StdGen
+  }
 
 data WStatus = OK
              | Disabled TimeSpec  -- ^ Last liveness check ('Monotonic' clock)
@@ -93,6 +136,7 @@ poolHandlerLoop wpool initState mgr =
   let loop s = singleIteration s >>= loop
   in loop initState
   where
+    singleIteration :: PoolState -> IO PoolState
     singleIteration state = do
       now <- Clock.getTime Clock.Monotonic
 
