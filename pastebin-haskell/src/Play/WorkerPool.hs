@@ -41,8 +41,11 @@ import qualified Play.WorkerPool.WorkerReqs as Worker
 -- is currently empty, it waits on 'wpWakeup' to signal that there is a new
 -- event in the queue. Hence, every time an event is pushed to the queue,
 -- 'wpWakeup' needs to be signalled (by storing a unit in it). The wakeup
--- should be signalled /after/ the push to the queue to ensure that the handler
--- loop doesn't miss anything.
+-- should be signalled /after/ (or simultaneously with) the push to the queue
+-- to ensure that the handler loop doesn't miss anything.
+--
+-- The only place where an event is pushed to the queue is in 'submitEvent', so
+-- it is there that we need to signal 'wpWakeup' as well -- and we do.
 --
 -- There are two remaining fields in 'WPool': 'wpVersions' and
 -- 'wpNumQueuedJobs'.
@@ -53,7 +56,8 @@ import qualified Play.WorkerPool.WorkerReqs as Worker
 -- - 'wpNumQueuedJobs' records the current number of jobs submitted but not yet
 --   being processed because all workers are already busy. The idea is that if
 --   this number is too large, new jobs should probably not be accepted
---   anymore.
+--   anymore. (This is handled in the check against 'wpMaxQueuedJobs' in
+--   'submitJob'.)
 --   The field is /incremented/ whenever an 'ENewJob' event is pushed to the
 --   event queue, and /decremented/ whenever a job is submitted to a worker. In
 --   the mean time, the job may spend some time in 'psBacklog' if no worker is
@@ -70,16 +74,26 @@ import qualified Play.WorkerPool.WorkerReqs as Worker
 --   'wpNumQueuedJobs'.
 -- - A random number generator.
 --
--- TODO: describe 'WStatus' and check that the 'wStatus' is always in sync with
--- the 'psIdle', 'psBusy', 'psDisabled' sets.
+-- A worker is described by the 'Worker' record, containing its address
+-- (hostname and public key), status, and list of offered GHC versions. The
+-- status is either 'OK' if it is idle or busy (and thus in 'psIdle' or
+-- 'psBusy'), or 'Disabled' if it is in 'psDisabled'. If a worker is disabled,
+-- we furthermore store when we last checked on the worker, and how long we're
+-- waiting to re-check since that time (in an exponential backoff scheme).
+--
+-- "Checking upon a worker" means sending it a version listing request, and the
+-- event handler that can un-disable a worker is, hence, the one for
+-- 'EVersionRefresh'.
 
 
 data Job = Job RunRequest (RunResponse -> IO ())
 
-data Event = EAddWorker ByteString PublicKey
-           | ENewJob Job
-           | EWorkerIdle Worker.Addr
-           | EVersionRefresh Worker.Addr
+data Event = EAddWorker ByteString PublicKey  -- ^ New worker
+           | ENewJob Job  -- ^ New job has arrived!
+           | EWorkerIdle Worker.Addr  -- ^ Worker has become idle
+           | EVersionRefresh Worker.Addr  -- ^ Should refresh versions now
+           | EWorkerFailed Worker.Addr  -- ^ Should be marked disabled
+           | EWorkerVersions Worker.Addr [Version]  -- ^ Version check succeeded
 
 data WPool = WPool
   { wpVersions :: TVar [Version]  -- ^ Currently available versions
@@ -174,12 +188,12 @@ handleEvent :: WPool -> PoolState -> N.Manager -> Event -> IO PoolState
 handleEvent wpool state mgr = \case
   EAddWorker host pkey -> do
     let addr = Worker.Addr host pkey
-    case Map.lookup host (psWorkers state) of
-      Just{} -> do
+    if host `Map.member` psWorkers state
+      then do
         hPutStrLn stderr $ "A worker with this host already in pool: " ++ show addr
         atomically $ submitEvent wpool 0 (EVersionRefresh addr)
         return state
-      Nothing -> do
+      else do
         atomically $ submitEvent wpool 0 (EVersionRefresh addr)
         now <- Clock.getTime Clock.Monotonic
         let worker = Worker { wAddr = addr
@@ -194,6 +208,7 @@ handleEvent wpool state mgr = \case
         -- added to that counter when it was submitted to the event queue.
         return state { psBacklog = Queue.push (psBacklog state) job }
     | otherwise -> do
+        -- select a random worker
         let (idx, rng') = uniformR (0, Set.size (psIdle state) - 1) (psRNG state)
             addr@(Worker.Addr host _) = Set.elemAt idx (psIdle state)
             idle' = Set.deleteAt idx (psIdle state)
@@ -203,9 +218,12 @@ handleEvent wpool state mgr = \case
         -- - Send the request from 'job' to the worker over https using 'mgr'
         -- - Wait for the response to come in
         -- - Check the signature and pkey of the response with 'worker'
+        --   - If that fails, return an error to the client and set the worker
+        --     to disabled (do we need some three-strikes-and-you're-out system?)
         -- - Call the callback in 'job' with the response
         -- - Call 'submitEvent wpool 0 (EWorkerIdle (wAddr worker))'
         todoSubmitJobToWorker wpool (psWorkers state Map.! host) job mgr
+        -- The worker moved from idle to busy, so update the sets
         return state { psIdle = idle'
                      , psBusy = Set.insert addr (psBusy state)
                      , psRNG = rng' }
@@ -215,22 +233,36 @@ handleEvent wpool state mgr = \case
         -- Yay, we've unqueued a job, so we can decrement the counter
         atomically $ modifyTVar' (wpNumQueuedJobs wpool) pred
         todoSubmitJobToWorker wpool (psWorkers state Map.! host) job mgr
+        -- We don't know what the previous state of the worker was, so just
+        -- remove it from both other sets to be sure.
         return state { psBusy = Set.insert addr (psBusy state)
-                     , psBacklog = backlog'
                      , psIdle = Set.delete addr (psIdle state)
-                     , psDisabled = Set.delete addr (psDisabled state) }
+                     , psDisabled = Set.delete addr (psDisabled state)
+                     , psBacklog = backlog' }
     | otherwise ->
+        -- No queued job to give to this worker, so just mark it as idle. We
+        -- don't know whether it was busy or disabled before, so just remove it
+        -- from both sets to be sure.
         return state { psIdle = Set.insert addr (psIdle state)
                      , psBusy = Set.delete addr (psBusy state)
                      , psDisabled = Set.delete addr (psDisabled state) }
 
-  -- TODO: if the previous status was Disabled and the version succeeds, we
-  -- should ensure that this produces EWorkerIdle so that it can pick up jobs
-  -- from the backlog.
-  -- Also make sure to think about exponential backoff.
+  EVersionRefresh addr -> do
+    _ <- forkIO $ do
+      Worker.getVersions mgr addr >>= \case
+        Just vers -> atomically $ submitEvent wpool 0 (EWorkerVersions addr vers)
+        Nothing -> atomically $ submitEvent wpool 0 (EWorkerFailed addr)
+
+    return state
+
+  -- TODO: Make sure to think about exponential backoff.
+  EWorkerFailed addr -> _
+
+  -- TODO: if the previous status was Disabled, we should ensure that this
+  -- produces EWorkerIdle so that it can pick up jobs from the backlog.
   -- Also: update the vervar in the wpool!
   -- If you don't do anything with wStatus here, remove that field because it's unused otherwise.
-  EVersionRefresh addr -> _
+  EWorkerVersions addr versions -> _
 
 submitEvent :: WPool -> TimeSpec -> Event -> STM ()
 submitEvent wpool at event = do
@@ -258,9 +290,8 @@ submitJob wpool req = do
     else return Nothing
 
 addWorker :: WPool -> ByteString -> PublicKey -> IO ()
-addWorker wpool host publickey = do
-  atomically $ modifyTVar' (wpEventQueue wpool) $
-    PQ.insert 0 (EAddWorker host publickey)
+addWorker wpool host publickey =
+  atomically $ submitEvent wpool 0 (EAddWorker host publickey)
   -- let addr = Worker.Addr host
   -- now <- Clock.getTime Clock.Monotonic
   -- localQueue <- newTVarIO Queue.empty
