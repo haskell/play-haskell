@@ -3,14 +3,17 @@ Priority:
 - Audit the bwrap command in bwrap-files/start.sh
 - Limit output size
 - Measure cpu time, not clock time, for timeout
-- Single click to link from playground (instead of 3)
+- Separate playground and pastebin
+  - Playground has its own database, and the paste presentation format is just the playground (no separate read page)
 
 Medium:
 - Hotkey for Run
 - Haskell syntax highlighting in codemirror
+- STG
 
 Backlog:
 - GitHub link colour with light theme
+- Multi-file playground
 - Print service time in response
 - Access to stackage LTS packages
   - https://ircbrowse.tomsmeding.com/day/lchaskell/2022/05/19?id=558067#trid558067
