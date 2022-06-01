@@ -11,6 +11,7 @@ module Play.WorkerPool (
 import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
 import Data.ByteString (ByteString)
+import Data.List (sort)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)
@@ -65,21 +66,22 @@ import qualified Play.WorkerPool.WorkerReqs as Worker
 --
 -- The 'PoolState' is the local state of the event handler loop, and contains:
 -- - A map of all workers indexed by hostname to ensure there is only one per
---   hostname ('psWorkers'),
--- - Sets indicating the idle ('psIdle'), busy ('psBusy') and disabled
---   ('psDisabled') workers, being disjoint and forming together the full set
---   of workers.
+--   hostname ('psWorkers').
+-- - A set indicating the idle workers ('psIdle').
 -- - The backlog of jobs whose 'ENewJob' event was already processed, but for
 --   which there is no worker available yet. These jobs still count towards
 --   'wpNumQueuedJobs'.
 -- - A random number generator.
 --
 -- A worker is described by the 'Worker' record, containing its address
--- (hostname and public key), status, and list of offered GHC versions. The
--- status is either 'OK' if it is idle or busy (and thus in 'psIdle' or
--- 'psBusy'), or 'Disabled' if it is in 'psDisabled'. If a worker is disabled,
--- we furthermore store when we last checked on the worker, and how long we're
--- waiting to re-check since that time (in an exponential backoff scheme).
+-- (hostname and public key), status, and list of offered GHC versions. If a
+-- worker is disabled, we furthermore store when we last checked on the worker,
+-- and how long we're waiting to re-check since that time (in an exponential
+-- backoff scheme).
+--
+-- Invariant: if a worker has the Disabled status, then one of the
+-- EVersionRefresh, EWorkerFailed, or EWorkerVersions events is scheduled for
+-- that worker.
 --
 -- "Checking upon a worker" means sending it a version listing request, and the
 -- event handler that can un-disable a worker is, hence, the one for
@@ -106,8 +108,6 @@ data WPool = WPool
 data PoolState = PoolState
   { psWorkers :: Map ByteString Worker  -- ^ hostname -> worker
   , psIdle :: Set Worker.Addr
-  , psBusy :: Set Worker.Addr
-  , psDisabled :: Set Worker.Addr
   , psBacklog :: Queue Job
   , psRNG :: StdGen
   }
@@ -138,8 +138,6 @@ newPool maxqueuedjobs = do
                     , wpMaxQueuedJobs = maxqueuedjobs }
       state = PoolState { psWorkers = mempty
                         , psIdle = mempty
-                        , psBusy = mempty
-                        , psDisabled = mempty
                         , psBacklog = Queue.empty
                         , psRNG = rng }
   _ <- forkIO $ poolHandlerLoop wpool state mgr
@@ -199,8 +197,7 @@ handleEvent wpool state mgr = \case
         let worker = Worker { wAddr = addr
                             , wStatus = Disabled now 0
                             , wVersions = [] }
-        return state { psWorkers = Map.insert host worker (psWorkers state)
-                     , psDisabled = Set.insert addr (psDisabled state) }
+        return state { psWorkers = Map.insert host worker (psWorkers state) }
 
   ENewJob job
     | Set.null (psIdle state) ->
@@ -210,7 +207,7 @@ handleEvent wpool state mgr = \case
     | otherwise -> do
         -- select a random worker
         let (idx, rng') = uniformR (0, Set.size (psIdle state) - 1) (psRNG state)
-            addr@(Worker.Addr host _) = Set.elemAt idx (psIdle state)
+            Worker.Addr host _ = Set.elemAt idx (psIdle state)
             idle' = Set.deleteAt idx (psIdle state)
         -- Yay, we've unqueued a job, so we can decrement the counter
         atomically $ modifyTVar' (wpNumQueuedJobs wpool) pred
@@ -223,29 +220,27 @@ handleEvent wpool state mgr = \case
         -- - Call the callback in 'job' with the response
         -- - Call 'submitEvent wpool 0 (EWorkerIdle (wAddr worker))'
         todoSubmitJobToWorker wpool (psWorkers state Map.! host) job mgr
-        -- The worker moved from idle to busy, so update the sets
         return state { psIdle = idle'
-                     , psBusy = Set.insert addr (psBusy state)
                      , psRNG = rng' }
 
   EWorkerIdle addr@(Worker.Addr host _)
+    | Just Worker{wStatus=Disabled{}} <- Map.lookup host (psWorkers state) -> do
+        -- Since we are already health-checking the worker (that process was
+        -- started when the worker entered Disabled state), we don't need to
+        -- start health-checking it here. Just ensure it's not marked idle.
+        return state { psIdle = Set.delete addr (psIdle state) }
+
     | Just (job, backlog') <- Queue.pop (psBacklog state) -> do
         -- Yay, we've unqueued a job, so we can decrement the counter
         atomically $ modifyTVar' (wpNumQueuedJobs wpool) pred
         todoSubmitJobToWorker wpool (psWorkers state Map.! host) job mgr
-        -- We don't know what the previous state of the worker was, so just
-        -- remove it from both other sets to be sure.
-        return state { psBusy = Set.insert addr (psBusy state)
-                     , psIdle = Set.delete addr (psIdle state)
-                     , psDisabled = Set.delete addr (psDisabled state)
+        -- We don't know whether it was idle before, but for sure it isn't now.
+        return state { psIdle = Set.delete addr (psIdle state)
                      , psBacklog = backlog' }
+
     | otherwise ->
-        -- No queued job to give to this worker, so just mark it as idle. We
-        -- don't know whether it was busy or disabled before, so just remove it
-        -- from both sets to be sure.
-        return state { psIdle = Set.insert addr (psIdle state)
-                     , psBusy = Set.delete addr (psBusy state)
-                     , psDisabled = Set.delete addr (psDisabled state) }
+        -- No queued job to give to this worker, so just mark it as idle.
+        return state { psIdle = Set.insert addr (psIdle state) }
 
   EVersionRefresh addr -> do
     _ <- forkIO $ do
@@ -255,14 +250,47 @@ handleEvent wpool state mgr = \case
 
     return state
 
-  -- TODO: Make sure to think about exponential backoff.
-  EWorkerFailed addr -> _
+  EWorkerFailed addr@(Worker.Addr host _)
+    | Just worker <- Map.lookup host (psWorkers state) -> do
+        now <- Clock.getTime Clock.Monotonic
+        let iv = case wStatus worker of
+                   OK -> healthCheckIvStart
+                   Disabled _ iv' -> healthCheckIvNext iv'
+            worker' = worker { wStatus = Disabled now iv }
+        return state { psWorkers = Map.insert host worker' (psWorkers state) }
+
+    | otherwise -> do
+        hPutStrLn stderr $ "[EWF] Worker does not exist: " ++ show addr
+        return state
 
   -- TODO: if the previous status was Disabled, we should ensure that this
   -- produces EWorkerIdle so that it can pick up jobs from the backlog.
   -- Also: update the vervar in the wpool!
   -- If you don't do anything with wStatus here, remove that field because it's unused otherwise.
-  EWorkerVersions addr versions -> _
+  EWorkerVersions addr@(Worker.Addr host _) versions
+    | Just worker <- Map.lookup host (psWorkers state) -> do
+        -- If the worker was disabled before, notify that it's idle now
+        case wStatus worker of
+          OK -> return ()
+          Disabled{} -> atomically $ submitEvent wpool 0 (EWorkerIdle addr)
+
+        -- Update the available versions in the WPool
+        atomically $ do
+          allvers <- readTVar (wpVersions wpool)
+          let uniq (x:y:xs) | x == y = uniq (y:xs)
+                            | otherwise = x : uniq (y:xs)
+              uniq l = l
+          writeTVar (wpVersions wpool) (uniq (sort (allvers ++ versions)))
+
+        -- Note that we don't put the worker in the psIdle set here yet; that's
+        -- the task of the EWorkerIdle handler.
+        let worker' = worker { wStatus = OK
+                             , wVersions = versions }
+        return state { psWorkers = Map.insert host worker' (psWorkers state) }
+
+    | otherwise -> do
+        hPutStrLn stderr $ "[EWV] Worker does not exist: " ++ show addr
+        return state
 
 submitEvent :: WPool -> TimeSpec -> Event -> STM ()
 submitEvent wpool at event = do

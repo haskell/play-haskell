@@ -40,6 +40,7 @@ executable pastebin-haskell
     filepath >= 1.4.2.1 && < 1.5,
     http-client >= 0.7.11 && < 0.8,
     http-client-tls >= 0.3.6.1 && < 0.4,
+    http-types >= 0.12.3 && < 0.13,
     io-streams,
     libarchive >= 3.0.2.2 && < 3.1,
     mustache >= 2.4.0 && < 2.5,

@@ -121,6 +121,12 @@ main = do
                                 (\o -> o { oProxied = True }))
         ,("--dbdir", Opt.Setter "Sets directory to store pastes.db in."
                                 (\o s -> o { oDBDir = s }))
+        ,("--secretkey", Opt.Setter
+            "Required. Path to file that contains the secret key \
+            \of this server (for communication with playground workers). \
+            \The file should contain 32 random bytes \
+            \in hexadecimal notation."
+            (\o s -> o { oSecKeyFile = s }))
         ,("--help", Opt.Help)
         ,("-h", Opt.Help)]
 
