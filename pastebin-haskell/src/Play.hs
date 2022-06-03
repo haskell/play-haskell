@@ -1,22 +1,22 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 module Play (playModule) where
 
-import Control.Concurrent (getNumCapabilities)
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.Aeson as J
+import qualified Data.Aeson.Types as J
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as Char8
-import qualified Data.ByteString.UTF8 as UTF8
+import Data.Maybe (fromMaybe)
+import Data.String (fromString)
+import Data.Text (Text)
 import Data.Time (secondsToDiffTime)
 import Snap.Core hiding (path, method)
-import System.Exit (ExitCode(..))
-import qualified Data.Text as T
 import Text.Read (readMaybe)
-import Safe
 
 import Pages
 import Paste.DB (getPaste, Contents(..))
@@ -25,9 +25,28 @@ import Snap.Server.Utils
 import Snap.Server.Utils.Challenge
 import Snap.Server.Utils.ExitEarly
 import Snap.Server.Utils.SpamDetect
+import qualified Play.WorkerPool as WP
+import PlayHaskellTypes
+import PlayHaskellTypes.Constants
 
 
-data Context = Context Pool ChallengeKey
+data ClientJobReq = ClientJobReq
+  { cjrGivenKey :: Text
+  , cjrSource :: Text
+  , cjrVersion :: Version
+  , cjrOpt :: Optimisation }
+  deriving (Show)
+
+instance J.FromJSON ClientJobReq where
+  parseJSON (J.Object v) =
+    ClientJobReq <$> v J..: fromString "challenge"
+                 <*> v J..: fromString "source"
+                 <*> v J..: fromString "version"
+                 <*> (fromMaybe O1 <$> (v J..:? fromString "opt"))
+  parseJSON val = J.prependFailure "parsing ClientJobReq failed, " (J.typeMismatch "Object" val)
+
+
+data Context = Context WP.WPool ChallengeKey
 
 data WhatRequest
   = Index
@@ -80,8 +99,8 @@ handleRequest gctx (Context pool challenge) = \case
 
   Versions -> do
     modifyResponse (setContentType (Char8.pack "text/plain"))
-    versions <- liftIO availableVersions
-    writeJSON $ JSArray (map (JSString . JSON.toJSString) versions)
+    versions <- liftIO (WP.getAvailableVersions pool)
+    writeJSON versions
 
   CurrentChallenge -> do
     modifyResponse (setContentType (Char8.pack "text/plain"))
@@ -97,54 +116,47 @@ handleRequest gctx (Context pool challenge) = \case
       lift (httpError 429 "Please slow down a bit, you're rate limited")
       exitEarly ()
 
-    mpostdata <- lift $ runRequestBody $ \stream ->
-      streamReadMaxN 100000 stream >>= \case
-        Nothing -> return $ Left (413, "Program too large")
-        Just s -> return (Right s)
-    postdata <- okOrExitEarly mpostdata $ \(code, err) -> lift (httpError code err)
+    postdata <- getRequestBodyEarlyExit 1000_000 "Program too large"
 
-    (givenkey, obj, source, version) <- case runGetJSON JSON.readJSValue (UTF8.toString postdata) of
-      Right (JSObject (JSON.fromJSObject -> obj))
-        | Just (JSString (JSON.fromJSString -> givenkey)) <- lookup "challenge" obj
-        , Just (JSString (JSON.fromJSString -> source))   <- lookup "source" obj
-        , Just (JSString (JSON.fromJSString -> version))  <- lookup "version" obj
-        -> return (givenkey, obj, source, version)
-      _ -> do lift (httpError 400 "Invalid JSON")
-              exitEarly ()
+    ClientJobReq {cjrGivenKey=givenKey, cjrSource=source, cjrVersion=version, cjrOpt=opt} <-
+      case J.decodeStrict' postdata of
+        Just request -> return request
+        _ -> do lift (httpError 400 "Invalid JSON")
+                exitEarly ()
 
-    liftIO (checkChallenge challenge (T.pack givenkey)) >>= \case
+    liftIO (checkChallenge challenge givenKey) >>= \case
       True -> return ()
       False -> do lift (httpError 400 "Invalid challenge, request again")
                   exitEarly ()
 
-    let opt = case lookup "opt" obj of
-                Just (JSString s)
-                  | Just opt' <- readMay @Optimization (JSON.fromJSString s)
-                  -> opt'
-                _ -> O1
+    let runreq = RunRequest { runreqCommand = runner
+                            , runreqSource = source
+                            , runreqVersion = version
+                            , runreqOpt = opt }
 
-    res <- liftIO $ runInPool pool runner (Version version) opt source
-    result <- okOrExitEarly res $ \case
-                EQueueFull -> lift (httpError 503 "The queue is currently full, try again later")
-                ETimeOut -> lift $ writeJSON $ JSON.makeObj [("ec", JSRational False (-1))]
+    mresult <- liftIO $ WP.submitJob pool runreq
+    result <- case mresult of
+      Just r -> return r
+      Nothing -> do lift (httpError 503 "Service busy, please try again later")
+                    exitEarly ()
 
     -- Record the run as a spam-checking action, but don't actually act
     -- on the return value yet; that will come on the next user action
-    let timeFraction = realToFrac (resTimeTaken result) / (fromIntegral runTimeoutMicrosecs / 1e6)
+    let timeoutSecs = fromIntegral runTimeoutMicrosecs / 1e6
+        timeTakenSecs = case result of
+          RunResponseErr RETimeOut -> timeoutSecs
+          RunResponseErr REBackend -> timeoutSecs / 6  -- shrug
+          RunResponseOk{} -> runresTimeTakenSecs result
+        timeFraction = timeTakenSecs / timeoutSecs
     _ <- liftIO $ recordCheckSpam (PlayRunTimeoutFraction timeFraction) (gcSpam gctx) (rqClientAddr req)
 
-    lift $ modifyResponse (setContentType (Char8.pack "text/json"))
-    lift $ writeJSON $ JSON.makeObj
-      [("ec", JSRational False (fromIntegral (exitCode (resExitCode result))))
-      ,("out", JSString (JSON.toJSString (resStdout result)))
-      ,("err", JSString (JSON.toJSString (resStderr result)))]
+    lift $ writeJSON result
 
 playModule :: ServerModule
 playModule = ServerModule
-  { smMakeContext = \_gctx _options k -> do
-      nprocs <- getNumCapabilities
+  { smMakeContext = \gctx _options k -> do
       -- TODO: the max queue length is a completely arbitrary value
-      pool <- makePool nprocs nprocs
+      pool <- WP.newPool (gcServerSecretKey gctx) 10
       challenge <- makeRefreshingChallenge (secondsToDiffTime (24 * 3600))
       k (Context pool challenge)
   , smParseRequest = parseRequest
@@ -152,7 +164,3 @@ playModule = ServerModule
   , smStaticFiles = [("bundle.js", "text/javascript")
                     ,("haskell-logo-tw.svg", "image/svg+xml")]
   }
-
-exitCode :: ExitCode -> Int
-exitCode ExitSuccess = 0
-exitCode (ExitFailure n) = n

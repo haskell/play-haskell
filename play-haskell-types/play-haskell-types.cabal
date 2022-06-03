@@ -12,6 +12,7 @@ homepage:            https://github.com/tomsmeding/pastebin-haskell
 library
   exposed-modules:
     PlayHaskellTypes
+    PlayHaskellTypes.Constants
     PlayHaskellTypes.Sign
   other-modules:
     PlayHaskellTypes.UTF8

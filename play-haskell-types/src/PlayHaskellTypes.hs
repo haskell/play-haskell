@@ -31,7 +31,9 @@ import qualified Data.ByteString.Builder as BSB
 import qualified Data.ByteString.Lazy as Lazy
 import Data.Int (Int64)
 import Data.String (fromString)
+import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
 import Data.Word (Word64)
 import System.Exit
 
@@ -54,10 +56,11 @@ data Optimisation = O0 | O1 | O2
 --
 -- JSON: string.
 newtype Version = Version String
-  deriving (Show)
+  deriving (Show, Eq, Ord)
 
--- | JSON: string; "timeout".
+-- | JSON: string; "timeout", "backend".
 data RunError = RETimeOut
+              | REBackend
   deriving (Show)
 
 -- | A signed message. The bytes being signed are the 'signingBytes' of the content.
@@ -76,7 +79,7 @@ data Message a = Message
 -- JSON: object; "cmd", "src", "ver", "opt".
 data RunRequest = RunRequest
   { runreqCommand :: Command
-  , runreqSource :: String
+  , runreqSource :: Text
   , runreqVersion :: Version
   , runreqOpt :: Optimisation }
   deriving (Show)
@@ -137,7 +140,9 @@ instance J.FromJSON RunError where
 
 instance J.ToJSON RunError where
   toJSON RETimeOut = J.String (T.pack "timeout")
+  toJSON REBackend = J.String (T.pack "backend")
   toEncoding RETimeOut = JE.string "timeout"
+  toEncoding REBackend = JE.string "backend"
 
 instance J.FromJSON a => J.FromJSON (Message a) where
   parseJSON (J.Object v) =
@@ -231,6 +236,12 @@ instance SigningBytes SigningBytesUTF8String where
   signingBytesB (SigningBytesUTF8String s) =
     BSB.word64LE (fromIntegral @Int @Word64 (length s)) <> BSB.stringUtf8 s
 
+newtype SigningBytesUTF8Text = SigningBytesUTF8Text Text
+
+instance SigningBytes SigningBytesUTF8Text where
+  signingBytesB (SigningBytesUTF8Text s) =
+    BSB.word64LE (fromIntegral @Int @Word64 (T.length s)) <> TE.encodeUtf8Builder s
+
 instance SigningBytes Command where
   signingBytesB CRun = BSB.word8 0
   signingBytesB CCore = BSB.word8 1
@@ -245,11 +256,12 @@ deriving via SigningBytesUTF8String instance SigningBytes Version
 
 instance SigningBytes RunError where
   signingBytesB RETimeOut = BSB.word8 0
+  signingBytesB REBackend = BSB.word8 1
 
 instance SigningBytes RunRequest where
   signingBytesB (RunRequest cmd src ver opt) =
     mconcat [signingBytesB cmd
-            ,signingBytesB (SigningBytesUTF8String src)
+            ,signingBytesB (SigningBytesUTF8Text src)
             ,signingBytesB ver
             ,signingBytesB opt]
 

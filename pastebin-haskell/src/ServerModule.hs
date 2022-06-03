@@ -7,25 +7,28 @@ import Snap.Core hiding (path)
 
 import Paste.DB (Database)
 import Pages (Pages)
+import PlayHaskellTypes.Sign (SecretKey)
 import Snap.Server.Utils
 import Snap.Server.Utils.SpamDetect
 
 
 -- TODO: Perhaps this can be split out over modules as well
 data Options = Options { oProxied :: Bool
-                       , oDBDir :: FilePath }
+                       , oDBDir :: FilePath
+                       , oSecKeyFile :: FilePath }
   deriving (Show)
 
 defaultOptions :: Options
-defaultOptions = Options False "."
+defaultOptions = Options False "." ""
 
-data SpamAction = Post | PlayRunStart | PlayRunTimeoutFraction Float
+data SpamAction = Post | PlayRunStart | PlayRunTimeoutFraction Double
   deriving (Show)
 
 data GlobalContext = GlobalContext
   { gcSpam :: SpamDetect SpamAction ByteString
   , gcDb :: Database
-  , gcPagesVar :: TVar Pages }
+  , gcPagesVar :: TVar Pages
+  , gcServerSecretKey :: SecretKey }
 
 type MimeType = String
 

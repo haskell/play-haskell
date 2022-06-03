@@ -13,6 +13,7 @@ import qualified Data.Map.Strict as Map
 import Data.Maybe (mapMaybe, fromMaybe)
 import Snap.Core hiding (path, method)
 import Snap.Http.Server
+import System.Exit (exitFailure)
 import System.IO
 import qualified System.Posix.Signals as Signal
 
@@ -20,6 +21,7 @@ import Paste
 import Paste.DB (withDatabase)
 import Pages
 import Play
+import qualified PlayHaskellTypes.Sign as Sign
 import ServerModule
 import Snap.Server.Utils
 import qualified Snap.Server.Utils.Options as Opt
@@ -98,7 +100,7 @@ config =
        . setPort 8123
        $ defaultConfig
 
-actionPenalty :: SpamAction -> Float
+actionPenalty :: SpamAction -> Double
 actionPenalty Post = 1.4
 actionPenalty PlayRunStart = 0.2
 -- curved increase from 0 at tm=0 to 2 at tm=1
@@ -132,6 +134,12 @@ main = do
 
     spam <- initSpamDetect spamConfig
     pagesvar <- pagesFromDisk >>= newTVarIO
+    serverseckey <- do
+      mskey <- Sign.readSecretKey <$> BS.readFile (oSecKeyFile options)
+      case mskey of
+        Just skey -> return skey
+        Nothing -> do hPutStrLn stderr "Invalid secret key in file"
+                      exitFailure
 
     _ <- Signal.installHandler Signal.sigUSR1 (Signal.Catch (refreshPages pagesvar)) Nothing
 
@@ -139,7 +147,8 @@ main = do
         let gctx = GlobalContext
                      { gcSpam = spam
                      , gcDb = db
-                     , gcPagesVar = pagesvar }
+                     , gcPagesVar = pagesvar
+                     , gcServerSecretKey = serverseckey }
 
         let modules = [pasteModule, playModule]
         instantiates gctx options modules $ \modules' -> do

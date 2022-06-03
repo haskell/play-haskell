@@ -16,6 +16,8 @@ import Control.Monad (replicateM)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Builder as BSB
 import qualified Data.ByteString.Lazy as Lazy
+import Data.Text (Text)
+import qualified Data.Text.Encoding as TE
 import Foreign.Marshal.Alloc (allocaBytes)
 import qualified System.Clock as Clock
 import System.Exit (ExitCode(..))
@@ -30,10 +32,8 @@ import System.Timeout (timeout)
 import Data.Queue (Queue)
 import qualified Data.Queue as Queue
 import PlayHaskellTypes (Command(..), Optimisation(..), Version(..), RunError(..))
+import PlayHaskellTypes.Constants
 
-
-runTimeoutMicrosecs :: Int
-runTimeoutMicrosecs = 5_000_000
 
 maxOutputSizeBytes :: Int
 maxOutputSizeBytes = 100_000
@@ -65,7 +65,7 @@ data Result = Result
 type RunResult = Either RunError Result
 
 data Worker = Worker ThreadId
-                     (MVar (Command, Optimisation, Version, String))  -- ^ input
+                     (MVar (Command, Optimisation, Version, Text))  -- ^ input
                      (MVar RunResult)  -- ^ output
 
 data PoolData = PoolData
@@ -87,7 +87,8 @@ makeWorker = do
     Pr.withCreateProcess spec $ \(Just inh) (Just outh) (Just errh) proch -> do
       (cmd, opt, Version ver, source) <- readMVar mvar
       _ <- forkIO $ do
-        hPutStr inh (commandString cmd ++ "\n" ++ optimisationString opt ++ "\n" ++ ver ++ "\n" ++ source)
+        hPutStr inh (commandString cmd ++ "\n" ++ optimisationString opt ++ "\n" ++ ver ++ "\n")
+        BS.hPutStr inh (TE.encodeUtf8 source)
         hClose inh
       stdoutmvar <- newEmptyMVar
       _ <- forkIO $ hGetContentsUTF8Bounded maxOutputSizeBytes outh >>= putMVar stdoutmvar
@@ -121,7 +122,7 @@ makePool numWorkers = do
 data ObtainedWorker = Obtained Worker
                     | Queued (MVar Worker) Int
 
-runInPool :: Pool -> Command -> Version -> Optimisation -> String -> IO (Either RunError Result)
+runInPool :: Pool -> Command -> Version -> Optimisation -> Text -> IO (Either RunError Result)
 runInPool pool cmd ver opt source = do
   result <- modifyMVar (pDataVar pool) $ \pd ->
               case pdAvailable pd of

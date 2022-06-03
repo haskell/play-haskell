@@ -10,6 +10,7 @@ module Play.WorkerPool (
 
 import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
+import Control.Monad (void)
 import Data.ByteString (ByteString)
 import Data.List (sort)
 import Data.Map.Strict (Map)
@@ -29,7 +30,7 @@ import Data.Queue.Priority (PQueue)
 import qualified Data.Queue.Priority as PQ
 import qualified Data.Queue as Queue
 import PlayHaskellTypes
-import PlayHaskellTypes.Sign (PublicKey)
+import PlayHaskellTypes.Sign (PublicKey, SecretKey)
 import qualified Play.WorkerPool.WorkerReqs as Worker
 
 
@@ -88,6 +89,7 @@ import qualified Play.WorkerPool.WorkerReqs as Worker
 -- 'EVersionRefresh'.
 
 
+-- | The response handler is called in a forkIO thread.
 data Job = Job RunRequest (RunResponse -> IO ())
 
 data Event = EAddWorker ByteString PublicKey  -- ^ New worker
@@ -103,6 +105,7 @@ data WPool = WPool
   , wpEventQueue :: TVar (PQueue TimeSpec Event)  -- ^ Event queue
   , wpWakeup :: TMVar ()  -- ^ Wakeup channel
   , wpMaxQueuedJobs :: Int
+  , wpSecretKey :: SecretKey
   }
 
 data PoolState = PoolState
@@ -123,8 +126,8 @@ data Worker = Worker
   , wVersions :: [Version]
   }
 
-newPool :: Int -> IO WPool
-newPool maxqueuedjobs = do
+newPool :: SecretKey -> Int -> IO WPool
+newPool serverSkey maxqueuedjobs = do
   mgr <- N.newTlsManager
   vervar <- newTVarIO []
   numqueuedvar <- newTVarIO 0
@@ -135,7 +138,8 @@ newPool maxqueuedjobs = do
                     , wpNumQueuedJobs = numqueuedvar
                     , wpEventQueue = queuevar
                     , wpWakeup = wakeupvar
-                    , wpMaxQueuedJobs = maxqueuedjobs }
+                    , wpMaxQueuedJobs = maxqueuedjobs
+                    , wpSecretKey = serverSkey }
       state = PoolState { psWorkers = mempty
                         , psIdle = mempty
                         , psBacklog = Queue.empty
@@ -211,15 +215,7 @@ handleEvent wpool state mgr = \case
             idle' = Set.deleteAt idx (psIdle state)
         -- Yay, we've unqueued a job, so we can decrement the counter
         atomically $ modifyTVar' (wpNumQueuedJobs wpool) pred
-        -- TODO: What 'f wpool worker job mgr' should do is:
-        -- - Send the request from 'job' to the worker over https using 'mgr'
-        -- - Wait for the response to come in
-        -- - Check the signature and pkey of the response with 'worker'
-        --   - If that fails, return an error to the client and set the worker
-        --     to disabled (do we need some three-strikes-and-you're-out system?)
-        -- - Call the callback in 'job' with the response
-        -- - Call 'submitEvent wpool 0 (EWorkerIdle (wAddr worker))'
-        todoSubmitJobToWorker wpool (psWorkers state Map.! host) job mgr
+        sendJobToWorker wpool (psWorkers state Map.! host) job mgr
         return state { psIdle = idle'
                      , psRNG = rng' }
 
@@ -233,7 +229,7 @@ handleEvent wpool state mgr = \case
     | Just (job, backlog') <- Queue.pop (psBacklog state) -> do
         -- Yay, we've unqueued a job, so we can decrement the counter
         atomically $ modifyTVar' (wpNumQueuedJobs wpool) pred
-        todoSubmitJobToWorker wpool (psWorkers state Map.! host) job mgr
+        sendJobToWorker wpool (psWorkers state Map.! host) job mgr
         -- We don't know whether it was idle before, but for sure it isn't now.
         return state { psIdle = Set.delete addr (psIdle state)
                      , psBacklog = backlog' }
@@ -291,6 +287,18 @@ handleEvent wpool state mgr = \case
     | otherwise -> do
         hPutStrLn stderr $ "[EWV] Worker does not exist: " ++ show addr
         return state
+
+sendJobToWorker :: WPool -> Worker -> Job -> N.Manager -> IO ()
+sendJobToWorker wpool worker (Job runreq resphandler) mgr =
+  void $ forkIO $ do
+    result <- Worker.runJob (wpSecretKey wpool) mgr (wAddr worker) runreq
+    case result of
+      Just response -> do
+        _ <- forkIO $ resphandler response
+        atomically $ submitEvent wpool 0 (EWorkerIdle (wAddr worker))
+      Nothing -> do
+        _ <- forkIO $ resphandler (RunResponseErr REBackend)
+        atomically $ submitEvent wpool 0 (EWorkerFailed (wAddr worker))
 
 submitEvent :: WPool -> TimeSpec -> Event -> STM ()
 submitEvent wpool at event = do

@@ -28,16 +28,16 @@ getTimeSecsMonotonic = Clock.sec <$> Clock.getTime Clock.Monotonic
 -- >            , spamForgetBelowScore = 0.1
 -- >            , spamForgetIntervalSecs = 3600 }
 data SpamConfig action = SpamConfig
-  { spamActionPenalty :: action -> Float
-  , spamHalfTimeSecs :: Float
-  , spamThreshold :: Float
-  , spamForgetBelowScore :: Float
+  { spamActionPenalty :: action -> Double
+  , spamHalfTimeSecs :: Double
+  , spamThreshold :: Double
+  , spamForgetBelowScore :: Double
   , spamForgetIntervalSecs :: Int
   }
 
 data SpamDetect action a =
   SpamDetect (SpamConfig action)
-             (TVar (Map a (Float, Int64)))
+             (TVar (Map a (Double, Int64)))
 
 -- | Each time a user performs an action, their spam account is incremented by
 -- the corresponding 'actionPenalty'. If an action brings the spam account over
@@ -77,7 +77,7 @@ recordCheckSpam action (SpamDetect config var) user = do
     writeTVar var (Map.insert user (sc2 + penalty, now) mp)
     return (sc2 + penalty >= spamThreshold config)
 
-progressTime :: SpamConfig action ->Int64 -> Int64 -> Float -> Float
+progressTime :: SpamConfig action -> Int64 -> Int64 -> Double -> Double
 progressTime config tm1 tm2 sc1 =
   -- If (tm2 - tm1) == halfTimeSecs, then:
   --   sc1 * exp (log 0.5 / h * h) = sc1 * exp (log 0.5) = sc1 * 0.5
