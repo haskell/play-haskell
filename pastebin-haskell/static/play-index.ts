@@ -238,9 +238,13 @@ function doRun(run: Runner) {
 		}
 
 		const ecNote: HTMLElement = document.getElementById("exitcode-note");
-		if (response.ec === -1) {
+		if (response.err != null) {
 			setInvisible(ecNote, false);
-			ecNote.textContent = "Command timed out :(";
+			switch (response.err) {
+				case "timeout": ecNote.textContent = "Command timed out"; break;
+				case "backend": ecNote.textContent = "The server encountered an error processing your request; please try again later"; break;
+				default: ecNote.textContent = "Unknown error? (" + response.err + ")"; break;
+			}
 		} else if (response.ec != 0) {
 			setInvisible(ecNote, false);
 			ecNote.textContent = "Command exited with code " + response.ec + ".";
@@ -248,11 +252,11 @@ function doRun(run: Runner) {
 			setInvisible(ecNote, true);
 		}
 
-		if (response.out) setInvisible(document.getElementById("out-container-stdout"), (response.out as string).length == 0);
-		if (response.err) setInvisible(document.getElementById("out-container-stderr"), (response.err as string).length == 0);
+		if (response.sout) setInvisible(document.getElementById("out-container-stdout"), (response.sout as string).length == 0);
+		if (response.serr) setInvisible(document.getElementById("out-container-stderr"), (response.serr as string).length == 0);
 
-		if (response.out) document.getElementById("out-stdout").textContent = response.out as string;
-		if (response.err) document.getElementById("out-stderr").textContent = response.err as string;
+		if (response.sout) document.getElementById("out-stdout").textContent = response.sout as string;
+		if (response.serr) document.getElementById("out-stderr").textContent = response.serr as string;
 	});
 }
 
@@ -374,3 +378,5 @@ handleSeparatorDragEvents();
 addMediaListener("screen and (max-width: 800px)", "resize", function(ql) {
 	if (ql && ql.matches) setSeparatorToWidth(null);
 });
+
+// vim: set noet sw=4 ts=4:

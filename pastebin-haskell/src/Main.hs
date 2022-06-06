@@ -13,7 +13,7 @@ import qualified Data.Map.Strict as Map
 import Data.Maybe (mapMaybe, fromMaybe)
 import Snap.Core hiding (path, method)
 import Snap.Http.Server
-import System.Exit (exitFailure)
+import System.Exit (exitFailure, die)
 import System.IO
 import qualified System.Posix.Signals as Signal
 
@@ -24,6 +24,7 @@ import Play
 import qualified PlayHaskellTypes.Sign as Sign
 import ServerModule
 import Snap.Server.Utils
+import Snap.Server.Utils.Hex
 import qualified Snap.Server.Utils.Options as Opt
 import Snap.Server.Utils.Shim
 import Snap.Server.Utils.SpamDetect
@@ -134,12 +135,17 @@ main = do
 
     spam <- initSpamDetect spamConfig
     pagesvar <- pagesFromDisk >>= newTVarIO
+
+    when (oSecKeyFile options == "") $ die "'--secretkey' is required"
     serverseckey <- do
-      mskey <- Sign.readSecretKey <$> BS.readFile (oSecKeyFile options)
+      mskey <- (hexDecodeBS >=> Sign.readSecretKey) <$> readFile (oSecKeyFile options)
       case mskey of
         Just skey -> return skey
         Nothing -> do hPutStrLn stderr "Invalid secret key in file"
                       exitFailure
+
+    let Sign.PublicKey serverpubkey = Sign.publicKey serverseckey
+    putStrLn $ "My public key: " ++ hexEncode serverpubkey
 
     _ <- Signal.installHandler Signal.sigUSR1 (Signal.Catch (refreshPages pagesvar)) Nothing
 

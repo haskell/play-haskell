@@ -204,6 +204,12 @@ handleEvent wpool state mgr = \case
         return state { psWorkers = Map.insert host worker (psWorkers state) }
 
   ENewJob job
+    | Map.null (psWorkers state) -> do
+        -- If there are no workers at all, don't accept the job
+        atomically $ modifyTVar' (wpNumQueuedJobs wpool) pred
+        let Job _ callback = job
+        _ <- forkIO $ callback (RunResponseErr REBackend)
+        return state
     | Set.null (psIdle state) ->
         -- Don't need to increment wpNumQueuedJobs because the job already got
         -- added to that counter when it was submitted to the event queue.
