@@ -162,5 +162,6 @@ playModule = ServerModule
   , smParseRequest = parseRequest
   , smHandleRequest = handleRequest
   , smStaticFiles = [("bundle.js", "text/javascript")
-                    ,("haskell-logo-tw.svg", "image/svg+xml")]
+                    ,("haskell-logo-tw.svg", "image/svg+xml")
+                    ,("haskell-play-logo.png", "image/png")]
   }
