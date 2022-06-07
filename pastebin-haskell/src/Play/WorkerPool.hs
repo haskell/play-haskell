@@ -1,9 +1,14 @@
 {-# LANGUAGE LambdaCase #-}
-{-| Intended to be imported qualified, e.g. as "WP". -}
+{-| Intended to be imported qualified, e.g. as \"WP". -}
 module Play.WorkerPool (
   WPool,
   newPool,
+  -- * Getting info
   getAvailableVersions,
+  Status(..),
+  WorkerStatus(..),
+  getPoolStatus,
+  -- * Putting stuff
   submitJob,
   addWorker,
 ) where
@@ -92,12 +97,26 @@ import qualified Play.WorkerPool.WorkerReqs as Worker
 -- | The response handler is called in a forkIO thread.
 data Job = Job RunRequest (RunResponse -> IO ())
 
+data Status = Status
+  { statWorkers :: [WorkerStatus]
+  , statJobQueueLength :: Int
+  , statEventQueueLength :: Int }
+  deriving (Show)
+
+data WorkerStatus = WorkerStatus
+  { wstatAddr :: Worker.Addr
+  , wstatDisabled :: Maybe (TimeSpec, TimeSpec)  -- (last check, wait interval)
+  , wstatVersions :: [Version]
+  , wstatIdle :: Bool }
+  deriving (Show)
+
 data Event = EAddWorker ByteString PublicKey  -- ^ New worker
            | ENewJob Job  -- ^ New job has arrived!
            | EWorkerIdle Worker.Addr  -- ^ Worker has become idle
            | EVersionRefresh Worker.Addr  -- ^ Should refresh versions now
            | EWorkerFailed Worker.Addr  -- ^ Should be marked disabled
            | EWorkerVersions Worker.Addr [Version]  -- ^ Version check succeeded
+           | EStatus (Status -> IO ())  -- ^ Called in forkIO
 
 data WPool = WPool
   { wpVersions :: TVar [Version]  -- ^ Currently available versions
@@ -294,6 +313,11 @@ handleEvent wpool state mgr = \case
         hPutStrLn stderr $ "[EWV] Worker does not exist: " ++ show addr
         return state
 
+  EStatus callback -> do
+    status <- collectStatus wpool state
+    _ <- forkIO $ callback status
+    return state
+
 sendJobToWorker :: WPool -> Worker -> Job -> N.Manager -> IO ()
 sendJobToWorker wpool worker (Job runreq resphandler) mgr =
   void $ forkIO $ do
@@ -316,6 +340,13 @@ submitEvent wpool at event = do
 getAvailableVersions :: WPool -> IO [Version]
 getAvailableVersions wpool = readTVarIO (wpVersions wpool)
 
+-- | This may block for a while if the event queue is very full.
+getPoolStatus :: WPool -> IO Status
+getPoolStatus wpool = do
+  var <- newEmptyTMVarIO
+  atomically $ submitEvent wpool 0 (EStatus (atomically . putTMVar var))
+  atomically $ readTMVar var
+
 -- | If this returns 'Nothing', the backlog was full and the client should try
 -- again later.
 submitJob :: WPool -> RunRequest -> IO (Maybe RunResponse)
@@ -334,80 +365,23 @@ submitJob wpool req = do
 addWorker :: WPool -> ByteString -> PublicKey -> IO ()
 addWorker wpool host publickey =
   atomically $ submitEvent wpool 0 (EAddWorker host publickey)
-  -- let addr = Worker.Addr host
-  -- now <- Clock.getTime Clock.Monotonic
-  -- localQueue <- newTVarIO Queue.empty
-  -- atomically $ modifyTVar' wpvar $ \wp -> do
-  --   let worker = Worker { wHostname = addr
-  --                       , wPKey = publickey
-  --                       , wStatus = Disabled now 0
-  --                       , wVersions = []
-  --                       , wLocalQueue = localQueue
-  --                       }
-  --   -- Don't put it in wpIdle yet; a successful version refresh will do that.
-  --   wp { wpWorkers = Map.insert addr worker (wpWorkers wp) }
-  -- forkRefreshVersions wpool addr
 
--- forkRefreshVersions :: WPool -> Worker.Addr -> IO ()
--- forkRefreshVersions wpool@(WPool mgr wpvar) addr = do
---   void $ forkIO $ do
---     waitClaimWorker wpool addr
---     wp <- readTVarIO wpvar
---     case Map.lookup addr (wpWorkers wp) of
---       Nothing -> return ()  -- Nothing to do, not sure what went wrong
---       Just worker ->
---         Worker.getVersions mgr addr >>= \case
---           Just versions ->
---             modifyWorker wpool addr (wPKey worker) $ \w ->
---               w { wStatus = OK, wVersions = versions }
---           Nothing -> do
---             now <- Clock.getTime Clock.Monotonic
---             let iv = case wStatus worker of
---             modifyWorker wpool addr $ \w ->
---               w { wStatus = Disabled now healthCheckIvStart, wVersions = [] }
-
--- waitClaimWorker :: WPool -> Worker.Addr -> IO ()
--- waitClaimWorker (WPool _ wpvar) addr = do
---   atomically $ do
---     wp <- readTVar wpvar
---     worker <- case Map.lookup addr (wpWorkers wp) of
---       Just worker -> return worker
---       Nothing -> error $ "waitClaimWorker: Worker not found: " ++ show addr
---     _
-
--- scheduleWhenIdle :: WPool -> Worker.Addr -> (Worker -> IO Worker) -> IO ()
--- scheduleWhenIdle wpool@(WPool _ wpvar) addr f = do
---   lockedNow <- atomically $ do
---     wp <- readTVar wpvar
---     let (newWorker, lockedNow) =
---           case Map.lookup addr (wpWorkers wp) of
---             Just w@(Worker { wBusy = False }) ->
---               (w { wBusy = True }, True)
---             Just w@(Worker { wBusy = True }) ->
---               let action = scheduleWhenIdle wpool addr f
---               in (w { wIdleQueue = Queue.push (wIdleQueue w) action }, False)
---             Nothing -> error $ "Worker not found in map: " ++ show addr
---     writeTVar wpvar $!
---       wp { wpWorkers = Map.insert addr newWorker (wpWorkers wp) }
---     return lockedNow
-
---   when lockedNow $ do
---     wp <- atomically $ readTVar wpvar
---     case Map.lookup addr (wpWorkers wp) of
---       Just worker -> do
---         worker' <- f worker
---         let worker'' = worker' { wBusy = False }
---         atomically $ writeTVar wpvar $!
---           wp { wpWorkers = Map.insert addr worker'' (wpWorkers wp) }
---       Nothing -> error $ "Worker not found in map: " ++ show addr
---     return ()
-
--- modifyWorker :: WPool -> Worker.Addr -> (Worker -> Worker) -> IO ()
--- modifyWorker (WPool _ wpvar) addr f =
---   atomically $ modifyTVar' wpvar $ \wp ->
---     wp { wpWorkers = case Map.lookup addr (wpWorkers wp) of
---                        Just w -> Map.insert addr (f w) (wpWorkers wp)
---                        Nothing -> error $ "Worker not found in map: " ++ show addr }
+collectStatus :: WPool -> PoolState -> IO Status
+collectStatus wpool state = do
+  jqlen <- readTVarIO (wpNumQueuedJobs wpool)
+  eqlen <- PQ.length <$> readTVarIO (wpEventQueue wpool)
+  return Status { statWorkers = map (makeWorkerStatus (psIdle state))
+                                    (Map.elems (psWorkers state))
+                , statJobQueueLength = jqlen
+                , statEventQueueLength = eqlen }
+  where
+    makeWorkerStatus idleset worker = WorkerStatus
+      { wstatAddr = wAddr worker
+      , wstatDisabled = case wStatus worker of
+                          OK -> Nothing
+                          Disabled lastCheck iv -> Just (lastCheck, iv)
+      , wstatVersions = wVersions worker
+      , wstatIdle = wAddr worker `Set.member` idleset }
 
 healthCheckIvStart :: TimeSpec
 healthCheckIvStart = TimeSpec 1 0
