@@ -15,11 +15,12 @@ import Snap.Server.Utils.SpamDetect
 -- TODO: Perhaps this can be split out over modules as well
 data Options = Options { oProxied :: Bool
                        , oDBDir :: FilePath
-                       , oSecKeyFile :: FilePath }
+                       , oSecKeyFile :: FilePath
+                       , oAdminPassFile :: Maybe FilePath }
   deriving (Show)
 
 defaultOptions :: Options
-defaultOptions = Options False "." ""
+defaultOptions = Options False "." "" Nothing
 
 data SpamAction = Post | PlayRunStart | PlayRunTimeoutFraction Double
   deriving (Show)
@@ -28,7 +29,8 @@ data GlobalContext = GlobalContext
   { gcSpam :: SpamDetect SpamAction ByteString
   , gcDb :: Database
   , gcPagesVar :: TVar Pages
-  , gcServerSecretKey :: SecretKey }
+  , gcServerSecretKey :: SecretKey
+  , gcAdminPassword :: Maybe ByteString }
 
 type MimeType = String
 

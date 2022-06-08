@@ -130,6 +130,11 @@ main = do
             \The file should contain 32 random bytes \
             \in hexadecimal notation."
             (\o s -> o { oSecKeyFile = s }))
+        ,("--adminpassfile", Opt.Setter
+            "Path to file that contains the admin password. If not given, \
+            \the admin interface is disabled. CR/LF is stripped from the start \
+            \and end of the file content."
+            (\o s -> o { oAdminPassFile = Just s }))
         ,("--help", Opt.Help)
         ,("-h", Opt.Help)]
 
@@ -144,6 +149,13 @@ main = do
         Nothing -> do hPutStrLn stderr "Invalid secret key in file"
                       exitFailure
 
+    adminPassword <- case oAdminPassFile options of
+      Nothing -> return Nothing
+      Just fname -> do
+        contents <- BS.readFile fname
+        let isCRLF c = c `elem` [10, 13]
+        return (Just (BS.dropWhile isCRLF (BS.dropWhileEnd isCRLF contents)))
+
     let Sign.PublicKey serverpubkey = Sign.publicKey serverseckey
     putStrLn $ "My public key: " ++ hexEncode serverpubkey
 
@@ -154,7 +166,8 @@ main = do
                      { gcSpam = spam
                      , gcDb = db
                      , gcPagesVar = pagesvar
-                     , gcServerSecretKey = serverseckey }
+                     , gcServerSecretKey = serverseckey
+                     , gcAdminPassword = adminPassword }
 
         let modules = [pasteModule, playModule]
         instantiates gctx options modules $ \modules' -> do

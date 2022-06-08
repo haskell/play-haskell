@@ -15,13 +15,14 @@ import Data.Maybe (fromMaybe)
 import Data.String (fromString)
 import Data.Text (Text)
 import Data.Time (secondsToDiffTime)
-import Snap.Core hiding (path, method)
+import Snap.Core hiding (path, method, pass)
 import Text.Read (readMaybe)
 
 import Pages
 import Paste.DB (getPaste, Contents(..))
 import ServerModule
 import Snap.Server.Utils
+import Snap.Server.Utils.BasicAuth
 import Snap.Server.Utils.Challenge
 import Snap.Server.Utils.ExitEarly
 import Snap.Server.Utils.SpamDetect
@@ -54,6 +55,12 @@ data WhatRequest
   | Versions
   | CurrentChallenge
   | RunGHC Command
+  | AdminReq AdminReq
+  deriving (Show)
+
+data AdminReq
+  = ARStatus
+  --  | ARAddWorker
   deriving (Show)
 
 parseRequest :: Method -> [ByteString] -> Maybe WhatRequest
@@ -67,10 +74,11 @@ parseRequest method comps = case (method, comps) of
   (POST, ["play", "run"]) -> Just (RunGHC CRun)
   (POST, ["play", "core"]) -> Just (RunGHC CCore)
   (POST, ["play", "asm"]) -> Just (RunGHC CAsm)
+  (GET, ["play", "admin", "status"]) -> Just (AdminReq ARStatus)
   _ -> Nothing
 
 handleRequest :: GlobalContext -> Context -> WhatRequest -> Snap ()
-handleRequest gctx (Context pool challenge) = \case
+handleRequest gctx ctx@(Context pool challenge) = \case
   Index -> do
     renderer <- liftIO $ getPageFromGCtx pPlay gctx
     writeHTML (renderer Nothing)
@@ -151,6 +159,18 @@ handleRequest gctx (Context pool challenge) = \case
     _ <- liftIO $ recordCheckSpam (PlayRunTimeoutFraction timeFraction) (gcSpam gctx) (rqClientAddr req)
 
     lift $ writeJSON result
+
+  AdminReq adminreq -> do
+    getBasicAuthCredentials <$> getRequest >>= \case
+      Just (user, pass)
+        | user == "admin"
+        , Just pass == gcAdminPassword gctx
+        -> handleAdminRequest gctx ctx adminreq
+      _ -> modifyResponse (requireBasicAuth "admin")
+
+handleAdminRequest :: GlobalContext -> Context -> AdminReq -> Snap ()
+handleAdminRequest gctx (Context pool _) = \case
+  ARStatus -> _
 
 playModule :: ServerModule
 playModule = ServerModule

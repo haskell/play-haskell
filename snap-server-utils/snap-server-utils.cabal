@@ -12,6 +12,7 @@ homepage:            https://github.com/tomsmeding/pastebin-haskell
 library
   exposed-modules:
     Snap.Server.Utils
+    Snap.Server.Utils.BasicAuth
     Snap.Server.Utils.Challenge
     Snap.Server.Utils.ExitEarly
     Snap.Server.Utils.Hex
@@ -22,6 +23,7 @@ library
   build-depends:
     base >= 4.13 && < 4.15,
     aeson >= 2.0.3 && < 2.1,
+    base64-bytestring >= 1.2.1.0 && < 1.3,
     bytestring >= 0.10.12 && < 0.11,
     containers >= 0.6.3.1 && < 0.7,
     clock >= 0.8 && < 0.9,
