@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE LambdaCase #-}
 {-| Intended to be imported qualified, e.g. as \"WP". -}
 module Play.WorkerPool (
@@ -16,14 +17,21 @@ module Play.WorkerPool (
 import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
 import Control.Monad (void)
+import qualified Data.Aeson as J
+import qualified Data.Aeson.Encoding as JE
 import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as Char8
 import Data.List (sort)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
+import Data.String (fromString)
+import GHC.Generics (Generic)
 import qualified Network.HTTP.Client as N
 import qualified Network.HTTP.Client.TLS as N
+import Text.Show.Functions ()
 import System.Clock (TimeSpec(..))
 import qualified System.Clock as Clock
 import System.IO (hPutStrLn, stderr)
@@ -96,12 +104,13 @@ import qualified Play.WorkerPool.WorkerReqs as Worker
 
 -- | The response handler is called in a forkIO thread.
 data Job = Job RunRequest (RunResponse -> IO ())
+  deriving (Show)
 
 data Status = Status
   { statWorkers :: [WorkerStatus]
   , statJobQueueLength :: Int
   , statEventQueueLength :: Int }
-  deriving (Show)
+  deriving (Show, Generic)
 
 data WorkerStatus = WorkerStatus
   { wstatAddr :: Worker.Addr
@@ -110,6 +119,37 @@ data WorkerStatus = WorkerStatus
   , wstatIdle :: Bool }
   deriving (Show)
 
+newtype TimeSpecJSON = TimeSpecJSON TimeSpec
+  deriving (Show)
+
+instance J.ToJSON TimeSpecJSON where
+  toJSON (TimeSpecJSON (TimeSpec s ns)) = J.object
+    [fromString "sec" J..= s, fromString "nsec" J..= ns]
+  toEncoding (TimeSpecJSON (TimeSpec s ns)) = JE.pairs $
+    fromString "sec" J..= s <> fromString "nsec" J..= ns
+
+instance J.ToJSON Status where
+  toJSON = J.genericToJSON J.defaultOptions { J.fieldLabelModifier = J.camelTo2 '_' . drop 4 }
+  toEncoding = J.genericToEncoding J.defaultOptions { J.fieldLabelModifier = J.camelTo2 '_' . drop 4 }
+
+instance J.ToJSON WorkerStatus where
+  toJSON (WorkerStatus (Worker.Addr host pkey) disabled versions idle) =
+    J.object [fromString "addr" J..= (Char8.unpack host, pkey)
+             ,fromString "disabled" J..=
+                case disabled of
+                  Nothing -> J.Null
+                  Just (tm, iv) -> J.toJSON (TimeSpecJSON tm, TimeSpecJSON iv)
+             ,fromString "versions" J..= versions
+             ,fromString "idle" J..= idle]
+  toEncoding (WorkerStatus (Worker.Addr host pkey) disabled versions idle) =
+    JE.pairs (fromString "addr" J..= (Char8.unpack host, pkey)
+           <> fromString "disabled" J..=
+                case disabled of
+                  Nothing -> J.Null
+                  Just (tm, iv) -> J.toJSON (TimeSpecJSON tm, TimeSpecJSON iv)
+           <> fromString "versions" J..= versions
+           <> fromString "idle" J..= idle)
+
 data Event = EAddWorker ByteString PublicKey  -- ^ New worker
            | ENewJob Job  -- ^ New job has arrived!
            | EWorkerIdle Worker.Addr  -- ^ Worker has become idle
@@ -117,6 +157,7 @@ data Event = EAddWorker ByteString PublicKey  -- ^ New worker
            | EWorkerFailed Worker.Addr  -- ^ Should be marked disabled
            | EWorkerVersions Worker.Addr [Version]  -- ^ Version check succeeded
            | EStatus (Status -> IO ())  -- ^ Called in forkIO
+  deriving (Show)
 
 data WPool = WPool
   { wpVersions :: TVar [Version]  -- ^ Currently available versions
@@ -206,7 +247,12 @@ poolHandlerLoop wpool initState mgr =
           return state
 
 handleEvent :: WPool -> PoolState -> N.Manager -> Event -> IO PoolState
-handleEvent wpool state mgr = \case
+handleEvent wpool state mgr event = do
+  hPutStrLn stderr $ "Handling event: " ++ show event
+  handleEvent' wpool state mgr event
+
+handleEvent' :: WPool -> PoolState -> N.Manager -> Event -> IO PoolState
+handleEvent' wpool state mgr = \case
   EAddWorker host pkey -> do
     let addr = Worker.Addr host pkey
     if host `Map.member` psWorkers state
@@ -278,6 +324,7 @@ handleEvent wpool state mgr = \case
                    OK -> healthCheckIvStart
                    Disabled _ iv' -> healthCheckIvNext iv'
             worker' = worker { wStatus = Disabled now iv }
+        atomically $ submitEvent wpool (now + iv) (EVersionRefresh addr)
         return state { psWorkers = Map.insert host worker' (psWorkers state) }
 
     | otherwise -> do
@@ -356,15 +403,18 @@ submitJob wpool req = do
     numqueued <- readTVar (wpNumQueuedJobs wpool)
     if numqueued >= wpMaxQueuedJobs wpool
       then return False
-      else do submitEvent wpool 0 (ENewJob (Job req (atomically . writeTChan chan)))
+      else do modifyTVar' (wpNumQueuedJobs wpool) succ
+              submitEvent wpool 0 (ENewJob (Job req (atomically . writeTChan chan)))
               return True
   if submitted
     then Just <$> atomically (readTChan chan)
     else return Nothing
 
 addWorker :: WPool -> ByteString -> PublicKey -> IO ()
-addWorker wpool host publickey =
-  atomically $ submitEvent wpool 0 (EAddWorker host publickey)
+addWorker wpool host publickey
+  | all (< 128) (BS.unpack host) =
+      atomically $ submitEvent wpool 0 (EAddWorker host publickey)
+  | otherwise = ioError $ userError "Non-ASCII byte in host in addWorker"
 
 collectStatus :: WPool -> PoolState -> IO Status
 collectStatus wpool state = do

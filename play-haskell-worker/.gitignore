@@ -1,3 +1,4 @@
 bwrap-files/ubuntu-base/
 secret-key.txt
+secret-key-2.txt
 trusted-keys.txt

@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -11,10 +12,13 @@ import qualified Data.Aeson as J
 import qualified Data.Aeson.Types as J
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as Char8
+import qualified Data.ByteString.Short as BSS
+import Data.Char (chr)
 import Data.Maybe (fromMaybe)
 import Data.String (fromString)
 import Data.Text (Text)
 import Data.Time (secondsToDiffTime)
+import GHC.Generics (Generic)
 import Snap.Core hiding (path, method, pass)
 import Text.Read (readMaybe)
 
@@ -25,10 +29,12 @@ import Snap.Server.Utils
 import Snap.Server.Utils.BasicAuth
 import Snap.Server.Utils.Challenge
 import Snap.Server.Utils.ExitEarly
+import Snap.Server.Utils.Hex
 import Snap.Server.Utils.SpamDetect
 import qualified Play.WorkerPool as WP
 import PlayHaskellTypes
 import PlayHaskellTypes.Constants
+import qualified PlayHaskellTypes.Sign as Sign
 
 
 data ClientJobReq = ClientJobReq
@@ -60,7 +66,8 @@ data WhatRequest
 
 data AdminReq
   = ARStatus
-  --  | ARAddWorker
+  | ARAddWorker
+  | ARDeleteWorker
   deriving (Show)
 
 parseRequest :: Method -> [ByteString] -> Maybe WhatRequest
@@ -75,6 +82,8 @@ parseRequest method comps = case (method, comps) of
   (POST, ["play", "core"]) -> Just (RunGHC CCore)
   (POST, ["play", "asm"]) -> Just (RunGHC CAsm)
   (GET, ["play", "admin", "status"]) -> Just (AdminReq ARStatus)
+  (PUT, ["play", "admin", "worker"]) -> Just (AdminReq ARAddWorker)
+  (DELETE, ["play", "admin", "worker"]) -> Just (AdminReq ARDeleteWorker)
   _ -> Nothing
 
 handleRequest :: GlobalContext -> Context -> WhatRequest -> Snap ()
@@ -168,9 +177,33 @@ handleRequest gctx ctx@(Context pool challenge) = \case
         -> handleAdminRequest gctx ctx adminreq
       _ -> modifyResponse (requireBasicAuth "admin")
 
+data AddWorkerRequest = AddWorkerRequest
+  { awreqHostname :: String
+  , awreqPubkey :: String }
+  deriving (Show, Generic)
+
+instance J.FromJSON AddWorkerRequest where
+  parseJSON = J.genericParseJSON J.defaultOptions { J.fieldLabelModifier = J.camelTo2 '_' . drop 5 }
+
 handleAdminRequest :: GlobalContext -> Context -> AdminReq -> Snap ()
 handleAdminRequest gctx (Context pool _) = \case
-  ARStatus -> _
+  ARStatus -> do
+    status <- liftIO $ WP.getPoolStatus pool
+    writeJSON status
+
+  ARAddWorker -> execExitEarlyT $ do
+    AddWorkerRequest host pkeyhex <- getRequestBodyEarlyExitJSON 1024 "request too large"
+    when (any (>= chr 128) (host ++ pkeyhex)) $ do
+      lift $ httpError 400 "Non-ASCII input"
+      exitEarly ()
+
+    pkey <- case Sign.readPublicKey . BSS.fromShort =<< hexDecode pkeyhex of
+              Just res -> return res
+              _ -> do lift $ httpError 400 "Invalid base64"
+                      exitEarly ()
+
+    liftIO $ WP.addWorker pool (Char8.pack host) pkey
+    lift $ putResponse $ setResponseCode 200 emptyResponse
 
 playModule :: ServerModule
 playModule = ServerModule

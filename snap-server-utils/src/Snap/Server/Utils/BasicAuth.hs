@@ -23,7 +23,7 @@ requireBasicAuth realm
   | all (\c -> c `notElem` "\"\\\DEL" && c >= ' ' && c < '\DEL') realm =
       setResponseCode 401 .
       addHeader (fromString "WWW-Authenticate")
-        (UTF8.fromString $ "realm=\"" ++ realm ++ "\", charset=\"UTF-8\"")
+        (UTF8.fromString $ "Basic realm=\"" ++ realm ++ "\", charset=\"UTF-8\"")
   | otherwise = error "requireBasicAuth: invalid characters in realm string"
 
 -- | Get submitted username and password from a response, if given. Use as
@@ -33,7 +33,7 @@ getBasicAuthCredentials =
   getHeader (fromString "Authorization") >=> \text -> do
     [basic, b64] <- return (filter (not . BS.null) (BS.split 32 text))
     guard (basic == fromString "Basic")
-    Right dec <- return (Base64.decode b64)
+    Right dec <- return (Base64.decodeBase64 b64)
     let (user, passWithColon) = BS.break (== fromIntegral (ord ':')) dec
     Just (_, pass) <- return (BS.uncons passWithColon)
     return (user, pass)

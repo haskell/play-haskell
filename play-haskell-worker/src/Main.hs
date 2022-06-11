@@ -11,6 +11,7 @@ import qualified Data.ByteString.Char8 as Char8
 import Data.ByteString (ByteString)
 import Data.Char (ord)
 import qualified Data.Map.Strict as Map
+import Text.Read (readMaybe)
 import Snap.Core hiding (path, method)
 import Snap.Http.Server
 import System.Exit
@@ -50,6 +51,8 @@ handleRequest ctx = \case
     msg <- getRequestBodyEarlyExitJSON 1000_000 "Program too large"
 
     when (sesmsgPublicKey msg `notElem` ctxTrustedServers ctx) $ do
+      liftIO $ putStrLn $ "Got pkey " ++ show (sesmsgPublicKey msg)
+      liftIO $ putStrLn $ "Trusted list: " ++ show (ctxTrustedServers ctx)
       lift $ httpError 401 "Public key not in trusted list"
       exitEarly ()
 
@@ -105,21 +108,22 @@ server options ctx = do
           httpError 404 "Path not found"
     Nothing -> httpError 400 "Invalid URL"
 
-config :: Config Snap a
-config =
+config :: Int -> Config Snap a
+config port =
   let stderrlogger = ConfigIoLog (Char8.hPutStrLn stderr)
   in setAccessLog stderrlogger
      . setErrorLog stderrlogger
-     . setPort 8124
+     . setPort port
      $ defaultConfig
 
 data Options = Options { oProxied :: Bool
                        , oSecKeyFile :: FilePath
-                       , oTrustedKeys :: FilePath }
+                       , oTrustedKeys :: FilePath
+                       , oPort :: Int }
   deriving (Show)
 
 defaultOptions :: Options
-defaultOptions = Options False "" ""
+defaultOptions = Options False "" "" 8124
 
 main :: IO ()
 main = do
@@ -141,6 +145,9 @@ main = do
         \each encoding a public key of length 32 bytes, separated \
         \by spaces or newlines."
         (\o s -> o { oTrustedKeys = s }))
+    ,("--port", Opt.Setter
+        "Port to listen on for http connections."
+        (\o s -> o { oPort = case readMaybe s of Just n -> n ; Nothing -> error "Invalid --port value" }))
     ,("--help", Opt.Help)
     ,("-h", Opt.Help)]
 
@@ -161,4 +168,4 @@ main = do
   pool <- makePool nprocs
   let ctx = Context pool skey pkeys
 
-  httpServe config (server options ctx)
+  httpServe (config (oPort options)) (server options ctx)

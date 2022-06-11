@@ -1,8 +1,10 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-| Intended to be imported as "Worker". -}
 module Play.WorkerPool.WorkerReqs (
   Addr(..),
@@ -10,16 +12,25 @@ module Play.WorkerPool.WorkerReqs (
   runJob,
 ) where
 
+import Control.Exception (handle)
+import Control.Monad (when)
+import Control.Monad.IO.Class (liftIO)
 import qualified Data.Aeson as J
 import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as Char8
+import Data.Char (ord)
 import Data.String (fromString)
 import qualified Network.HTTP.Client as N
+import qualified Network.HTTP.Types.Status as N
 import qualified Network.HTTP.Types.Method as N
+import Text.Read (readMaybe)
 import System.IO (hPutStrLn, stderr)
 
 import PlayHaskellTypes
 import PlayHaskellTypes.Sign (PublicKey, SecretKey)
 import qualified PlayHaskellTypes.Sign as Sign
+import Snap.Server.Utils.ExitEarly
 
 
 data Addr = Addr ByteString PublicKey
@@ -60,20 +71,26 @@ sendMessage' :: forall req res.
              => N.Manager -> Addr -> N.Method -> ByteString
              -> Maybe (SecretKey, req, Dict J.ToJSON req, Dict SigningBytes req)
              -> IO (Maybe res)
-sendMessage' mgr addr@(Addr host pkey) method path mpair =
-  let reqbody = case mpair of
+sendMessage' mgr addr@(Addr _ pkey) method path mpair =
+  let (secure, host, port) = splitAddrHost addr
+      reqbody = case mpair of
         Nothing -> mempty
         Just (skey, reqdata, Dict, Dict) -> J.encode $
           Message { sesmsgSignature = Sign.sign skey (signingBytes reqdata)
-                  , sesmsgPublicKey = pkey
+                  , sesmsgPublicKey = Sign.publicKey skey
                   , sesmsgContent = reqdata }
       nreq = N.defaultRequest { N.host = host
-                              , N.secure = True
+                              , N.port = port
+                              , N.secure = secure
                               , N.method = method
                               , N.path = path
                               , N.requestBody = N.RequestBodyLBS reqbody }
-  in N.withResponse nreq mgr $ \response -> do
-       body <- N.brReadSome (N.responseBody response) responseSizeLimitBytes
+  in handle (\(e :: N.HttpException) -> print e >> return Nothing) $
+     N.withResponse nreq mgr $ \response -> execExitEarlyT $ do
+       when (N.statusCode (N.responseStatus response) /= 200) $
+         exitEarly Nothing
+
+       body <- lift $ N.brReadSome (N.responseBody response) responseSizeLimitBytes
        case J.decode' body of
          Just (Message signature pkey' content)
            | pkey == pkey'
@@ -81,10 +98,23 @@ sendMessage' mgr addr@(Addr host pkey) method path mpair =
            -> return (Just content)
            | otherwise
            -> do if pkey == pkey'
-                   then hPutStrLn stderr $ "Invalid signature from " ++ show addr
-                   else hPutStrLn stderr $ "Unexpected pkey from " ++ show addr ++ ": " ++ show pkey'
+                   then liftIO $ hPutStrLn stderr $ "Invalid signature from " ++ show addr
+                   else liftIO $ hPutStrLn stderr $ "Unexpected pkey from " ++ show addr ++ ": " ++ show pkey'
                  return Nothing  -- invalid signature or unexpected public key
-         Nothing -> return Nothing
+         Nothing -> do
+           liftIO $ hPutStrLn stderr $ "Failed to decode JSON body from worker"
+           return Nothing
+  where
+    splitAddrHost :: Addr -> (Bool, ByteString, Int)
+    splitAddrHost (Addr address _) =
+      let (secure, rest)
+            | Just s <- BS.stripPrefix (Char8.pack "http://") address = (False, s)
+            | otherwise = (True, address)
+          colon = toEnum (ord ':')
+      in if | toEnum (ord ':') `BS.elem` rest
+            , Just port <- readMaybe (Char8.unpack (BS.takeWhileEnd (/= colon) rest)) ->
+                (secure, BS.init (BS.dropWhileEnd (/= colon) rest), port)
+            | otherwise -> (secure, rest, if secure then 443 else 80)
 
 -- The max output size in the worker is 100_000 bytes, so allow twice that
 -- (stdout + stderr) plus some overhead.
