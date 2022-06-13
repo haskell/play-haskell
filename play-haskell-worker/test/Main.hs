@@ -5,6 +5,8 @@ module Main where
 import Control.Monad
 import qualified Data.Aeson as J
 import qualified Data.ByteString.Lazy.UTF8 as UTF8
+import Data.Text (Text)
+import qualified Data.Text as T
 import Network.HTTP
 import System.Environment
 import System.Exit
@@ -15,7 +17,7 @@ import qualified PlayHaskellTypes.Sign as Sign
 import Snap.Server.Utils.Hex
 
 
-runRequest :: SecretKey -> Command -> String -> Version -> Optimisation -> IO (Message RunResponse)
+runRequest :: SecretKey -> Command -> Text -> Version -> Optimisation -> IO (Message RunResponse)
 runRequest skey cmd source version opt = do
   let msg = signMessage skey
               RunRequest { runreqCommand = cmd
@@ -53,7 +55,7 @@ main = do
                   Just workerPkey -> return workerPkey
                   Nothing -> die "Hex decode of public key failed"
 
-  response <- runRequest skey CRun program (Version "8.10.7") O1
+  response <- runRequest skey CRun (T.pack program) (Version "8.10.7") O1
   print response
   when (sesmsgPublicKey response /= workerPkey) $
     die $ "Response public key unequal to worker public key!\n\
