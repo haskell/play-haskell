@@ -174,7 +174,7 @@ handleRequest gctx ctx@(Context pool challenge) = \case
       Just (user, pass)
         | user == "admin"
         , Just pass == gcAdminPassword gctx
-        -> handleAdminRequest gctx ctx adminreq
+        -> handleAdminRequest ctx adminreq
       _ -> modifyResponse (requireBasicAuth "admin")
 
 data AddWorkerRequest = AddWorkerRequest
@@ -185,8 +185,8 @@ data AddWorkerRequest = AddWorkerRequest
 instance J.FromJSON AddWorkerRequest where
   parseJSON = J.genericParseJSON J.defaultOptions { J.fieldLabelModifier = J.camelTo2 '_' . drop 5 }
 
-handleAdminRequest :: GlobalContext -> Context -> AdminReq -> Snap ()
-handleAdminRequest gctx (Context pool _) = \case
+handleAdminRequest :: Context -> AdminReq -> Snap ()
+handleAdminRequest (Context pool _) = \case
   ARStatus -> do
     status <- liftIO $ WP.getPoolStatus pool
     writeJSON status
@@ -204,6 +204,10 @@ handleAdminRequest gctx (Context pool _) = \case
 
     liftIO $ WP.addWorker pool (Char8.pack host) pkey
     lift $ putResponse $ setResponseCode 200 emptyResponse
+
+  ARDeleteWorker -> do
+    -- TODO implement
+    putResponse $ setResponseCode 500 emptyResponse
 
 playModule :: ServerModule
 playModule = ServerModule
