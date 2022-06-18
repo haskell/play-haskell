@@ -12,7 +12,6 @@ Medium:
 - STG
 
 Backlog:
-- GitHub link colour with light theme
 - Multi-file playground
 - Print service time in response
 - Access to stackage LTS packages
