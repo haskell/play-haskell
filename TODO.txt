@@ -1,7 +1,5 @@
 Priority:
-- Horizontally scalable backend
 - Audit the bwrap command in bwrap-files/start.sh
-- Limit output size
 - Measure cpu time, not clock time, for timeout
 - Separate playground and pastebin
   - Playground has its own database, and the paste presentation format is just the playground (no separate read page)
