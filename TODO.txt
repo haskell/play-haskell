@@ -1,6 +1,14 @@
 Priority:
 - Audit the bwrap command in bwrap-files/start.sh
 - Measure cpu time, not clock time, for timeout
+  - 'ulimit -t' is worthless, I have no clue who came up with that
+  - sudo cgcreate -t tom:tom -g cpu:/kaaslimited
+      # The -t doesn't seem to do anything?
+    sudo cgset -r cpu.max='100000 100000' kaaslimited
+      # to limit to 1 thread: use a maximum of 100000us per 100000us
+    sudo cgexec -g cpu:kaaslimited --sticky start.sh
+    sudo cgdelete cpu:kaaslimited
+  - Can just (and should probably) create a new cgroup for every fresh container, let's not let things linger (and we need separate cgroups for the separate processes anyway)
 - Separate playground and pastebin
   - Playground has its own database, and the paste presentation format is just the playground (no separate read page)
 
