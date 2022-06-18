@@ -4,7 +4,6 @@
 {-# LANGUAGE ViewPatterns #-}
 module GHCPool (
   availableVersions,
-  runTimeoutMicrosecs,
   Pool,
   makePool,
   Result(..),
