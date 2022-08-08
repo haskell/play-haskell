@@ -3,6 +3,13 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
+# Read ghc output FD from command-line arguments
+if [[ $# -ne 1 ]]; then
+  echo >&2 "Usage: $0 <ghc_out_fd>"
+  exit 1
+fi
+ghc_out_fd="$1"
+
 IFS="" read -r command
 IFS="" read -r opt
 IFS="" read -r version
@@ -19,7 +26,7 @@ if ! ghcup --offline whereis ghc "${version}" 2>/tmp/null 1>/tmp/null ; then
 fi
 
 function ghcup_run() {
-	ghcup --offline run --ghc "$version" -- "$@" 1>/tmp/ghc.out 2>/tmp/ghc.err || { err=$? ; cat /tmp/ghc.out ; cat /tmp/ghc.err >&2 ; exit $err ; }
+	ghcup --offline run --ghc "$version" -- "$@" >/tmp/null 2>&"$ghc_out_fd"
 }
 
 case "$command" in

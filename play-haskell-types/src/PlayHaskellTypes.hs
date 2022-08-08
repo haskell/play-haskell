@@ -86,11 +86,12 @@ data RunRequest = RunRequest
 
 -- | Body payload for a response to a 'RunRequest'.
 --
--- JSON: object; either "err" or "ec", "sout", "serr", "timesecs".
+-- JSON: object; either "err" or "ec", "ghcout", "sout", "serr", "timesecs".
 data RunResponse
   = RunResponseErr RunError
   | RunResponseOk
       { runresExitCode :: ExitCode
+      , runresGhcOut :: Lazy.ByteString
       , runresStdout :: Lazy.ByteString
       , runresStderr :: Lazy.ByteString
       , runresTimeTakenSecs :: Double }
@@ -185,6 +186,7 @@ instance J.FromJSON RunResponse where
   parseJSON (J.Object v) =
     (RunResponseErr <$> v J..: fromString "err")
     <|> (RunResponseOk <$> (toExitCode <$> (v J..: fromString "ec"))
+                       <*> (getJSONUTF8LBS <$> v J..: fromString "ghcout")
                        <*> (getJSONUTF8LBS <$> v J..: fromString "sout")
                        <*> (getJSONUTF8LBS <$> v J..: fromString "serr")
                        <*> v J..: fromString "timesecs")
@@ -194,14 +196,16 @@ instance J.FromJSON RunResponse where
 
 instance J.ToJSON RunResponse where
   toJSON (RunResponseErr err) = J.object [fromString "err" J..= err]
-  toJSON (RunResponseOk ec sout serr timesecs) =
+  toJSON (RunResponseOk ec ghcout sout serr timesecs) =
     J.object [fromString "ec" J..= (case ec of ExitSuccess -> 0 ; ExitFailure n -> n)
+             ,fromString "ghcout" J..= JSONUTF8LBS ghcout
              ,fromString "sout" J..= JSONUTF8LBS sout
              ,fromString "serr" J..= JSONUTF8LBS serr
              ,fromString "timesecs" J..= timesecs]
   toEncoding (RunResponseErr err) = JE.pairs (fromString "err" J..= err)
-  toEncoding (RunResponseOk ec sout serr timesecs) =
+  toEncoding (RunResponseOk ec ghcout sout serr timesecs) =
     JE.pairs (fromString "ec" J..= (case ec of ExitSuccess -> 0 ; ExitFailure n -> n)
+           <> fromString "ghcout" J..= JSONUTF8LBS ghcout
            <> fromString "sout" J..= JSONUTF8LBS sout
            <> fromString "serr" J..= JSONUTF8LBS serr
            <> fromString "timesecs" J..= timesecs)
@@ -269,9 +273,10 @@ instance SigningBytes RunResponse where
   signingBytesB (RunResponseErr err) =
     mconcat [BSB.word8 0
             ,signingBytesB err]
-  signingBytesB (RunResponseOk ec sout serr timesecs) =
+  signingBytesB (RunResponseOk ec ghcout sout serr timesecs) =
     mconcat [BSB.word8 1
             ,signingBytesB ec
+            ,signingBytesB ghcout
             ,signingBytesB sout
             ,signingBytesB serr
             ,BSB.doubleLE timesecs]

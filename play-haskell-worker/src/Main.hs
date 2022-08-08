@@ -71,6 +71,7 @@ handleRequest ctx = \case
           Left err -> RunResponseErr err
           Right res -> RunResponseOk
                          { runresExitCode = resExitCode res
+                         , runresGhcOut = resGhcOut res
                          , runresStdout = resStdout res
                          , runresStderr = resStderr res
                          , runresTimeTakenSecs = resTimeTaken res }

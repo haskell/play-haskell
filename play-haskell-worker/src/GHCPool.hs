@@ -23,6 +23,7 @@ import System.Exit (ExitCode(..))
 import System.FilePath ((</>))
 import System.IO (hPutStr, hClose, Handle, hGetBufSome)
 import System.Posix.Directory (getWorkingDirectory)
+import System.Posix.IO (createPipe, fdToHandle, closeFd)
 import System.Posix.Signals (signalProcess, sigKILL)
 import qualified System.Process as Pr
 import qualified System.Process.Internals as PrI
@@ -55,6 +56,7 @@ optimisationString O2 = "-O2"
 
 data Result = Result
   { resExitCode :: ExitCode
+  , resGhcOut :: Lazy.ByteString
   , resStdout :: Lazy.ByteString
   , resStderr :: Lazy.ByteString
   , resTimeTaken :: Double  -- ^ seconds
@@ -79,16 +81,23 @@ makeWorker = do
   resultvar <- newEmptyMVar
   thread <- forkIO $ do
     workdir <- getWorkingDirectory
-    let spec = (Pr.proc (workdir </> "bwrap-files/start.sh") [])
+    -- Create a pipe that GHC output will be written to
+    (ghcOutReadFD, ghcOutWriteFD) <- createPipe
+    ghcOutReadHandle <- fdToHandle ghcOutReadFD
+    let spec = (Pr.proc (workdir </> "bwrap-files/start.sh") [show ghcOutWriteFD])
                   { Pr.std_in = Pr.CreatePipe
                   , Pr.std_out = Pr.CreatePipe
                   , Pr.std_err = Pr.CreatePipe }
     Pr.withCreateProcess spec $ \(Just inh) (Just outh) (Just errh) proch -> do
+      -- Make sure our copy of the writing end of the pipe is closed, so that the pipe gets closed when the process is done
+      closeFd ghcOutWriteFD
       (cmd, opt, Version ver, source) <- readMVar mvar
       _ <- forkIO $ do
         hPutStr inh (commandString cmd ++ "\n" ++ optimisationString opt ++ "\n" ++ ver ++ "\n")
         BS.hPutStr inh (TE.encodeUtf8 source)
         hClose inh
+      ghcoutmvar <- newEmptyMVar
+      _ <- forkIO $ hGetContentsUTF8Bounded maxOutputSizeBytes ghcOutReadHandle >>= putMVar ghcoutmvar
       stdoutmvar <- newEmptyMVar
       _ <- forkIO $ hGetContentsUTF8Bounded maxOutputSizeBytes outh >>= putMVar stdoutmvar
       stderrmvar <- newEmptyMVar
@@ -96,9 +105,10 @@ makeWorker = do
       (dur, mec) <- duration $ timeout runTimeoutMicrosecs $ Pr.waitForProcess proch
       case mec of
         Just ec -> do
+          ghcout <- readMVar ghcoutmvar
           out <- readMVar stdoutmvar
           err <- readMVar stderrmvar
-          putMVar resultvar (Right (Result ec out err dur))
+          putMVar resultvar (Right (Result ec ghcout out err dur))
         Nothing -> do
           -- Paranoid termination is technically unnecessary since bwrap seems
           -- to kill its child with SIGKILL if it is itself killed using

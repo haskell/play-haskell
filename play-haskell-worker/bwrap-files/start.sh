@@ -4,6 +4,13 @@ set -euo pipefail
 filesdir="$(dirname "$0")"
 cd "$filesdir"
 
+# Read ghc output FD from command-line arguments
+if [[ $# -ne 1 ]]; then
+  echo >&2 "Usage: $0 <ghc_out_fd>"
+  exit 1
+fi
+ghc_out_fd="$1"
+
 ghcup_base=$(ghcup whereis basedir)
 
 chroot="${filesdir}/ubuntu-base"
@@ -28,7 +35,7 @@ args=(
   --unshare-all
   --die-with-parent
   --file 4 "/tmp/entry.sh"
-  /bin/bash "/tmp/entry.sh"
+  /bin/bash "/tmp/entry.sh" "$ghc_out_fd"
 )
 
 # Turn off core files
@@ -41,5 +48,14 @@ ulimit -u 10000
 # limit via the GHC RTS, so this limit is 1. to constrain GHC itself (including
 # any TH code), and 2. as a second-layer defense.
 ulimit -d $(( 600 * 1024 ))
+
+# Close all open file descriptors other than 0,1,2 and the ghc output FD
+close_cmdline="exec"
+for fd in $(ls /proc/$$/fd); do
+  if [[ "$fd" -gt 2 && "$fd" -ne "$ghc_out_fd" ]]; then
+    close_cmdline="$close_cmdline $fd>&-"
+  fi
+done
+eval "$close_cmdline"
 
 exec bwrap "${args[@]}" 4<"${filesdir}/entry.sh"

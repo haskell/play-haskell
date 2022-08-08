@@ -252,9 +252,14 @@ function doRun(run: Runner) {
 			setInvisible(ecNote, true);
 		}
 
-		if (response.sout) setInvisible(document.getElementById("out-container-stdout"), (response.sout as string).length == 0);
-		if (response.serr) setInvisible(document.getElementById("out-container-stderr"), (response.serr as string).length == 0);
+		if (!response.ghcout) response.ghcout = "";
+		if (!response.sout) response.sout = "";
+		if (!response.serr) response.serr = "";
+		setInvisible(document.getElementById("out-container-ghcout"), (response.ghcout as string).length == 0);
+		setInvisible(document.getElementById("out-container-stdout"), (response.sout as string).length == 0);
+		setInvisible(document.getElementById("out-container-stderr"), (response.serr as string).length == 0);
 
+		if (response.ghcout) document.getElementById("out-ghcout").textContent = response.ghcout as string;
 		if (response.sout) document.getElementById("out-stdout").textContent = response.sout as string;
 		if (response.serr) document.getElementById("out-stderr").textContent = response.serr as string;
 	});
