@@ -1,0 +1,320 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paste</title>
+<style>
+html {
+	position: relative;
+	min-height: 100%;
+}
+
+body {
+	padding-bottom: 90px;
+}
+
+header, footer {
+	background-color: #3e3a3f;
+	color: #e8e8e8;
+}
+
+@media (prefers-color-scheme: dark) {
+	body {
+		color: #ddd;
+		background-color: #121212;
+	}
+
+	header, footer {
+		color: #ddd;
+	}
+
+	/* Headings are bold and large; make less flashy-white to compensate. */
+	h1, h2, h3 {
+		color: #ccc;
+	}
+}
+
+header a, footer a {
+	color: #bbf;
+}
+
+@media (prefers-color-scheme: dark) {
+	a {
+		color: #bbf;
+	}
+}
+
+header {
+	padding: 20px 40px 20px 25px;
+	font-size: 14pt;
+}
+
+footer {
+	position: absolute;
+	bottom: 0;
+	width: 100%;
+}
+
+footer > div {
+	font-size: 9pt;
+	padding: 20px;
+}
+
+#main {
+	max-width: 1000px;
+	margin: 0 auto 30px auto;
+}
+
+.invisible {
+	display: none;
+}
+
+/* --- */
+
+.bodytext {
+	margin: 16px 15px;
+}
+
+#pasteform {
+	margin: 0 15px;
+}
+
+.filecontainer {
+	margin-bottom: 20px;
+}
+
+.fileborder {
+	border: 1px #ddd solid;
+	border-radius: 5px;
+}
+
+
+.fnamecontainer {
+	background-color: #eee;
+	padding: 5px 10px;
+}
+
+@media (prefers-color-scheme: dark) {
+	.fileborder {
+		border: 1px #555 solid;
+	}
+
+	.fnamecontainer {
+		background-color: #333;
+	}
+
+	/* Lots of important here because we need to override purecss. */
+	input, .codearea, select {
+		background-color: #242522 !important;
+		color: white;
+		-webkit-box-shadow: none !important;
+		box-shadow: none !important;
+		border: 1px #888 solid !important;
+	}
+
+	input:focus, .codearea:focus, select:focus {
+		-webkit-box-shadow: inset 0 1px 2px #99c !important;
+		box-shadow: inset 0 1px 2px #99c !important;
+		border: 1px #99c solid !important;
+	}
+}
+
+.removebtn {
+	float: right;
+	cursor: pointer;
+	font-weight: bold;
+	font-family: sans-serif;
+	font-size: 18px;
+	color: #555;
+}
+
+.removebtn:hover {
+	color: #888;
+}
+
+.codearea {
+	width: 100% !important;  /* To prevent user width resizing */
+	height: 26em;
+	font-family: monospace;
+}
+
+#submit-row button {
+	margin: 0;  /* purecss gives submit/normal buttons different margins on narrow screens; don't do that */
+}
+
+@media (prefers-color-scheme: dark) {
+	#submit-row button {
+		background-color: #aaa;
+	}
+}
+
+#submit-row > div:last-child {
+	text-align: right;
+}
+
+#submit-row #submit-button {
+	background-color: #0074e0;  /* little bit darker than purecss for WCAG constrast */
+}
+
+/* Hide the remove button for the first file (it doesn't have an event listener anyway) */
+#filecontainers > div:first-child div.removebtn {
+	display: none;
+}
+
+#options-container {
+	text-align: right;
+}
+
+#options-details {
+	display: inline-block;
+	padding: 5px;
+	border: 1px #eee solid;
+	border-radius: 5px;
+}
+
+@media (prefers-color-scheme: dark) {
+	#options-details {
+		border-color: #555;
+	}
+}
+
+#options-details > summary {
+	margin-right: 5px;
+	margin-left: 5px;
+}
+
+#options-details > fieldset {
+	margin-top: 10px;
+	margin-right: 10px;
+	margin-left: 10px;
+}
+</style>
+<link rel="stylesheet" href="https://unpkg.com/purecss@2.0.3/build/pure-min.css" integrity="sha384-cg6SkqEOCV1NbJoCu11+bm0NvBRc8IYLRGXkmNrqUBfTjmMYwNKPWBTIKyw9mHNJ" crossorigin="anonymous">
+<script>
+var nextId = 2;
+
+function makeFileContainer(index) {
+	var div = document.getElementById("filecontainer1").cloneNode(true);
+	div.id = "filecontainer" + index;
+	var input = div.querySelector("input");
+	input.name = "name" + index;
+	input.value = "";
+	var textarea = div.querySelector("textarea");
+	textarea.name = "code" + index;
+	textarea.value = "";
+	textarea.removeAttribute("autofocus");
+	setupEventHandlers(div);
+	return div;
+}
+
+function doAddfile() {
+	var parent = document.getElementById("filecontainers");
+	parent.appendChild(makeFileContainer(nextId++));
+}
+
+function doRemovefile(filecontainer) {
+	if (filecontainer.querySelector("textarea").value.trim() != "") {
+		var input = filecontainer.querySelector("input");
+		var filename = input.value == "" ? "this file" : "'" + input.value + "'";
+		if (!confirm("Remove " + filename + " from the paste?")) return;
+	}
+	filecontainer.parentNode.removeChild(filecontainer);
+}
+
+function setupEventHandlers(div) {
+	div.querySelector(".removebtn").addEventListener("click", function() { doRemovefile(div); });
+	div.querySelector("textarea").addEventListener("keydown", function(ev) {
+		if (ev.isComposing || ev.keyCode == 229) {  // ignore IME events
+			return;
+		}
+		if ((ev.ctrlKey || ev.metaKey) && ev.key == "Enter") {
+			document.getElementById("pasteform").submit();
+		}
+	});
+}
+
+window.addEventListener("load", function() {
+	var l = document.getElementById("filecontainers").children;
+	var maxId = 1;
+	for (var i = 0; i < l.length; i++) {
+		var id = +l[i].id.slice(13);
+		if (!isNaN(id) && id > maxId) maxId = id;
+		setupEventHandlers(l[i]);
+	}
+	nextId = maxId + 1;
+});
+</script>
+</head>
+<body>
+<header id="topbar">
+	<b>Paste for <a href="https://wiki.haskell.org/IRC_channel"><code>#haskell</code></a></b>
+	<div style="float: right">
+		<small><i>Open source: <a href="https://github.com/tomsmeding/pastebin-haskell">github</a></i></small>
+	</div>
+</header>
+
+<div id="main">
+	<div class="bodytext">
+		<p>
+			<i>Help us help you:</i>
+			Include in your paste: your code / failing command; full output, including error messages; and <code>stack.yaml</code>, <code>package.yaml</code>, <code>.cabal</code> and/or <code>cabal.project</code>, if you have any of those files.
+		</p>
+	</div>
+
+	<form id="pasteform" method="POST" action="/paste" class="pure-form">
+		{{#parentAttr}}<input type="hidden" name="parent" value="{{&parentAttr}}">{{/parentAttr}}
+		<div id="filecontainers">
+			{{#pastes}}
+			<div id="filecontainer{{index}}" class="filecontainer">
+				<div class="fileborder">
+					<div class="fnamecontainer">
+						<div class="removebtn" role="button" aria-label="Remove file" tabindex="0">x</div>
+						<label>File name: <input type="text" name="name{{index}}" placeholder="(optional)" value="{{&fnameAttr}}"></label>
+					</div>
+					<textarea class="codearea" name="code{{index}}" aria-label="File contents"{{#firstFile}} autofocus{{/firstFile}}>{{contents}}</textarea>
+				</div>
+			</div>
+			{{/pastes}}
+		</div>
+		<br>
+		<div id="submit-row" class="pure-g" role="toolbar">
+			<div class="pure-u-1-2">
+				<button type="button" class="pure-button" onclick="doAddfile()"><b>+</b> Add another file</button>
+			</div>
+			<div class="pure-u-1-2">
+				<button type="submit" id="submit-button" class="pure-button pure-button-primary">Submit</button>
+			</div>
+		</div>
+		<br>
+		<div id="options-container">
+			<details id="options-details">
+				<summary>Options</summary>
+				<fieldset>  <!-- https://purecss.io/forms/ -->
+					<div class="pure-control-group">
+						<label for="expire">Expiration:</label>
+						<select id="expire" name="expire">
+							<option value="never">Never</option>
+							<option value="day">A day</option>
+							<option value="week">A week</option>
+							<option value="month">A month</option>
+							<option value="year">A year</option>
+						</select>
+					</div>
+				</fieldset>
+			</details>
+		</div>
+	</form>
+
+	<!-- <p style="margin-top: 100px">
+		Please also enjoy <a href="https://www.chiark.greenend.org.uk/~sgtatham/bugs.html">this</a> classic 5-min read. It is about bug reports, but asking good questions is quite a similar process.
+	</p> -->
+</div>
+
+<footer>
+	<div>
+		All content submitted is public. Paste responsibly. Be nice to other people. :)
+	</div>
+</footer>
+</body>
+</html>

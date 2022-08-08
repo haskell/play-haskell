@@ -3,6 +3,7 @@ packages:
     play-haskell-types/
     play-haskell-worker/
     play-haskell-server/
+    pastebin-haskell/
 
 -- Contains bump of attoparsec dependency upper bound, that hasn't been pushed to hackage yet
 source-repository-package
