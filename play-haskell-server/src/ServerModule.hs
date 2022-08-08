@@ -22,7 +22,7 @@ data Options = Options { oProxied :: Bool
 defaultOptions :: Options
 defaultOptions = Options False "." "" Nothing
 
-data SpamAction = PlayRunStart | PlayRunTimeoutFraction Double
+data SpamAction = PlayRunStart | PlayRunTimeoutFraction Double | PlaySave
   deriving (Show)
 
 data GlobalContext = GlobalContext

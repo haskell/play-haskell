@@ -6,23 +6,28 @@
 {-# LANGUAGE ViewPatterns #-}
 module Play (playModule) where
 
+import Control.Concurrent.STM
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.Aeson as J
 import qualified Data.Aeson.Types as J
 import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as Char8
+import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Short as BSS
 import Data.Char (chr)
 import Data.Maybe (fromMaybe)
 import Data.String (fromString)
 import Data.Text (Text)
 import Data.Time (secondsToDiffTime)
+import Data.Word (Word64)
 import GHC.Generics (Generic)
 import Snap.Core hiding (path, method, pass)
-import Text.Read (readMaybe)
+import System.Random (StdGen, genByteString, newStdGen)
 
-import DB (getPaste, Contents(..))
+import DB (KeyType, Contents(..), ClientAddr)
+import qualified DB
 import Pages
 import ServerModule
 import Snap.Server.Utils
@@ -53,11 +58,52 @@ instance J.FromJSON ClientJobReq where
   parseJSON val = J.prependFailure "parsing ClientJobReq failed, " (J.typeMismatch "Object" val)
 
 
-data Context = Context WP.WPool ChallengeKey
+saveKeyLength :: Int
+saveKeyLength = 8
+
+maxSaveFileSize :: Int
+maxSaveFileSize = 128 * 1024
+
+genKey :: StdGen -> (KeyType, StdGen)
+genKey gen =
+  let (bs, gen') = genByteString saveKeyLength gen
+      intoAlphabet n = BS.index alphabet (fromIntegral n `rem` BS.length alphabet)
+  in (BS.map intoAlphabet bs, gen')
+  where
+    alphabet :: ByteString
+    alphabet = Char8.pack (['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'])
+
+genKey' :: TVar StdGen -> IO KeyType
+genKey' var = atomically $ do
+  gen <- readTVar var
+  let (key, gen') = genKey gen
+  writeTVar var gen'
+  return key
+
+-- returns the generated key, or an error string
+genStorePaste :: GlobalContext -> TVar StdGen -> ClientAddr -> Contents -> IO (Either String KeyType)
+genStorePaste gctx stvar srcip contents =
+  let loop iter = do
+        key <- genKey' stvar
+        DB.storePaste (gcDb gctx) srcip key contents >>= \case
+          Nothing -> return (Right key)
+          Just DB.ErrExists
+              | iter < 5 -> loop (iter + 1)  -- try again with a new key
+              | otherwise -> return (Left "Database full?")
+          Just DB.ErrFull ->
+            return (Left "Too many snippets saved, saving is temporarily disabled")
+  in loop (0 :: Int)
+
+
+data Context = Context
+  { ctxPool :: WP.WPool
+  , ctxChallengeKey :: ChallengeKey
+  , ctxRNG :: TVar StdGen }
 
 data WhatRequest
   = Index
-  | FromPaste ByteString Int
+  | FromSaved ByteString
+  | Save
   | Versions
   | CurrentChallenge
   | RunGHC Command
@@ -73,9 +119,8 @@ data AdminReq
 parseRequest :: Method -> [ByteString] -> Maybe WhatRequest
 parseRequest method comps = case (method, comps) of
   (GET, []) -> Just Index
-  (GET, ["paste", key]) -> Just (FromPaste key 1)
-  (GET, ["paste", key, idxs])
-    | Just idx <- readMaybe (Char8.unpack idxs) -> Just (FromPaste key idx)
+  (GET, ["saved", key]) -> Just (FromSaved key)
+  (POST, ["save"]) -> Just Save
   (GET, ["versions"]) -> Just Versions
   (GET, ["challenge"]) -> Just CurrentChallenge
   (POST, ["compile", "run"]) -> Just (RunGHC CRun)
@@ -87,41 +132,52 @@ parseRequest method comps = case (method, comps) of
   _ -> Nothing
 
 handleRequest :: GlobalContext -> Context -> WhatRequest -> Snap ()
-handleRequest gctx ctx@(Context pool challenge) = \case
+handleRequest gctx ctx = \case
   Index -> do
     renderer <- liftIO $ getPageFromGCtx pPlay gctx
     writeHTML (renderer Nothing)
 
-  FromPaste key idx -> do
-    res <- liftIO $ getPaste (gcDb gctx) key
+  FromSaved key -> do
+    res <- liftIO $ DB.getPaste (gcDb gctx) key
     let buildPage contents = do
           renderer <- liftIO $ getPageFromGCtx pPlay gctx
           writeHTML (renderer (Just contents))
     case res of
       Just (_, Contents [] _ _) -> do
         modifyResponse (setContentType (Char8.pack "text/plain"))
-        writeBS (Char8.pack "That paste seems to have no files?")
+        writeBS (Char8.pack "Save key not found (empty file list?)")
 
-      Just (_, Contents l _ _)
-        | idx >= 1
-        , (_, source) : _ <- drop (idx - 1) l ->
-            buildPage source
+      Just (_, Contents ((_, source) : _) _ _) ->
+        buildPage source
 
-      Just (_, Contents _ _ _) -> do
-        modifyResponse (setContentType (Char8.pack "text/plain"))
-        writeBS (Char8.pack "File index out of range")
       Nothing -> do
         modifyResponse (setContentType (Char8.pack "text/plain"))
-        writeBS (Char8.pack "That paste does not exist!")
+        writeBS (Char8.pack "Save key not found")
+
+  Save -> do
+    req <- getRequest
+    isSpam <- liftIO $ recordCheckSpam PlaySave (gcSpam gctx) (rqClientAddr req)
+    if isSpam
+      then httpError 429 "Please slow down a bit, you're rate limited"
+      else do body <- readRequestBody (fromIntegral @Int @Word64 maxSaveFileSize)
+              let body' = BSL.toStrict body
+              let contents = Contents [(Nothing, body')] Nothing Nothing
+                  srcip = Char8.unpack (rqClientAddr req)
+              mkey <- liftIO $ genStorePaste gctx (ctxRNG ctx) srcip contents
+              case mkey of
+                Right key -> do
+                  modifyResponse (setContentType (Char8.pack "text/plain"))
+                  writeBS key
+                Left err -> httpError 500 err
 
   Versions -> do
     modifyResponse (setContentType (Char8.pack "text/plain"))
-    versions <- liftIO (WP.getAvailableVersions pool)
+    versions <- liftIO (WP.getAvailableVersions (ctxPool ctx))
     writeJSON versions
 
   CurrentChallenge -> do
     modifyResponse (setContentType (Char8.pack "text/plain"))
-    key <- liftIO $ servingChallenge challenge
+    key <- liftIO $ servingChallenge (ctxChallengeKey ctx)
     writeText key
 
   -- Open a local exit-early block instead of using Snap's early-exit
@@ -141,7 +197,7 @@ handleRequest gctx ctx@(Context pool challenge) = \case
         _ -> do lift (httpError 400 "Invalid JSON")
                 exitEarly ()
 
-    liftIO (checkChallenge challenge givenKey) >>= \case
+    liftIO (checkChallenge (ctxChallengeKey ctx) givenKey) >>= \case
       True -> return ()
       False -> do lift (httpError 400 "Invalid challenge, request again")
                   exitEarly ()
@@ -151,7 +207,7 @@ handleRequest gctx ctx@(Context pool challenge) = \case
                             , runreqVersion = version
                             , runreqOpt = opt }
 
-    mresult <- liftIO $ WP.submitJob pool runreq
+    mresult <- liftIO $ WP.submitJob (ctxPool ctx) runreq
     result <- case mresult of
       Just r -> return r
       Nothing -> do lift (httpError 503 "Service busy, please try again later")
@@ -186,9 +242,9 @@ instance J.FromJSON AddWorkerRequest where
   parseJSON = J.genericParseJSON J.defaultOptions { J.fieldLabelModifier = J.camelTo2 '_' . drop 5 }
 
 handleAdminRequest :: Context -> AdminReq -> Snap ()
-handleAdminRequest (Context pool _) = \case
+handleAdminRequest ctx = \case
   ARStatus -> do
-    status <- liftIO $ WP.getPoolStatus pool
+    status <- liftIO $ WP.getPoolStatus (ctxPool ctx)
     writeJSON status
 
   ARAddWorker -> execExitEarlyT $ do
@@ -202,7 +258,7 @@ handleAdminRequest (Context pool _) = \case
               _ -> do lift $ httpError 400 "Invalid base64"
                       exitEarly ()
 
-    liftIO $ WP.addWorker pool (Char8.pack host) pkey
+    liftIO $ WP.addWorker (ctxPool ctx) (Char8.pack host) pkey
     lift $ putResponse $ setResponseCode 200 emptyResponse
 
   ARDeleteWorker -> do
@@ -215,7 +271,10 @@ playModule = ServerModule
       -- TODO: the max queue length is a completely arbitrary value
       pool <- WP.newPool (gcServerSecretKey gctx) 10
       challenge <- makeRefreshingChallenge (secondsToDiffTime (24 * 3600))
-      k (Context pool challenge)
+      rng <- newStdGen >>= newTVarIO
+      k (Context { ctxPool = pool
+                 , ctxChallengeKey = challenge
+                 , ctxRNG = rng })
   , smParseRequest = parseRequest
   , smHandleRequest = handleRequest
   , smStaticFiles = [("bundle.js", "text/javascript")

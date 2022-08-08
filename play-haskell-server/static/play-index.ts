@@ -260,27 +260,25 @@ function doRun(run: Runner) {
 	});
 }
 
-function doOpenAsPaste() {
-	const form = document.createElement("form");
-	form.action = "/";
-	form.method = "POST";
-	form.target = "_blank";
-	form.setAttribute("style", "display: none");
+function doSave() {
+	const source: string = (window as any).view.state.doc.toString();
 
-	const input = document.createElement("input");
-	input.type = "text";
-	input.name = "name1";
-	input.value = "Main.hs";
-	form.appendChild(input);
+	performXHR(
+		"POST", "/save", "text",
+		response => {
+			if (typeof response != "string") {
+				alert("Invalid response returned by server: " + response);
+				return;
+			}
 
-	const textarea = document.createElement("textarea");
-	textarea.name = "code1";
-	textarea.value = (window as any).view.state.doc.toString();
-	form.appendChild(textarea);
-
-	document.body.appendChild(form);
-	form.submit();
-	document.body.removeChild(form);
+			history.pushState(null, "", location.origin + "/saved/" + response);
+			alert("Saved! You can share the URL of this page.");
+		},
+		xhr => {
+			alert("Could not save your code!\nServer returned status code " + xhr.status + ": " + xhr.responseText);
+		},
+		"text/plain", source
+	);
 }
 
 function setSeparatorToWidth(wid: number | null) {
@@ -373,7 +371,7 @@ window.addEventListener("load", function() {
 document.getElementById("btn-run").addEventListener('click', () => { doRun(Runner.Run) });
 document.getElementById("btn-core").addEventListener('click', () => { doRun(Runner.Core) });
 document.getElementById("btn-asm").addEventListener('click', () => { doRun(Runner.Asm) });
-document.getElementById("btn-openaspaste").addEventListener('click', () => { doOpenAsPaste() });
+document.getElementById("btn-save").addEventListener('click', () => { doSave() });
 handleSeparatorDragEvents();
 addMediaListener("screen and (max-width: 800px)", "resize", function(ql) {
 	if (ql && ql.matches) setSeparatorToWidth(null);

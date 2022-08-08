@@ -104,6 +104,7 @@ actionPenalty :: SpamAction -> Double
 actionPenalty PlayRunStart = 0.2
 -- curved increase from 0 at tm=0 to 2 at tm=1
 actionPenalty (PlayRunTimeoutFraction tm) = (1 - 1 / (tm + 1)) * (2 / (1 - (1 / (1 + 1))))
+actionPenalty PlaySave = 1.4
 
 spamConfig :: SpamConfig SpamAction
 spamConfig = SpamConfig
