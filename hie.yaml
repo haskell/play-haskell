@@ -12,6 +12,10 @@ cradle:
       config:
         cradle:
           cabal:
+    - path: "./play-haskell-server"
+      config:
+        cradle:
+          cabal:
     - path: "./pastebin-haskell"
       config:
         cradle:
