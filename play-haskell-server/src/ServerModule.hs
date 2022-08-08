@@ -5,7 +5,7 @@ import Control.Concurrent.STM (TVar, readTVarIO)
 import Data.ByteString (ByteString)
 import Snap.Core hiding (path)
 
-import Paste.DB (Database)
+import DB (Database)
 import Pages (Pages)
 import PlayHaskellTypes.Sign (SecretKey)
 import Snap.Server.Utils
@@ -22,7 +22,7 @@ data Options = Options { oProxied :: Bool
 defaultOptions :: Options
 defaultOptions = Options False "." "" Nothing
 
-data SpamAction = Post | PlayRunStart | PlayRunTimeoutFraction Double
+data SpamAction = PlayRunStart | PlayRunTimeoutFraction Double
   deriving (Show)
 
 data GlobalContext = GlobalContext

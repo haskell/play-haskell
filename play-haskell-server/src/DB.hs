@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
-module Paste.DB (
+module DB (
     Database, ErrCode(..), ClientAddr, KeyType, Contents(..),
     withDatabase,
     storePaste, getPaste,

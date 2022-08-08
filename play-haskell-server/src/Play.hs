@@ -22,8 +22,8 @@ import GHC.Generics (Generic)
 import Snap.Core hiding (path, method, pass)
 import Text.Read (readMaybe)
 
+import DB (getPaste, Contents(..))
 import Pages
-import Paste.DB (getPaste, Contents(..))
 import ServerModule
 import Snap.Server.Utils
 import Snap.Server.Utils.BasicAuth
@@ -72,18 +72,18 @@ data AdminReq
 
 parseRequest :: Method -> [ByteString] -> Maybe WhatRequest
 parseRequest method comps = case (method, comps) of
-  (GET, ["play"]) -> Just Index
-  (GET, ["play", "paste", key]) -> Just (FromPaste key 1)
-  (GET, ["play", "paste", key, idxs])
+  (GET, []) -> Just Index
+  (GET, ["paste", key]) -> Just (FromPaste key 1)
+  (GET, ["paste", key, idxs])
     | Just idx <- readMaybe (Char8.unpack idxs) -> Just (FromPaste key idx)
-  (GET, ["play", "versions"]) -> Just Versions
-  (GET, ["play", "challenge"]) -> Just CurrentChallenge
-  (POST, ["play", "run"]) -> Just (RunGHC CRun)
-  (POST, ["play", "core"]) -> Just (RunGHC CCore)
-  (POST, ["play", "asm"]) -> Just (RunGHC CAsm)
-  (GET, ["play", "admin", "status"]) -> Just (AdminReq ARStatus)
-  (PUT, ["play", "admin", "worker"]) -> Just (AdminReq ARAddWorker)
-  (DELETE, ["play", "admin", "worker"]) -> Just (AdminReq ARDeleteWorker)
+  (GET, ["versions"]) -> Just Versions
+  (GET, ["challenge"]) -> Just CurrentChallenge
+  (POST, ["compile", "run"]) -> Just (RunGHC CRun)
+  (POST, ["compile", "core"]) -> Just (RunGHC CCore)
+  (POST, ["compile", "asm"]) -> Just (RunGHC CAsm)
+  (GET, ["admin", "status"]) -> Just (AdminReq ARStatus)
+  (PUT, ["admin", "worker"]) -> Just (AdminReq ARAddWorker)
+  (DELETE, ["admin", "worker"]) -> Just (AdminReq ARDeleteWorker)
   _ -> Nothing
 
 handleRequest :: GlobalContext -> Context -> WhatRequest -> Snap ()

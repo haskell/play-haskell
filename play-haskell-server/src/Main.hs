@@ -17,8 +17,7 @@ import System.Exit (exitFailure, die)
 import System.IO
 import qualified System.Posix.Signals as Signal
 
-import Paste
-import Paste.DB (withDatabase)
+import DB (withDatabase)
 import Pages
 import Play
 import qualified PlayHaskellTypes.Sign as Sign
@@ -102,7 +101,6 @@ config =
        $ defaultConfig
 
 actionPenalty :: SpamAction -> Double
-actionPenalty Post = 1.4
 actionPenalty PlayRunStart = 0.2
 -- curved increase from 0 at tm=0 to 2 at tm=1
 actionPenalty (PlayRunTimeoutFraction tm) = (1 - 1 / (tm + 1)) * (2 / (1 - (1 / (1 + 1))))
@@ -169,6 +167,6 @@ main = do
                      , gcServerSecretKey = serverseckey
                      , gcAdminPassword = adminPassword }
 
-        let modules = [pasteModule, playModule]
+        let modules = [playModule]
         instantiates gctx options modules $ \modules' -> do
             httpServe config (server options modules')

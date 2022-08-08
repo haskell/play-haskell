@@ -19,10 +19,7 @@ executable play-haskell-server
     Data.Queue
     Data.Queue.Priority
     Pages
-    Paste
-    Paste.Archive
-    Paste.DB
-    Paste.HighlightCSS
+    DB
     Play
     Play.WorkerPool
     Play.WorkerPool.WorkerReqs
@@ -39,9 +36,7 @@ executable play-haskell-server
     http-client-tls >= 0.3.6.1 && < 0.4,
     http-types >= 0.12.3 && < 0.13,
     io-streams,
-    libarchive >= 3.0.2.2 && < 3.1,
     mustache >= 2.4.0 && < 2.5,
-    parsec >= 3.1.14.0 && < 3.2,
     process >= 1.6.13.2 && < 1.7,
     stm >= 2.5 && < 2.6,
     random >= 1.2.0 && < 1.3,

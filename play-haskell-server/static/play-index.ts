@@ -172,13 +172,13 @@ function setWorking(yes: boolean) {
 }
 
 function getVersions(cb: (response: string) => void) {
-	performXHR("GET", "/play/versions", "json", cb, function(xhr) {
+	performXHR("GET", "/versions", "json", cb, function(xhr) {
 		alert("Error getting available compiler versions (status " + xhr.status + "): " + xhr.responseText);
 	});
 }
 
 function refreshChallenge(cb?: () => void) {
-	performXHR("GET", "/play/challenge", "text",
+	performXHR("GET", "/challenge", "text",
 		function(challenge) {
 			if (typeof challenge == "string") {
 				currentChallenge = challenge;
@@ -198,13 +198,13 @@ function sendRun(source: string, version: string, opt: string, run: Runner, cb: 
 	let ep: string = null;
 	switch (run) {
 		case Runner.Run:
-			ep = "/play/run"
+			ep = "/compile/run"
 			break;
 		case Runner.Core:
-			ep = "/play/core"
+			ep = "/compile/core"
 			break;
 		case Runner.Asm:
-			ep = "/play/asm"
+			ep = "/compile/asm"
 			break;
 	}
 	performXHR("POST", ep, "json",
