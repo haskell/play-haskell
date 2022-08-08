@@ -9,8 +9,6 @@ Priority:
     sudo cgexec -g cpu:kaaslimited --sticky start.sh
     sudo cgdelete cpu:kaaslimited
   - Can just (and should probably) create a new cgroup for every fresh container, let's not let things linger (and we need separate cgroups for the separate processes anyway)
-- Separate playground and pastebin
-  - Playground has its own database, and the paste presentation format is just the playground (no separate read page)
 - Make sure {-# OPTIONS -Wall #-} does something
 
 Medium:
