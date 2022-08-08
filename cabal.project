@@ -2,7 +2,7 @@ packages:
     snap-server-utils/
     play-haskell-types/
     play-haskell-worker/
-    pastebin-haskell/
+    play-haskell-server/
 
 -- Contains bump of attoparsec dependency upper bound, that hasn't been pushed to hackage yet
 source-repository-package

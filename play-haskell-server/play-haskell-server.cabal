@@ -1,7 +1,7 @@
 cabal-version:       2.0
-name:                pastebin-haskell
-synopsis:            Pastebin service in Haskell
-version:             0.2.14.0
+name:                play-haskell-server
+synopsis:            Web server for play-haskell
+version:             0.1.0.0
 license:             MIT
 license-file:        LICENSE
 author:              Tom Smeding
@@ -10,9 +10,9 @@ build-type:          Simple
 homepage:            https://github.com/tomsmeding/pastebin-haskell
 extra-source-files:  index.mustache read.mustache highlight-light.pack.css highlight-dark.pack.css
                      migrate_db_1_2.sh migrate_db_2_3.sh migrate_db_3_4.sh migrate_db_4_5.sh
-                     static/highlight.pack.js static/robots.txt ChangeLog.md
+                     static/highlight.pack.js static/robots.txt
 
-executable pastebin-haskell
+executable play-haskell-server
   main-is:
     Main.hs
   other-modules:
