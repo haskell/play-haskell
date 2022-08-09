@@ -29,6 +29,7 @@ args=(
   --ro-bind "${ghcup_base}/cache" "${ghcup_base}/cache"
   --setenv PATH "/bin:/usr/bin:${ghcup_base}/bin"
   --setenv GHCUP_INSTALL_BASE_PREFIX "$(dirname "${ghcup_base}")"
+  --setenv GHCUP_SKIP_UPDATE_CHECK ""
   --proc /proc
   --chdir "/tmp"
   --new-session
