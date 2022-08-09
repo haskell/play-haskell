@@ -9,7 +9,6 @@ Priority:
     sudo cgexec -g cpu:kaaslimited --sticky start.sh
     sudo cgdelete cpu:kaaslimited
   - Can just (and should probably) create a new cgroup for every fresh container, let's not let things linger (and we need separate cgroups for the separate processes anyway)
-- Make sure {-# OPTIONS -Wall #-} does something
 
 Medium:
 - Hotkey for Run
