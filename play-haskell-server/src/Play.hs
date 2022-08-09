@@ -108,6 +108,7 @@ data WhatRequest
   | CurrentChallenge
   | RunGHC Command
   | AdminReq AdminReq
+  | LegacyRedirect ByteString  -- ^ to destination URL
   deriving (Show)
 
 data AdminReq
@@ -129,6 +130,10 @@ parseRequest method comps = case (method, comps) of
   (GET, ["admin", "status"]) -> Just (AdminReq ARStatus)
   (PUT, ["admin", "worker"]) -> Just (AdminReq ARAddWorker)
   (DELETE, ["admin", "worker"]) -> Just (AdminReq ARDeleteWorker)
+
+  (GET, ["play"]) -> Just (LegacyRedirect "/")
+  (GET, ["play", "paste", key]) -> Just (LegacyRedirect ("/saved/" <> key))
+  (GET, ["play", "paste", key, _]) -> Just (LegacyRedirect ("/saved/" <> key))
   _ -> Nothing
 
 handleRequest :: GlobalContext -> Context -> WhatRequest -> Snap ()
@@ -232,6 +237,8 @@ handleRequest gctx ctx = \case
         , Just pass == gcAdminPassword gctx
         -> handleAdminRequest ctx adminreq
       _ -> modifyResponse (requireBasicAuth "admin")
+
+  LegacyRedirect url -> redirect' url 301  -- moved permanently
 
 data AddWorkerRequest = AddWorkerRequest
   { awreqHostname :: String
