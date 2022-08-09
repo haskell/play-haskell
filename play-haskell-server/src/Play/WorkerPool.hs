@@ -114,7 +114,7 @@ data Status = Status
 
 data WorkerStatus = WorkerStatus
   { wstatAddr :: Worker.Addr
-  , wstatDisabled :: Maybe (TimeSpec, TimeSpec)  -- (last check, wait interval)
+  , wstatDisabled :: Maybe (TimeSpec, TimeSpec)  -- ^ (last check, wait interval)
   , wstatVersions :: [Version]
   , wstatIdle :: Bool }
   deriving (Show)
@@ -186,6 +186,11 @@ data Worker = Worker
   , wVersions :: [Version]
   }
 
+-- | Create a new worker pool. This function needs the secret key of the
+-- server, and furthermore takes the maximum number /n/ of queued jobs (i.e.
+-- jobs that need to be sent to a worker, but all workers are currently busy).
+-- If there are /w/ workers, then a maximum of /w/ + /n/ jobs can be in flight
+-- at any one time; if more jobs are added, 'submitJob' will return 'Nothing'.
 newPool :: SecretKey -> Int -> IO WPool
 newPool serverSkey maxqueuedjobs = do
   mgr <- N.newTlsManager
@@ -331,10 +336,6 @@ handleEvent' wpool state mgr = \case
         hPutStrLn stderr $ "[EWF] Worker does not exist: " ++ show addr
         return state
 
-  -- TODO: if the previous status was Disabled, we should ensure that this
-  -- produces EWorkerIdle so that it can pick up jobs from the backlog.
-  -- Also: update the vervar in the wpool!
-  -- If you don't do anything with wStatus here, remove that field because it's unused otherwise.
   EWorkerVersions addr@(Worker.Addr host _) versions
     | Just worker <- Map.lookup host (psWorkers state) -> do
         -- If the worker was disabled before, notify that it's idle now
@@ -384,6 +385,11 @@ submitEvent wpool at event = do
   _ <- tryPutTMVar (wpWakeup wpool) ()
   return ()
 
+-- | Get the GHC versions currently available in the pool (buggy).
+--
+-- Note: this is currently only accurate if all workers report the same set of
+-- supported GHC versions. I.e. this function returns the union whereas it
+-- should report the intersection.
 getAvailableVersions :: WPool -> IO [Version]
 getAvailableVersions wpool = readTVarIO (wpVersions wpool)
 
@@ -410,11 +416,14 @@ submitJob wpool req = do
     then Just <$> atomically (readTChan chan)
     else return Nothing
 
+-- | If a worker with that host is already in the pool, no action is taken.
+-- (That is to say: different workers must have different hostnames, but may
+-- have equal public keys.)
 addWorker :: WPool -> ByteString -> PublicKey -> IO ()
 addWorker wpool host publickey
-  | all (< 128) (BS.unpack host) =
+  | all (\b -> 32 < b && b < 127) (BS.unpack host) =
       atomically $ submitEvent wpool 0 (EAddWorker host publickey)
-  | otherwise = ioError $ userError "Non-ASCII byte in host in addWorker"
+  | otherwise = ioError $ userError "Non-printable byte in host in addWorker"
 
 collectStatus :: WPool -> PoolState -> IO Status
 collectStatus wpool state = do
