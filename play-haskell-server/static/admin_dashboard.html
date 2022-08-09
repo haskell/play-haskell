@@ -1,0 +1,218 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Haskell playground admin dashboard</title>
+<script>
+function performXHR(method, path, responseType, successcb /* text/json => void */, failcb /* xhr => void */, mcontentType, mdata) {
+  const xhr = new XMLHttpRequest();
+
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState != 4) return;
+    if (xhr.status == 200) {
+        if (responseType == "text") successcb(xhr.responseText);
+        else if (responseType == "json") {
+            var obj;
+            try {
+                obj = JSON.parse(xhr.responseText);
+            } catch (e) {
+                failcb(xhr);
+            }
+            successcb(obj);
+        } else {
+            throw new Error("Invalid responseType in performXHR");
+        }
+    } else failcb(xhr);
+  };
+
+  xhr.open(method, path);
+  xhr.responseType = "text";
+  if (mcontentType) xhr.setRequestHeader("Content-Type", mcontentType);
+  if (mdata) xhr.send(mdata); else xhr.send();
+}
+
+function formatTimeSpec(ts) {
+  var res = "";
+  if (ts[0] >= 3600) {
+    res += ~~(ts[0] / 3600) + "h";
+    ts[0] %= 3600;
+  }
+  if (ts[0] >= 60) {
+    res += ~~(ts[0] / 60) + "m";
+    ts[0] %= 60;
+  }
+  res += ts[0] + "s";  // not sure what to do with negative values
+  if (ts[1] != 0) {
+    res += ".";
+    if (ts[1] < 0) { res += "-"; ts[1] = -ts[1]; }  // not sure what to do here
+    var str = ts[1] + "";
+    for (var i = 0; i < 6 - str.length; i++) res += "0";
+    res += str;
+  }
+}
+
+function populateStatusFromResponse(response) {
+  document.getElementById("jobqueuelength").textContent = response.job_queue_length;
+  document.getElementById("eventqueuelength").textContent = response.event_queue_length;
+  document.getElementById("numworkers").textContent = response.workers.length;
+  var wlist = document.getElementById("workers-list");
+  wlist.textContent = "";
+  for (var i = 0; i < response.workers.length; i++) {
+    var w = response.workers[i];
+    var item = document.createElement("div");
+    item.classList.add("worker-list-item");
+    if (!w.idle) item.classList.add("busy");
+    var el;
+
+    if (w.disabled != null) {
+      el = document.createElement("b");
+      el.textContent = "Disabled";
+      item.appendChild(el);
+      item.appendChild(document.createTextNode(" since " + formatTimeSpec(w.disabled[0]) + ", interval " + formatTimeSpec(w.disabled[1])));
+      item.appendChild(document.createElement("br"));
+    }
+
+    item.appendChild(document.createTextNode("Host: " + w.addr[0]));
+    item.appendChild(document.createElement("br"));
+
+    item.appendChild(document.createTextNode("Pubkey: "));
+    el = document.createElement("span");
+    el.classList.add("worker-pubkey");
+    el.textContent = w.addr[1];
+    item.appendChild(el);
+    item.appendChild(document.createElement("br"));
+
+    var str = "Versions: ";
+    for (var i = 0; i < w.versions.length; i++) {
+      if (i > 0) str += ", ";
+      str += w.versions[i];
+    }
+    item.appendChild(document.createTextNode(str));
+    item.appendChild(document.createElement("br"));
+
+    item.appendChild(document.createTextNode(w.idle ? "idle" : "busy"));
+
+    wlist.appendChild(item);
+  }
+}
+
+function doStatusRefresh() {
+  var btn = document.getElementById("statusrefreshbutton");
+  btn.setAttribute("disabled", "");
+  performXHR(
+    "GET", "/admin/status", "json",
+    function(response) {
+      populateStatusFromResponse(response);
+      btn.removeAttribute("disabled");
+    },
+    function(xhr) {
+      alert("Could not get status: " + xhr.status + "\n" + xhr.responseText);
+      btn.removeAttribute("disabled");
+    }
+  );
+}
+
+var autoRefreshTimeout = null;
+function doAutoRefreshCbChange() {
+  if (document.getElementById("autorefreshcb").checked) {
+    var iv = +document.getElementById("autorefreshsec").value;
+    if (isNaN(iv) || iv <= 0) {
+      alert("Invalid auto-refresh seconds value");
+      document.getElementById("autorefreshsec").value = 1;
+      document.getElementById("autorefreshcb").checked = false;
+      return;
+    }
+    autoRefreshTimeout = setInterval(doStatusRefresh, iv * 1000);
+  } else {
+    if (autoRefreshTimeout != null) clearInterval(autoRefreshTimeout);
+    autoRefreshTimeout = null;
+  }
+}
+
+var addStatusTimeout = null;
+function doAddWorker() {
+  var hostname_el = document.getElementById("add_hostname");
+  var pubkey_el = document.getElementById("add_pubkey");
+  var hostname = hostname_el.value;
+  var pubkey = pubkey_el.value;
+
+  if (addStatusTimeout != null) {
+    clearTimeout(addStatusTimeout);
+    addStatusTimeout = null;
+    document.getElementById("add_status").textContent = "";
+  }
+
+  performXHR(
+    "PUT", "/admin/worker", "text",
+    function(response) {
+      hostname_el.value = "";
+      pubkey_el.value = "";
+
+      var status_el = document.getElementById("add_status");
+      status_el.textContent = "added!";
+      if (addStatusTimeout != null) {
+        clearTimeout(addStatusTimeout);
+        addStatusTimeout = null;
+      }
+      addStatusTimeout = setTimeout(function() { status_el.textContent = ""; }, 1000);
+    },
+    function(xhr) {
+      alert("Error adding worker: " + xhr.status + "\n" + xhr.responseText);
+    },
+    "text/json", JSON.stringify({hostname, pubkey})
+  );
+}
+</script>
+<style>
+.container {
+  border: 1px gray solid;
+  border-radius: 4px;
+  padding: 4px;
+  margin-bottom: 10px;
+}
+#autorefreshbox {
+  margin-left: 10px;
+}
+#statusrefreshbutton {
+  margin-bottom: 6px;
+}
+.worker-list-item {
+  border: 1px gray solid;
+  border-radius: 4px;
+  padding: 4px;
+  display: inline-block;
+}
+.worker-list-item.busy {
+  background-color: #ecc;
+}
+.worker-pubkey {
+  font-size: 8pt;
+}
+</style>
+</head>
+<body>
+<h1>Haskell playground admin dashboard</h1>
+
+<div class="container">
+  <button id="statusrefreshbutton" onclick="doStatusRefresh()">Refresh</button>
+  <span id="autorefreshbox">
+    (<label for="autorefreshcb"><input type="checkbox" id="autorefreshcb" name="autorefreshcb" onchange="doAutoRefreshCbChange()">Auto-refresh every</label>
+    <input type="text" id="autorefreshsec" size="3" value="1">
+    seconds)
+  </span><br>
+  Job queue length: <span id="jobqueuelength"></span><br>
+  Event queue length: <span id="eventqueuelength"></span><br>
+  Workers: <span id="numworkers"></span>
+  <div id="workers-list"></div>
+</div>
+
+<div class="container">
+  <b>Add worker</b><br>
+  Hostname: <input type="text" id="add_hostname" placeholder="worker.example.com">
+  (default https; <code>http://</code> prefix and <code>:<i>port</i></code> suffix accepted)<br>
+  Public key: <input type="text" id="add_pubkey" size="58" placeholder="5e7f8... (64 hex digits)"><br>
+  <button onclick="doAddWorker()">Add</button>
+  <span id="add_status"></span>
+</div>
+</body>
+</html>

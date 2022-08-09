@@ -112,7 +112,8 @@ data WhatRequest
   deriving (Show)
 
 data AdminReq
-  = ARStatus
+  = ARDashboard
+  | ARStatus
   | ARAddWorker
   | ARDeleteWorker
   deriving (Show)
@@ -127,6 +128,7 @@ parseRequest method comps = case (method, comps) of
   (POST, ["compile", "run"]) -> Just (RunGHC CRun)
   (POST, ["compile", "core"]) -> Just (RunGHC CCore)
   (POST, ["compile", "asm"]) -> Just (RunGHC CAsm)
+  (GET, ["admin"]) -> Just (AdminReq ARDashboard)
   (GET, ["admin", "status"]) -> Just (AdminReq ARStatus)
   (PUT, ["admin", "worker"]) -> Just (AdminReq ARAddWorker)
   (DELETE, ["admin", "worker"]) -> Just (AdminReq ARDeleteWorker)
@@ -250,6 +252,10 @@ instance J.FromJSON AddWorkerRequest where
 
 handleAdminRequest :: Context -> AdminReq -> Snap ()
 handleAdminRequest ctx = \case
+  ARDashboard -> do
+    modifyResponse (setContentType (Char8.pack "text/html"))
+    sendFile "static/admin_dashboard.html"
+
   ARStatus -> do
     status <- liftIO $ WP.getPoolStatus (ctxPool ctx)
     writeJSON status
