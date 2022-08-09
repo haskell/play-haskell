@@ -268,7 +268,7 @@ handleAdminRequest ctx = \case
 
     pkey <- case Sign.readPublicKey . BSS.fromShort =<< hexDecode pkeyhex of
               Just res -> return res
-              _ -> do lift $ httpError 400 "Invalid base64"
+              _ -> do lift $ httpError 400 "Invalid pubkey (must be 64 hex digits)"
                       exitEarly ()
 
     liftIO $ WP.addWorker (ctxPool ctx) (Char8.pack host) pkey

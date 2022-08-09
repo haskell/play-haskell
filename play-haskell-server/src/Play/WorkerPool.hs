@@ -109,7 +109,9 @@ data Job = Job RunRequest (RunResponse -> IO ())
 data Status = Status
   { statWorkers :: [WorkerStatus]
   , statJobQueueLength :: Int
-  , statEventQueueLength :: Int }
+  , statEventQueueLength :: Int
+  , statNow :: TimeSpec  -- ^ Current time to compare Disabled times with
+  }
   deriving (Show, Generic)
 
 data WorkerStatus = WorkerStatus
@@ -129,8 +131,16 @@ instance J.ToJSON TimeSpecJSON where
     fromString "sec" J..= s <> fromString "nsec" J..= ns
 
 instance J.ToJSON Status where
-  toJSON = J.genericToJSON J.defaultOptions { J.fieldLabelModifier = J.camelTo2 '_' . drop 4 }
-  toEncoding = J.genericToEncoding J.defaultOptions { J.fieldLabelModifier = J.camelTo2 '_' . drop 4 }
+  toJSON (Status workers jql eql now) =
+    J.object [fromString "workers" J..= workers
+             ,fromString "job_queue_length" J..= jql
+             ,fromString "event_queue_length" J..= eql
+             ,fromString "now" J..= TimeSpecJSON now]
+  toEncoding (Status workers jql eql now) =
+    JE.pairs (fromString "workers" J..= workers
+           <> fromString "job_queue_length" J..= jql
+           <> fromString "event_queue_length" J..= eql
+           <> fromString "now" J..= TimeSpecJSON now)
 
 instance J.ToJSON WorkerStatus where
   toJSON (WorkerStatus (Worker.Addr host pkey) disabled versions idle) =
@@ -429,10 +439,12 @@ collectStatus :: WPool -> PoolState -> IO Status
 collectStatus wpool state = do
   jqlen <- readTVarIO (wpNumQueuedJobs wpool)
   eqlen <- PQ.length <$> readTVarIO (wpEventQueue wpool)
+  now <- Clock.getTime Clock.Monotonic
   return Status { statWorkers = map (makeWorkerStatus (psIdle state))
                                     (Map.elems (psWorkers state))
                 , statJobQueueLength = jqlen
-                , statEventQueueLength = eqlen }
+                , statEventQueueLength = eqlen
+                , statNow = now }
   where
     makeWorkerStatus idleset worker = WorkerStatus
       { wstatAddr = wAddr worker

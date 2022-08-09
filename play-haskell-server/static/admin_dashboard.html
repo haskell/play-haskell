@@ -31,24 +31,49 @@ function performXHR(method, path, responseType, successcb /* text/json => void *
   if (mdata) xhr.send(mdata); else xhr.send();
 }
 
-function formatTimeSpec(ts) {
+function formatSeconds(secs) {
   var res = "";
-  if (ts[0] >= 3600) {
-    res += ~~(ts[0] / 3600) + "h";
-    ts[0] %= 3600;
+  if (secs >= 3600) {
+    res += ~~(secs / 3600) + "h";
+    secs %= 3600;
   }
-  if (ts[0] >= 60) {
-    res += ~~(ts[0] / 60) + "m";
-    ts[0] %= 60;
+  if (secs >= 60) {
+    res += ~~(secs / 60) + "m";
+    secs %= 60;
   }
-  res += ts[0] + "s";  // not sure what to do with negative values
-  if (ts[1] != 0) {
-    res += ".";
-    if (ts[1] < 0) { res += "-"; ts[1] = -ts[1]; }  // not sure what to do here
-    var str = ts[1] + "";
-    for (var i = 0; i < 6 - str.length; i++) res += "0";
-    res += str;
+  return res + secs;  // not sure what to do with negative values
+}
+
+// Returns a <span>
+function formatTimeSpec(ts_in) {
+  var ts = {sec: ts_in.sec, nsec: ts_in.nsec};  // make a copy so we can mutate
+  while (ts.nsec < 0) { ts.sec--; ts.nsec += 1e9; }
+  while (ts.nsec >= 1e9) { ts.sec++; ts.nsec -= 1e9; }
+
+  var roundedts = {sec: ts.sec, centisec: Math.round(ts.nsec / 1e8)};
+  if (roundedts.centisec == 10) { roundedts.sec++; roundedts.centisec = 0; }
+
+  var display = formatSeconds(roundedts.sec) + "." + roundedts.centisec + "s";
+  var alt = formatSeconds(ts.sec) + ".";
+
+  var nsec_str = ts.nsec + "";
+  for (var i = 0; i < 9 - nsec_str.length; i++) alt += "0";
+  alt += nsec_str;
+  alt += "s";
+
+  var span = document.createElement("span");
+  span.textContent = display;
+  span.title = alt;
+  return span;
+}
+
+function timeSpecSubtract(a, b) {
+  var res = {sec: a.sec - b.sec, nsec: a.nsec - b.nsec};
+  while (res.nsec < 0) {
+    res.nsec += 1e9;
+    res.sec++;
   }
+  return res;
 }
 
 function populateStatusFromResponse(response) {
@@ -61,14 +86,21 @@ function populateStatusFromResponse(response) {
     var w = response.workers[i];
     var item = document.createElement("div");
     item.classList.add("worker-list-item");
-    if (!w.idle) item.classList.add("busy");
     var el;
 
     if (w.disabled != null) {
+      item.classList.add("disabled");
       el = document.createElement("b");
       el.textContent = "Disabled";
       item.appendChild(el);
-      item.appendChild(document.createTextNode(" since " + formatTimeSpec(w.disabled[0]) + ", interval " + formatTimeSpec(w.disabled[1])));
+      item.appendChild(document.createTextNode(" since "));
+      item.appendChild(formatTimeSpec(timeSpecSubtract(response.now, w.disabled[0])));
+      item.appendChild(document.createTextNode(" ago, interval "));
+      item.appendChild(formatTimeSpec(w.disabled[1]));
+      item.appendChild(document.createElement("br"));
+    } else {
+      if (!w.idle) item.classList.add("busy");
+      item.appendChild(document.createTextNode(w.idle ? "idle" : "busy"));
       item.appendChild(document.createElement("br"));
     }
 
@@ -83,20 +115,18 @@ function populateStatusFromResponse(response) {
     item.appendChild(document.createElement("br"));
 
     var str = "Versions: ";
-    for (var i = 0; i < w.versions.length; i++) {
-      if (i > 0) str += ", ";
-      str += w.versions[i];
+    for (var j = 0; j < w.versions.length; j++) {
+      if (j > 0) str += ", ";
+      str += w.versions[j];
     }
     item.appendChild(document.createTextNode(str));
     item.appendChild(document.createElement("br"));
-
-    item.appendChild(document.createTextNode(w.idle ? "idle" : "busy"));
 
     wlist.appendChild(item);
   }
 }
 
-function doStatusRefresh() {
+function doStatusRefresh(mcb /* optional callback on success, () => void */) {
   var btn = document.getElementById("statusrefreshbutton");
   btn.setAttribute("disabled", "");
   performXHR(
@@ -104,6 +134,7 @@ function doStatusRefresh() {
     function(response) {
       populateStatusFromResponse(response);
       btn.removeAttribute("disabled");
+      if (mcb) mcb();
     },
     function(xhr) {
       alert("Could not get status: " + xhr.status + "\n" + xhr.responseText);
@@ -113,16 +144,28 @@ function doStatusRefresh() {
 }
 
 var autoRefreshTimeout = null;
-function doAutoRefreshCbChange() {
-  if (document.getElementById("autorefreshcb").checked) {
+function autoRefreshAndRepeat() {
+  if (autoRefreshTimeout != null) clearInterval(autoRefreshTimeout);
+  autoRefreshTimeout = null;
+
+  if (!document.getElementById("autorefreshcb").checked) return;
+
+  doStatusRefresh(function() {
+    if (!document.getElementById("autorefreshcb").checked) return;
+
     var iv = +document.getElementById("autorefreshsec").value;
     if (isNaN(iv) || iv <= 0) {
       alert("Invalid auto-refresh seconds value");
-      document.getElementById("autorefreshsec").value = 1;
+      // document.getElementById("autorefreshsec").value = 1;
       document.getElementById("autorefreshcb").checked = false;
       return;
     }
-    autoRefreshTimeout = setInterval(doStatusRefresh, iv * 1000);
+    autoRefreshTimeout = setTimeout(autoRefreshAndRepeat, iv * 1000);
+  });
+}
+function doAutoRefreshCbChange() {
+  if (document.getElementById("autorefreshcb").checked) {
+    autoRefreshAndRepeat();
   } else {
     if (autoRefreshTimeout != null) clearInterval(autoRefreshTimeout);
     autoRefreshTimeout = null;
@@ -162,6 +205,10 @@ function doAddWorker() {
     "text/json", JSON.stringify({hostname, pubkey})
   );
 }
+
+window.addEventListener("load", function() {
+  doAutoRefreshCbChange();
+});
 </script>
 <style>
 .container {
@@ -183,6 +230,9 @@ function doAddWorker() {
   display: inline-block;
 }
 .worker-list-item.busy {
+  background-color: #ddd;
+}
+.worker-list-item.disabled {
   background-color: #ecc;
 }
 .worker-pubkey {
@@ -197,7 +247,7 @@ function doAddWorker() {
   <button id="statusrefreshbutton" onclick="doStatusRefresh()">Refresh</button>
   <span id="autorefreshbox">
     (<label for="autorefreshcb"><input type="checkbox" id="autorefreshcb" name="autorefreshcb" onchange="doAutoRefreshCbChange()">Auto-refresh every</label>
-    <input type="text" id="autorefreshsec" size="3" value="1">
+    <input type="text" id="autorefreshsec" size="3" value="10">
     seconds)
   </span><br>
   Job queue length: <span id="jobqueuelength"></span><br>
