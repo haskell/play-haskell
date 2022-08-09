@@ -40,7 +40,9 @@ maxOutputSizeBytes = 100_000
 
 availableVersions :: IO [String]
 availableVersions = do
-  out <- Pr.readCreateProcess (Pr.proc "ghcup" ["--offline", "list", "-t", "ghc", "-c", "installed", "-r"]) []
+  -- -r: parseable output
+  -- --no-verbose: don't notify me that there is a new ghc version available
+  out <- Pr.readCreateProcess (Pr.proc "ghcup" ["--offline", "list", "-t", "ghc", "-c", "installed", "-r", "--no-verbose"]) []
   let ghc_versions = [ver | (words -> _ : ver : _) <- lines out]
   return ghc_versions
 
