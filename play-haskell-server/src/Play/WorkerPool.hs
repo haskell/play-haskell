@@ -12,6 +12,7 @@ module Play.WorkerPool (
   -- * Putting stuff
   submitJob,
   addWorker,
+  removeWorker,
 ) where
 
 import Control.Concurrent (forkIO)
@@ -161,6 +162,7 @@ instance J.ToJSON WorkerStatus where
            <> fromString "idle" J..= idle)
 
 data Event = EAddWorker ByteString PublicKey  -- ^ New worker
+           | ERemoveWorker ByteString  -- ^ Remove worker from pool
            | ENewJob Job  -- ^ New job has arrived!
            | EWorkerIdle Worker.Addr  -- ^ Worker has become idle
            | EVersionRefresh Worker.Addr  -- ^ Should refresh versions now
@@ -181,6 +183,9 @@ data WPool = WPool
 data PoolState = PoolState
   { psWorkers :: Map ByteString Worker  -- ^ hostname -> worker
   , psIdle :: Set Worker.Addr
+  , psToBeRemoved :: Set ByteString
+    -- ^ Hostnames for which a remove request came in while worker was busy,
+    -- remove when their job finishes
   , psBacklog :: Queue Job
   , psRNG :: StdGen
   }
@@ -217,6 +222,7 @@ newPool serverSkey maxqueuedjobs = do
                     , wpSecretKey = serverSkey }
       state = PoolState { psWorkers = mempty
                         , psIdle = mempty
+                        , psToBeRemoved = mempty
                         , psBacklog = Queue.empty
                         , psRNG = rng }
   _ <- forkIO $ poolHandlerLoop wpool state mgr
@@ -283,6 +289,20 @@ handleEvent' wpool state mgr = \case
                             , wVersions = [] }
         return state { psWorkers = Map.insert host worker (psWorkers state) }
 
+  ERemoveWorker host ->
+    case Map.lookup host (psWorkers state) of
+      Just Worker{wStatus = Disabled{}} ->
+        return state { psWorkers = Map.delete host (psWorkers state) }
+
+      Just Worker{wAddr = addr, wStatus = OK}
+        | addr `Set.member` psIdle state ->
+            return state { psWorkers = Map.delete host (psWorkers state)
+                         , psIdle = Set.delete addr (psIdle state) }
+        | otherwise ->
+            return state { psToBeRemoved = Set.insert host (psToBeRemoved state) }
+
+      Nothing -> return state  -- worker didn't even exist
+
   ENewJob job
     | Map.null (psWorkers state) -> do
         -- If there are no workers at all, don't accept the job
@@ -306,6 +326,11 @@ handleEvent' wpool state mgr = \case
                      , psRNG = rng' }
 
   EWorkerIdle addr@(Worker.Addr host _)
+    | host `Set.member` psToBeRemoved state ->
+        return state { psWorkers = Map.delete host (psWorkers state)
+                     , psIdle = Set.delete addr (psIdle state)
+                     , psToBeRemoved = Set.delete host (psToBeRemoved state) }
+
     | Just Worker{wStatus=Disabled{}} <- Map.lookup host (psWorkers state) -> do
         -- Since we are already health-checking the worker (that process was
         -- started when the worker entered Disabled state), we don't need to
@@ -333,6 +358,11 @@ handleEvent' wpool state mgr = \case
     return state
 
   EWorkerFailed addr@(Worker.Addr host _)
+    | host `Set.member` psToBeRemoved state ->
+        return state { psWorkers = Map.delete host (psWorkers state)
+                     , psIdle = Set.delete addr (psIdle state)
+                     , psToBeRemoved = Set.delete host (psToBeRemoved state) }
+
     | Just worker <- Map.lookup host (psWorkers state) -> do
         now <- Clock.getTime Clock.Monotonic
         let iv = case wStatus worker of
@@ -434,6 +464,12 @@ addWorker wpool host publickey
   | all (\b -> 32 < b && b < 127) (BS.unpack host) =
       atomically $ submitEvent wpool 0 (EAddWorker host publickey)
   | otherwise = ioError $ userError "Non-printable byte in host in addWorker"
+
+-- | Remove the worker with the given hostname from the pool. If there is no
+-- such worker, no action is taken.
+removeWorker :: WPool -> ByteString -> IO ()
+removeWorker wpool host =
+  atomically $ submitEvent wpool 0 (ERemoveWorker host)
 
 collectStatus :: WPool -> PoolState -> IO Status
 collectStatus wpool state = do

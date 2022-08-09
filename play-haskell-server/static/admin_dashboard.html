@@ -76,6 +76,19 @@ function timeSpecSubtract(a, b) {
   return res;
 }
 
+function callRemoveWorker(host, button) {
+  performXHR(
+    "DELETE", "/admin/worker", "text",
+    function(response) {
+      button.setAttribute("disabled", "");
+    },
+    function(xhr) {
+      alert("Could not remove worker: " + xhr.status + "\n" + xhr.responseText);
+    },
+    "text/json", JSON.stringify({hostname: host})
+  );
+}
+
 function populateStatusFromResponse(response) {
   document.getElementById("jobqueuelength").textContent = response.job_queue_length;
   document.getElementById("eventqueuelength").textContent = response.event_queue_length;
@@ -87,6 +100,16 @@ function populateStatusFromResponse(response) {
     var item = document.createElement("div");
     item.classList.add("worker-list-item");
     var el;
+
+    var removeBtn = document.createElement("button");
+    removeBtn.classList.add("worker-remove-btn");
+    removeBtn.textContent = "Remove";
+    removeBtn.addEventListener("click", function() {
+      if (confirm("Remove this worker?\nHost: " + w.addr[0] + "\nPubkey: " + w.addr[1])) {
+        callRemoveWorker(w.addr[0], removeBtn);
+      }
+    });
+    item.appendChild(removeBtn);
 
     if (w.disabled != null) {
       item.classList.add("disabled");
@@ -148,16 +171,22 @@ function autoRefreshAndRepeat() {
   if (autoRefreshTimeout != null) clearInterval(autoRefreshTimeout);
   autoRefreshTimeout = null;
 
-  if (!document.getElementById("autorefreshcb").checked) return;
+  if (!document.getElementById("autorefreshcb").checked) {
+    document.getElementById("autorefreshbox").classList.remove("refreshing");
+    return;
+  }
 
   doStatusRefresh(function() {
-    if (!document.getElementById("autorefreshcb").checked) return;
+    if (!document.getElementById("autorefreshcb").checked) {
+      document.getElementById("autorefreshbox").classList.remove("refreshing");
+      return;
+    }
 
     var iv = +document.getElementById("autorefreshsec").value;
-    if (isNaN(iv) || iv <= 0) {
+    if (isNaN(iv) || iv <= 0.05) {
       alert("Invalid auto-refresh seconds value");
-      // document.getElementById("autorefreshsec").value = 1;
       document.getElementById("autorefreshcb").checked = false;
+      document.getElementById("autorefreshbox").classList.remove("refreshing");
       return;
     }
     autoRefreshTimeout = setTimeout(autoRefreshAndRepeat, iv * 1000);
@@ -165,8 +194,10 @@ function autoRefreshAndRepeat() {
 }
 function doAutoRefreshCbChange() {
   if (document.getElementById("autorefreshcb").checked) {
+    document.getElementById("autorefreshbox").classList.add("refreshing");
     autoRefreshAndRepeat();
   } else {
+    document.getElementById("autorefreshbox").classList.remove("refreshing");
     if (autoRefreshTimeout != null) clearInterval(autoRefreshTimeout);
     autoRefreshTimeout = null;
   }
@@ -207,6 +238,7 @@ function doAddWorker() {
 }
 
 window.addEventListener("load", function() {
+  doStatusRefresh();
   doAutoRefreshCbChange();
 });
 </script>
@@ -215,10 +247,14 @@ window.addEventListener("load", function() {
   border: 1px gray solid;
   border-radius: 4px;
   padding: 4px;
-  margin-bottom: 10px;
+  margin-bottom: 20px;
 }
 #autorefreshbox {
   margin-left: 10px;
+  color: gray;
+}
+#autorefreshbox.refreshing {
+  color: black;
 }
 #statusrefreshbutton {
   margin-bottom: 6px;
@@ -237,6 +273,11 @@ window.addEventListener("load", function() {
 }
 .worker-pubkey {
   font-size: 8pt;
+}
+.worker-remove-btn {
+  color: red;
+  float: right;
+  margin-left: 20px;
 }
 </style>
 </head>

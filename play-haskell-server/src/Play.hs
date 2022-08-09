@@ -115,7 +115,7 @@ data AdminReq
   = ARDashboard
   | ARStatus
   | ARAddWorker
-  | ARDeleteWorker
+  | ARRemoveWorker
   deriving (Show)
 
 parseRequest :: Method -> [ByteString] -> Maybe WhatRequest
@@ -131,7 +131,7 @@ parseRequest method comps = case (method, comps) of
   (GET, ["admin"]) -> Just (AdminReq ARDashboard)
   (GET, ["admin", "status"]) -> Just (AdminReq ARStatus)
   (PUT, ["admin", "worker"]) -> Just (AdminReq ARAddWorker)
-  (DELETE, ["admin", "worker"]) -> Just (AdminReq ARDeleteWorker)
+  (DELETE, ["admin", "worker"]) -> Just (AdminReq ARRemoveWorker)
 
   (GET, ["play"]) -> Just (LegacyRedirect "/")
   (GET, ["play", "paste", key]) -> Just (LegacyRedirect ("/saved/" <> key))
@@ -250,6 +250,13 @@ data AddWorkerRequest = AddWorkerRequest
 instance J.FromJSON AddWorkerRequest where
   parseJSON = J.genericParseJSON J.defaultOptions { J.fieldLabelModifier = J.camelTo2 '_' . drop 5 }
 
+data RemoveWorkerRequest = RemoveWorkerRequest
+  { rwreqHostname :: String }
+  deriving (Show, Generic)
+
+instance J.FromJSON RemoveWorkerRequest where
+  parseJSON = J.genericParseJSON J.defaultOptions { J.fieldLabelModifier = J.camelTo2 '_' . drop 5 }
+
 handleAdminRequest :: Context -> AdminReq -> Snap ()
 handleAdminRequest ctx = \case
   ARDashboard -> do
@@ -262,8 +269,8 @@ handleAdminRequest ctx = \case
 
   ARAddWorker -> execExitEarlyT $ do
     AddWorkerRequest host pkeyhex <- getRequestBodyEarlyExitJSON 1024 "request too large"
-    when (any (>= chr 128) (host ++ pkeyhex)) $ do
-      lift $ httpError 400 "Non-ASCII input"
+    when (any (\b -> b <= chr 32 && b >= chr 127) (host ++ pkeyhex)) $ do
+      lift $ httpError 400 "Non-printable input"
       exitEarly ()
 
     pkey <- case Sign.readPublicKey . BSS.fromShort =<< hexDecode pkeyhex of
@@ -274,9 +281,11 @@ handleAdminRequest ctx = \case
     liftIO $ WP.addWorker (ctxPool ctx) (Char8.pack host) pkey
     lift $ putResponse $ setResponseCode 200 emptyResponse
 
-  ARDeleteWorker -> do
-    -- TODO implement
-    putResponse $ setResponseCode 500 emptyResponse
+  ARRemoveWorker -> execExitEarlyT $ do
+    RemoveWorkerRequest host <- getRequestBodyEarlyExitJSON 1024 "request too large"
+
+    liftIO $ WP.removeWorker (ctxPool ctx) (Char8.pack host)
+    lift $ putResponse $ setResponseCode 200 emptyResponse
 
 playModule :: ServerModule
 playModule = ServerModule
