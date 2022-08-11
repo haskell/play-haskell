@@ -59,4 +59,10 @@ for fd in $(ls /proc/$$/fd); do
 done
 eval "$close_cmdline"
 
+# TODO:
+# Write a utility in C that does the following:
+#   systemd-run --description="kaas ding" --uid=$PARENT_UID --gid=$PARENT_GID --pipe --wait --collect --service-type=exec --property='CPUQuota=100%' "$@"
+# and make the utility suid root. The $PARENT_{UID,GID} should be taken from getuid() and getgid(). Reference: https://unix.stackexchange.com/questions/74527/setuid-bit-seems-to-have-no-effect-on-bash
+# Then use that utility here to call bwrap in the constrained environment, and check that the bwrapped process indeed inherits the cpu quota (and that bwrap's own namespacing doesn't interfere).
+
 exec bwrap "${args[@]}" 4<"${filesdir}/entry.sh"
