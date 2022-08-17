@@ -2,6 +2,8 @@
 {-# LANGUAGE ViewPatterns #-}
 module Main where
 
+import Control.Concurrent (forkIO)
+import Control.Concurrent.Chan
 import Control.Monad
 import qualified Data.Aeson as J
 import qualified Data.ByteString.Lazy.UTF8 as UTF8
@@ -12,7 +14,7 @@ import System.Environment
 import System.Exit
 
 import PlayHaskellTypes
-import PlayHaskellTypes.Sign (SecretKey)
+import PlayHaskellTypes.Sign (SecretKey, PublicKey)
 import qualified PlayHaskellTypes.Sign as Sign
 import Snap.Server.Utils.Hex
 
@@ -24,7 +26,7 @@ runRequest skey cmd source version opt = do
                          , runreqSource = source
                          , runreqVersion = version
                          , runreqOpt = opt }
-  print msg
+  -- print msg
   let req = postRequestWithBody
               ("http://localhost:8124/job")
               "text/json"
@@ -39,6 +41,24 @@ runRequest skey cmd source version opt = do
       | otherwise
       -> error $ "Uncaught status code " ++ show (rspCode resp) ++ "\n\
                  \With body: " ++ show (rspBody resp)
+
+singleTestRequest :: SecretKey -> PublicKey -> IO (Message RunResponse)
+singleTestRequest skey workerPkey = do
+  response <- runRequest skey CRun (T.pack program) (Version "8.10.7") O1
+  when (sesmsgPublicKey response /= workerPkey) $ do
+    print response
+    die $ "Response public key unequal to worker public key!\n\
+          \Worker   pkey: " ++ show workerPkey ++ "\n\
+          \Response pkey: " ++ show (sesmsgPublicKey response)
+  when (not $ Sign.verify workerPkey (signingBytes (sesmsgContent response)) (sesmsgSignature response)) $ do
+    print response
+    die "Invalid signature in response!"
+  return response
+  where
+    program :: String
+    program = "import Control.Concurrent\n\
+              \main :: IO ()\n\
+              \main = threadDelay 500000 >> print 42\n"
 
 main :: IO ()
 main = do
@@ -55,17 +75,19 @@ main = do
                   Just workerPkey -> return workerPkey
                   Nothing -> die "Hex decode of public key failed"
 
-  response <- runRequest skey CRun (T.pack program) (Version "8.10.7") O1
-  print response
-  when (sesmsgPublicKey response /= workerPkey) $
-    die $ "Response public key unequal to worker public key!\n\
-          \Worker   pkey: " ++ show workerPkey ++ "\n\
-          \Response pkey: " ++ show (sesmsgPublicKey response)
-  when (not $ Sign.verify workerPkey (signingBytes (sesmsgContent response)) (sesmsgSignature response)) $
-    die "Invalid signature in response!"
+  -- Try a single request
+  _ <- singleTestRequest skey workerPkey
+
+  -- Try some parallel requests
+  let nthreads = 10 :: Int
+  chan <- newChan
+  forM_ [1..nthreads] $ \i -> forkIO $ do
+    putStrLn $ "Firing " ++ show i
+    _ <- singleTestRequest skey workerPkey
+    putStrLn $ "Done " ++ show i
+    writeChan chan ()
+  forM_ [1..nthreads] $ \i -> do
+    readChan chan
+    putStrLn $ "Joined " ++ show i
+
   putStrLn "ok!"
-  where
-    program :: String
-    program = "import Control.Concurrent\n\
-              \main :: IO ()\n\
-              \main = threadDelay 500000 >> print 42\n"

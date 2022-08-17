@@ -169,6 +169,7 @@ main = do
   putStrLn $ "My public key: " ++ hexEncode ownPkey
 
   nprocs <- getNumCapabilities
+  putStrLn $ "Starting worker with " ++ show nprocs ++ " threads (use +RTS -N<n> to set)"
   pool <- makePool nprocs
   let ctx = Context pool skey pkeys
 
