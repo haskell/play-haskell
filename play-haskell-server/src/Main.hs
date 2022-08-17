@@ -6,7 +6,7 @@ import Data.Bifunctor (first)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as Char8
 import Data.ByteString (ByteString)
-import Data.Char (ord)
+import Data.Char (ord, isSpace)
 import Data.Foldable (asum)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
@@ -114,6 +114,9 @@ spamConfig = SpamConfig
   , spamForgetBelowScore = 0.1
   , spamForgetIntervalSecs = 3600 }
 
+trim :: String -> String
+trim = dropWhile isSpace . reverse . dropWhile isSpace . reverse
+
 main :: IO ()
 main = do
     options <- Opt.parseOptions $ Opt.Interface defaultOptions $ Map.fromList
@@ -142,7 +145,7 @@ main = do
 
     when (oSecKeyFile options == "") $ die "'--secretkey' is required"
     serverseckey <- do
-      mskey <- (hexDecodeBS >=> Sign.readSecretKey) <$> readFile (oSecKeyFile options)
+      mskey <- (hexDecodeBS . trim >=> Sign.readSecretKey) <$> readFile (oSecKeyFile options)
       case mskey of
         Just skey -> return skey
         Nothing -> do hPutStrLn stderr "Invalid secret key in file"

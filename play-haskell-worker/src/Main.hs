@@ -9,7 +9,7 @@ import Control.Monad.IO.Class (liftIO)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as Char8
 import Data.ByteString (ByteString)
-import Data.Char (ord)
+import Data.Char (ord, isSpace)
 import qualified Data.Map.Strict as Map
 import Text.Read (readMaybe)
 import Snap.Core hiding (path, method)
@@ -126,6 +126,9 @@ data Options = Options { oProxied :: Bool
 defaultOptions :: Options
 defaultOptions = Options False "" "" 8124
 
+trim :: String -> String
+trim = dropWhile isSpace . reverse . dropWhile isSpace . reverse
+
 main :: IO ()
 main = do
   options <- Opt.parseOptions $ Opt.Interface defaultOptions $ Map.fromList
@@ -153,7 +156,7 @@ main = do
     ,("-h", Opt.Help)]
 
   when (oSecKeyFile options == "") $ die "'--secretkey' is required"
-  skey <- (hexDecodeBS >=> Sign.readSecretKey) <$> readFile (oSecKeyFile options) >>= \case
+  skey <- (hexDecodeBS . trim >=> Sign.readSecretKey) <$> readFile (oSecKeyFile options) >>= \case
             Nothing -> die "Secret key file contains invalid key"
             Just skey -> return skey
 
