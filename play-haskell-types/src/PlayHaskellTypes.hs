@@ -29,12 +29,15 @@ import qualified Data.ByteString as BS
 import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder as BSB
 import qualified Data.ByteString.Lazy as Lazy
+import Data.Char (isDigit)
 import Data.Int (Int64)
+import Data.Ord (comparing)
 import Data.String (fromString)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import Data.Word (Word64)
+import Numeric.Natural (Natural)
 import System.Exit
 
 import PlayHaskellTypes.Sign (PublicKey, SecretKey, Signature)
@@ -56,7 +59,7 @@ data Optimisation = O0 | O1 | O2
 --
 -- JSON: string.
 newtype Version = Version String
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq)
 
 -- | JSON: string; "timeout", "backend".
 data RunError = RETimeOut
@@ -100,6 +103,24 @@ data RunResponse
 newtype VersionsResponse = VersionsResponse [Version]
   deriving (Show)
   deriving (J.ToJSON, J.FromJSON) via [Version]
+
+newtype ParsedVersion = ParsedVersion [Either Natural String]
+  deriving (Eq, Ord)
+
+parseVersion :: String -> ParsedVersion
+parseVersion [] = ParsedVersion []
+parseVersion s = case span isDigit s of
+  (nums@(_:_), rest) ->
+    let ParsedVersion l = parseVersion rest
+    in ParsedVersion (Left (read nums) : l)
+  _ ->
+    let (nonnums, rest) = break isDigit s
+        ParsedVersion l = parseVersion rest
+    in ParsedVersion (Right nonnums : l)
+
+-- | Versions compare components in numeric order, by deferring to 'ParsedVersion'.
+instance Ord Version where
+  compare (Version a) (Version b) = comparing parseVersion a b
 
 instance J.FromJSON Command where
   parseJSON (J.String s) = case T.unpack s of

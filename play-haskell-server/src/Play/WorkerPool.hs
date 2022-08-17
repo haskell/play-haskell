@@ -23,7 +23,6 @@ import qualified Data.Aeson.Encoding as JE
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as Char8
-import Data.List (sort)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)
@@ -287,19 +286,27 @@ handleEvent' wpool state mgr = \case
         let worker = Worker { wAddr = addr
                             , wStatus = Disabled now 0
                             , wVersions = [] }
-        return state { psWorkers = Map.insert host worker (psWorkers state) }
+        let state' = state { psWorkers = Map.insert host worker (psWorkers state) }
+        recomputeAvailableVersions wpool state'
+        return state'
 
   ERemoveWorker host ->
     case Map.lookup host (psWorkers state) of
       Just Worker{wStatus = Disabled{}} ->
+        -- No need to recompute available versions, because this worker was
+        -- disabled anyway (and disabled workers don't influence the set of
+        -- available versions)
         return state { psWorkers = Map.delete host (psWorkers state) }
 
-      Just Worker{wAddr = addr, wStatus = OK}
-        | addr `Set.member` psIdle state ->
-            return state { psWorkers = Map.delete host (psWorkers state)
-                         , psIdle = Set.delete addr (psIdle state) }
-        | otherwise ->
-            return state { psToBeRemoved = Set.insert host (psToBeRemoved state) }
+      Just Worker{wAddr = addr, wStatus = OK} -> do
+        let state'
+              | addr `Set.member` psIdle state =
+                  state { psWorkers = Map.delete host (psWorkers state)
+                        , psIdle = Set.delete addr (psIdle state) }
+              | otherwise =
+                  state { psToBeRemoved = Set.insert host (psToBeRemoved state) }
+        recomputeAvailableVersions wpool state'
+        return state'
 
       Nothing -> return state  -- worker didn't even exist
 
@@ -370,7 +377,9 @@ handleEvent' wpool state mgr = \case
                    Disabled _ iv' -> healthCheckIvNext iv'
             worker' = worker { wStatus = Disabled now iv }
         atomically $ submitEvent wpool (now + iv) (EVersionRefresh addr)
-        return state { psWorkers = Map.insert host worker' (psWorkers state) }
+        let state' = state { psWorkers = Map.insert host worker' (psWorkers state) }
+        recomputeAvailableVersions wpool state'
+        return state'
 
     | otherwise -> do
         hPutStrLn stderr $ "[EWF] Worker does not exist: " ++ show addr
@@ -383,19 +392,13 @@ handleEvent' wpool state mgr = \case
           OK -> return ()
           Disabled{} -> atomically $ submitEvent wpool 0 (EWorkerIdle addr)
 
-        -- Update the available versions in the WPool
-        atomically $ do
-          allvers <- readTVar (wpVersions wpool)
-          let uniq (x:y:xs) | x == y = uniq (y:xs)
-                            | otherwise = x : uniq (y:xs)
-              uniq l = l
-          writeTVar (wpVersions wpool) (uniq (sort (allvers ++ versions)))
-
         -- Note that we don't put the worker in the psIdle set here yet; that's
         -- the task of the EWorkerIdle handler.
         let worker' = worker { wStatus = OK
                              , wVersions = versions }
-        return state { psWorkers = Map.insert host worker' (psWorkers state) }
+        let state' = state { psWorkers = Map.insert host worker' (psWorkers state) }
+        recomputeAvailableVersions wpool state'
+        return state'
 
     | otherwise -> do
         hPutStrLn stderr $ "[EWV] Worker does not exist: " ++ show addr
@@ -425,11 +428,24 @@ submitEvent wpool at event = do
   _ <- tryPutTMVar (wpWakeup wpool) ()
   return ()
 
--- | Get the GHC versions currently available in the pool (buggy).
+-- Intersect the version sets of all workers that are not disabled and not
+-- to-be-removed, and store the result in wpVersions.
+recomputeAvailableVersions :: WPool -> PoolState -> IO ()
+recomputeAvailableVersions wpool state = do
+  let perworker = [Set.fromList (wVersions worker)
+                  | (host, worker) <- Map.assocs (psWorkers state)
+                  , OK <- [wStatus worker]
+                  , host `Set.notMember` psToBeRemoved state]
+      available = case perworker of
+                    [] -> []
+                    _ -> Set.toList $ foldl1 Set.intersection perworker
+  atomically $ writeTVar (wpVersions wpool) $! available
+
+-- | Get the GHC versions currently available in the pool.
 --
--- Note: this is currently only accurate if all workers report the same set of
--- supported GHC versions. I.e. this function returns the union whereas it
--- should report the intersection.
+-- This returns the intersection of the advertised availability of all active
+-- workers. This is because the worker pool is not yet able to distribute work
+-- depending on the requested version.
 getAvailableVersions :: WPool -> IO [Version]
 getAvailableVersions wpool = readTVarIO (wpVersions wpool)
 
