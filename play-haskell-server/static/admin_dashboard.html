@@ -104,11 +104,11 @@ function populateStatusFromResponse(response) {
     var removeBtn = document.createElement("button");
     removeBtn.classList.add("worker-remove-btn");
     removeBtn.textContent = "Remove";
-    removeBtn.addEventListener("click", function() {
+    removeBtn.addEventListener("click", function(w, removeBtn) {
       if (confirm("Remove this worker?\nHost: " + w.addr[0] + "\nPubkey: " + w.addr[1])) {
         callRemoveWorker(w.addr[0], removeBtn);
       }
-    });
+    }.bind(null, w, removeBtn));
     item.appendChild(removeBtn);
 
     if (w.disabled != null) {
