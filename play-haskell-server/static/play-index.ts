@@ -237,6 +237,10 @@ function doRun(run: Runner) {
 			else elem.classList.remove("invisible");
 		}
 
+		if (!response.ghcout) response.ghcout = "";
+		if (!response.sout) response.sout = "";
+		if (!response.serr) response.serr = "";
+
 		const ecNote: HTMLElement = document.getElementById("exitcode-note");
 		if (response.err != null) {
 			setInvisible(ecNote, false);
@@ -248,13 +252,13 @@ function doRun(run: Runner) {
 		} else if (response.ec != 0) {
 			setInvisible(ecNote, false);
 			ecNote.textContent = "Command exited with code " + response.ec + ".";
+		} else if (response.ghcout == "" && response.sout == "" && response.serr == "") {
+			setInvisible(ecNote, false);
+			ecNote.textContent = "No output.";
 		} else {
 			setInvisible(ecNote, true);
 		}
 
-		if (!response.ghcout) response.ghcout = "";
-		if (!response.sout) response.sout = "";
-		if (!response.serr) response.serr = "";
 		setInvisible(document.getElementById("out-container-ghcout"), (response.ghcout as string).length == 0);
 		setInvisible(document.getElementById("out-container-stdout"), (response.sout as string).length == 0);
 		setInvisible(document.getElementById("out-container-stderr"), (response.serr as string).length == 0);
