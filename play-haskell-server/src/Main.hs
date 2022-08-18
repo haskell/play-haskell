@@ -13,7 +13,7 @@ import qualified Data.Map.Strict as Map
 import Data.Maybe (mapMaybe, fromMaybe)
 import Snap.Core hiding (path, method)
 import Snap.Http.Server
-import System.Exit (exitFailure, die)
+import System.Exit (die)
 import System.IO
 import qualified System.Posix.Signals as Signal
 
@@ -137,6 +137,12 @@ main = do
             \the admin interface is disabled. CR/LF is stripped from the start \
             \and end of the file content."
             (\o s -> o { oAdminPassFile = Just s }))
+        ,("--preloadworkers", Opt.Setter
+            "Path to file that contains, on each line, a hostname and a public \
+            \key (in hexadecimal), separated by a space. Same format as what is \
+            \accepted in the admin interface. These workers will be added on \
+            \startup of the server, to aid automatic installations."
+            (\o s -> o { oPreloadFile = Just s }))
         ,("--help", Opt.Help)
         ,("-h", Opt.Help)]
 
@@ -148,8 +154,7 @@ main = do
       mskey <- (hexDecodeBS . trim >=> Sign.readSecretKey) <$> readFile (oSecKeyFile options)
       case mskey of
         Just skey -> return skey
-        Nothing -> do hPutStrLn stderr "Invalid secret key in file"
-                      exitFailure
+        Nothing -> die "Invalid secret key in file"
 
     adminPassword <- case oAdminPassFile options of
       Nothing -> return Nothing
@@ -157,6 +162,18 @@ main = do
         contents <- BS.readFile fname
         let isCRLF c = c `elem` [10, 13]
         return (Just (BS.dropWhile isCRLF (BS.dropWhileEnd isCRLF contents)))
+
+    preloadWorkers <- case oPreloadFile options of
+      Nothing -> return []
+      Just fname -> do
+        lns <- filter (not . null) . lines <$> readFile fname
+        sequence [case break (==' ') line of
+                    (host, ' ' : pubkey)
+                      | Just pubkey' <- hexDecodeBS pubkey >>= Sign.readPublicKey ->
+                          return (Char8.pack host, pubkey')
+                      | otherwise -> die $ "Invalid pubkey in --preloadworkers file: " ++ pubkey
+                    _ -> die $ "Invalid line in --preloadworkers file: " ++ line
+                 | line <- lns]
 
     let Sign.PublicKey serverpubkey = Sign.publicKey serverseckey
     putStrLn $ "My public key: " ++ hexEncode serverpubkey
@@ -169,7 +186,8 @@ main = do
                      , gcDb = db
                      , gcPagesVar = pagesvar
                      , gcServerSecretKey = serverseckey
-                     , gcAdminPassword = adminPassword }
+                     , gcAdminPassword = adminPassword
+                     , gcPreloadWorkers = preloadWorkers }
 
         let modules = [playModule]
         instantiates gctx options modules $ \modules' -> do

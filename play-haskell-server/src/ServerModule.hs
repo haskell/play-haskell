@@ -7,7 +7,7 @@ import Snap.Core hiding (path)
 
 import DB (Database)
 import Pages (Pages)
-import PlayHaskellTypes.Sign (SecretKey)
+import PlayHaskellTypes.Sign (SecretKey, PublicKey)
 import Snap.Server.Utils
 import Snap.Server.Utils.SpamDetect
 
@@ -16,11 +16,12 @@ import Snap.Server.Utils.SpamDetect
 data Options = Options { oProxied :: Bool
                        , oDBDir :: FilePath
                        , oSecKeyFile :: FilePath
-                       , oAdminPassFile :: Maybe FilePath }
+                       , oAdminPassFile :: Maybe FilePath
+                       , oPreloadFile :: Maybe FilePath }
   deriving (Show)
 
 defaultOptions :: Options
-defaultOptions = Options False "." "" Nothing
+defaultOptions = Options False "." "" Nothing Nothing
 
 data SpamAction = PlayRunStart | PlayRunTimeoutFraction Double | PlaySave
   deriving (Show)
@@ -30,7 +31,8 @@ data GlobalContext = GlobalContext
   , gcDb :: Database
   , gcPagesVar :: TVar Pages
   , gcServerSecretKey :: SecretKey
-  , gcAdminPassword :: Maybe ByteString }
+  , gcAdminPassword :: Maybe ByteString
+  , gcPreloadWorkers :: [(ByteString, PublicKey)]}
 
 type MimeType = String
 

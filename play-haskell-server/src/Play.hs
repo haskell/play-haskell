@@ -7,7 +7,7 @@
 module Play (playModule) where
 
 import Control.Concurrent.STM
-import Control.Monad (when)
+import Control.Monad (when, forM_)
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.Aeson as J
 import qualified Data.Aeson.Types as J
@@ -294,6 +294,10 @@ playModule = ServerModule
       pool <- WP.newPool (gcServerSecretKey gctx) 10
       challenge <- makeRefreshingChallenge (secondsToDiffTime (24 * 3600))
       rng <- newStdGen >>= newTVarIO
+
+      forM_ (gcPreloadWorkers gctx) $ \(host, pubkey) ->
+        WP.addWorker pool host pubkey
+
       k (Context { ctxPool = pool
                  , ctxChallengeKey = challenge
                  , ctxRNG = rng })
