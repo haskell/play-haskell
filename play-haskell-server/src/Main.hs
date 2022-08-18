@@ -16,6 +16,7 @@ import Snap.Http.Server
 import System.Exit (die)
 import System.IO
 import qualified System.Posix.Signals as Signal
+import Text.Read (readMaybe)
 
 import DB (withDatabase)
 import Pages
@@ -92,12 +93,12 @@ server options modules = do
             ++ map (\m -> imHandler m method components) modules
       Nothing -> httpError 400 "Invalid URL"
 
-config :: Config Snap a
-config =
+config :: Int -> Config Snap a
+config port =
     let stderrlogger = ConfigIoLog (Char8.hPutStrLn stderr)
     in setAccessLog stderrlogger
        . setErrorLog stderrlogger
-       . setPort 8123
+       . setPort port
        $ defaultConfig
 
 actionPenalty :: SpamAction -> Double
@@ -143,6 +144,9 @@ main = do
             \accepted in the admin interface. These workers will be added on \
             \startup of the server, to aid automatic installations."
             (\o s -> o { oPreloadFile = Just s }))
+        ,("--port", Opt.Setter
+            "Port to listen on for http connections."
+            (\o s -> o { oPort = case readMaybe s of Just n -> n ; Nothing -> error "Invalid --port value" }))
         ,("--help", Opt.Help)
         ,("-h", Opt.Help)]
 
@@ -191,4 +195,4 @@ main = do
 
         let modules = [playModule]
         instantiates gctx options modules $ \modules' -> do
-            httpServe config (server options modules')
+            httpServe (config (oPort options)) (server options modules')

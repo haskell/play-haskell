@@ -14,6 +14,7 @@ import Snap.Server.Utils.SpamDetect
 
 -- TODO: Perhaps this can be split out over modules as well
 data Options = Options { oProxied :: Bool
+                       , oPort :: Int
                        , oDBDir :: FilePath
                        , oSecKeyFile :: FilePath
                        , oAdminPassFile :: Maybe FilePath
@@ -21,7 +22,7 @@ data Options = Options { oProxied :: Bool
   deriving (Show)
 
 defaultOptions :: Options
-defaultOptions = Options False "." "" Nothing Nothing
+defaultOptions = Options False 8123 "." "" Nothing Nothing
 
 data SpamAction = PlayRunStart | PlayRunTimeoutFraction Double | PlaySave
   deriving (Show)
