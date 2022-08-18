@@ -14,7 +14,7 @@ module PlayHaskellTypes (
   signMessage,
   RunRequest(..),
   RunResponse(..),
-  VersionsResponse(..),
+  HealthResponse(..),
 
   -- * Signing utilities
   SigningBytes(..),
@@ -100,9 +100,13 @@ data RunResponse
       , runresTimeTakenSecs :: Double }
   deriving (Show)
 
-newtype VersionsResponse = VersionsResponse [Version]
+-- | Body payload for a response to a health request to a worker.
+--
+-- JSON: object; "versions", "ncaps".
+data HealthResponse = HealthResponse
+  { hlresVersions :: [Version]
+  , hlresCapabilities :: Int }
   deriving (Show)
-  deriving (J.ToJSON, J.FromJSON) via [Version]
 
 newtype ParsedVersion = ParsedVersion [Either Natural String]
   deriving (Eq, Ord)
@@ -231,6 +235,20 @@ instance J.ToJSON RunResponse where
            <> fromString "serr" J..= JSONUTF8LBS serr
            <> fromString "timesecs" J..= timesecs)
 
+instance J.FromJSON HealthResponse where
+  parseJSON (J.Object v) =
+    HealthResponse <$> v J..: fromString "versions"
+                   <*> v J..: fromString "ncaps"
+  parseJSON val = J.prependFailure "parsing HealthResponse failed, " (J.typeMismatch "Object" val)
+
+instance J.ToJSON HealthResponse where
+  toJSON (HealthResponse versions ncaps) =
+    J.object [fromString "versions" J..= versions
+             ,fromString "ncaps" J..= ncaps]
+  toEncoding (HealthResponse versions ncaps) =
+    JE.pairs (fromString "versions" J..= versions
+           <> fromString "ncaps" J..= ncaps)
+
 -- | Build and sign a message using your secret key.
 signMessage :: SigningBytes a => SecretKey -> a -> Message a
 signMessage skey content =
@@ -302,10 +320,11 @@ instance SigningBytes RunResponse where
             ,signingBytesB serr
             ,BSB.doubleLE timesecs]
 
-instance SigningBytes VersionsResponse where
-  signingBytesB (VersionsResponse l) =
-    BSB.word64LE (fromIntegral (length l))
-    <> mconcat (map (\(Version v) -> signingBytesB (SigningBytesUTF8String v)) l)
+instance SigningBytes HealthResponse where
+  signingBytesB (HealthResponse versions ncaps) =
+    BSB.word64LE (fromIntegral (length versions))
+    <> mconcat (map (\(Version v) -> signingBytesB (SigningBytesUTF8String v)) versions)
+    <> BSB.int64LE (fromIntegral @Int @Int64 ncaps)
 
 instance SigningBytes ExitCode where
   signingBytesB ExitSuccess = BSB.int64LE 0

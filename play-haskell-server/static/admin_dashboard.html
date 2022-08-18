@@ -101,15 +101,23 @@ function populateStatusFromResponse(response) {
     item.classList.add("worker-list-item");
     var el;
 
-    var removeBtn = document.createElement("button");
-    removeBtn.classList.add("worker-remove-btn");
-    removeBtn.textContent = "Remove";
-    removeBtn.addEventListener("click", function(w, removeBtn) {
-      if (confirm("Remove this worker?\nHost: " + w.addr[0] + "\nPubkey: " + w.addr[1])) {
-        callRemoveWorker(w.addr[0], removeBtn);
-      }
-    }.bind(null, w, removeBtn));
-    item.appendChild(removeBtn);
+    if (w.toberemoved) {
+      item.classList.add("toberemoved");
+      el = document.createElement("b");
+      el.textContent = "TO BE REMOVED";
+      item.appendChild(el);
+      item.appendChild(document.createElement("br"));
+    } else {
+      var removeBtn = document.createElement("button");
+      removeBtn.classList.add("worker-remove-btn");
+      removeBtn.textContent = "Remove";
+      removeBtn.addEventListener("click", function(w, removeBtn) {
+        if (confirm("Remove this worker?\nHost: " + w.addr[0] + "\nPubkey: " + w.addr[1])) {
+          callRemoveWorker(w.addr[0], removeBtn);
+        }
+      }.bind(null, w, removeBtn));
+      item.appendChild(removeBtn);
+    }
 
     if (w.disabled != null) {
       item.classList.add("disabled");
@@ -121,9 +129,8 @@ function populateStatusFromResponse(response) {
       item.appendChild(document.createTextNode(" ago, interval "));
       item.appendChild(formatTimeSpec(w.disabled[1]));
       item.appendChild(document.createElement("br"));
-    } else {
-      if (!w.idle) item.classList.add("busy");
-      item.appendChild(document.createTextNode(w.idle ? "idle" : "busy"));
+    } else if (w.ncaps != null) {
+      item.appendChild(document.createTextNode(w.ncaps[0] + " out of " + w.ncaps[1] + " threads busy"));
       item.appendChild(document.createElement("br"));
     }
 
@@ -137,13 +144,15 @@ function populateStatusFromResponse(response) {
     item.appendChild(el);
     item.appendChild(document.createElement("br"));
 
-    var str = "Versions: ";
-    for (var j = 0; j < w.versions.length; j++) {
-      if (j > 0) str += ", ";
-      str += w.versions[j];
+    if (w.versions != null) {
+      var str = "Versions: ";
+      for (var j = 0; j < w.versions.length; j++) {
+        if (j > 0) str += ", ";
+        str += w.versions[j];
+      }
+      item.appendChild(document.createTextNode(str));
+      item.appendChild(document.createElement("br"));
     }
-    item.appendChild(document.createTextNode(str));
-    item.appendChild(document.createElement("br"));
 
     wlist.appendChild(item);
   }
@@ -268,10 +277,10 @@ html {
   padding: 4px;
   display: inline-block;
 }
-.worker-list-item.busy {
-  background-color: #ddd;
-}
 .worker-list-item.disabled {
+  background-color: #eee;
+}
+.worker-list-item.toberemoved {
   background-color: #ecc;
 }
 .worker-pubkey {

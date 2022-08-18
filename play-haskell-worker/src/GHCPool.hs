@@ -8,6 +8,7 @@ module GHCPool (
   makePool,
   Result(..),
   runInPool,
+  poolParallelism,
 ) where
 
 import Control.Concurrent
@@ -75,7 +76,8 @@ data PoolData = PoolData
   { pdAvailable :: [Worker]
   , pdQueue :: Queue (MVar Worker) }
 
-data Pool = Pool { pDataVar :: MVar PoolData }
+data Pool = Pool { pDataVar :: MVar PoolData
+                 , pNumWorkers :: Int }
 
 makeWorker :: IO Worker
 makeWorker = do
@@ -128,7 +130,7 @@ makePool numWorkers = do
   let pd = PoolData { pdAvailable = workers
                     , pdQueue = Queue.empty }
   pdvar <- newMVar pd
-  return (Pool pdvar)
+  return (Pool pdvar numWorkers)
 
 data ObtainedWorker = Obtained Worker
                     | Queued (MVar Worker) Int
@@ -165,6 +167,9 @@ runInPool pool cmd ver opt source = do
             Nothing ->
               return pd { pdAvailable = newWorker : pdAvailable pd }
       return result
+
+poolParallelism :: Pool -> Int
+poolParallelism = pNumWorkers
 
 duration :: IO a -> IO (Double, a)
 duration action = do

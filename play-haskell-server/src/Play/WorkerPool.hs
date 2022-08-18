@@ -1,5 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE TypeApplications #-}
 {-| Intended to be imported qualified, e.g. as \"WP". -}
 module Play.WorkerPool (
   WPool,
@@ -17,12 +19,13 @@ module Play.WorkerPool (
 
 import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
-import Control.Monad (void)
+import Control.Monad (void, (>=>), when)
 import qualified Data.Aeson as J
 import qualified Data.Aeson.Encoding as JE
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as Char8
+import Data.Function (fix)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)
@@ -117,8 +120,10 @@ data Status = Status
 data WorkerStatus = WorkerStatus
   { wstatAddr :: Worker.Addr
   , wstatDisabled :: Maybe (TimeSpec, TimeSpec)  -- ^ (last check, wait interval)
-  , wstatVersions :: [Version]
-  , wstatIdle :: Bool }
+  , wstatVersions :: Maybe [Version]
+  , wstatNumCaps :: Maybe (Int, Int)  -- ^ Number of jobs currently running, max concurrent jobs
+  , wstatToBeRemoved :: Bool
+  }
   deriving (Show)
 
 newtype TimeSpecJSON = TimeSpecJSON TimeSpec
@@ -143,30 +148,33 @@ instance J.ToJSON Status where
            <> fromString "now" J..= TimeSpecJSON now)
 
 instance J.ToJSON WorkerStatus where
-  toJSON (WorkerStatus (Worker.Addr host pkey) disabled versions idle) =
+  toJSON (WorkerStatus (Worker.Addr host pkey) disabled versions ncaps toberemoved) =
     J.object [fromString "addr" J..= (Char8.unpack host, pkey)
              ,fromString "disabled" J..=
                 case disabled of
                   Nothing -> J.Null
                   Just (tm, iv) -> J.toJSON (TimeSpecJSON tm, TimeSpecJSON iv)
              ,fromString "versions" J..= versions
-             ,fromString "idle" J..= idle]
-  toEncoding (WorkerStatus (Worker.Addr host pkey) disabled versions idle) =
+             ,fromString "ncaps" J..= ncaps
+             ,fromString "toberemoved" J..= toberemoved]
+  toEncoding (WorkerStatus (Worker.Addr host pkey) disabled versions ncaps toberemoved) =
     JE.pairs (fromString "addr" J..= (Char8.unpack host, pkey)
            <> fromString "disabled" J..=
                 case disabled of
                   Nothing -> J.Null
                   Just (tm, iv) -> J.toJSON (TimeSpecJSON tm, TimeSpecJSON iv)
            <> fromString "versions" J..= versions
-           <> fromString "idle" J..= idle)
+           <> fromString "ncaps" J..= ncaps
+           <> fromString "toberemoved" J..= toberemoved)
 
 data Event = EAddWorker ByteString PublicKey  -- ^ New worker
            | ERemoveWorker ByteString  -- ^ Remove worker from pool
            | ENewJob Job  -- ^ New job has arrived!
-           | EWorkerIdle Worker.Addr  -- ^ Worker has become idle
-           | EVersionRefresh Worker.Addr  -- ^ Should refresh versions now
+           | EWorkerDoneJob Worker.Addr  -- ^ Worker has finished a job, we should free up one capability
+           | EWorkerHasRoom Worker.Addr  -- ^ Worker has obtained a free capability where it previously had none
+           | EHealthCheck Worker.Addr  -- ^ Should healthcheck this worker now
            | EWorkerFailed Worker.Addr  -- ^ Should be marked disabled
-           | EWorkerVersions Worker.Addr [Version]  -- ^ Version check succeeded
+           | EWorkerHealth Worker.Addr HealthResponse  -- ^ Health check succeeded
            | EStatus (Status -> IO ())  -- ^ Called in forkIO
   deriving (Show)
 
@@ -181,7 +189,6 @@ data WPool = WPool
 
 data PoolState = PoolState
   { psWorkers :: Map ByteString Worker  -- ^ hostname -> worker
-  , psIdle :: Set Worker.Addr
   , psToBeRemoved :: Set ByteString
     -- ^ Hostnames for which a remove request came in while worker was busy,
     -- remove when their job finishes
@@ -189,15 +196,20 @@ data PoolState = PoolState
   , psRNG :: StdGen
   }
 
-data WStatus = OK
-             | Disabled TimeSpec  -- ^ Last liveness check ('Monotonic' clock)
-                        TimeSpec  -- ^ Current wait interval
+data WStatus
+  = OK { wsokNumCaps :: Int       -- ^ Number of capabilities
+       , wsokNumCapsTaken :: Int  -- ^ Number of currently-used capabilities (if >= wsokNumCaps, fully occupied)
+       , wsokVersions :: [Version]  -- ^ GHC versions supported by the worker
+       }
+  | -- | The only place where a worker is marked disabled, is in the handler
+    -- for 'EWorkerFailed'.
+    Disabled TimeSpec  -- ^ Last liveness check ('Monotonic' clock)
+             TimeSpec  -- ^ Current wait interval
   deriving (Show)
 
 data Worker = Worker
   { wAddr :: Worker.Addr
   , wStatus :: WStatus
-  , wVersions :: [Version]
   }
 
 -- | Create a new worker pool. This function needs the secret key of the
@@ -220,7 +232,6 @@ newPool serverSkey maxqueuedjobs = do
                     , wpMaxQueuedJobs = maxqueuedjobs
                     , wpSecretKey = serverSkey }
       state = PoolState { psWorkers = mempty
-                        , psIdle = mempty
                         , psToBeRemoved = mempty
                         , psBacklog = Queue.empty
                         , psRNG = rng }
@@ -228,9 +239,7 @@ newPool serverSkey maxqueuedjobs = do
   return wpool
 
 poolHandlerLoop :: WPool -> PoolState -> N.Manager -> IO ()
-poolHandlerLoop wpool initState mgr =
-  let loop s = singleIteration s >>= loop
-  in loop initState
+poolHandlerLoop wpool initState mgr = fix (singleIteration >=>) initState
   where
     singleIteration :: PoolState -> IO PoolState
     singleIteration state = do
@@ -263,7 +272,8 @@ poolHandlerLoop wpool initState mgr =
                             (Clock.toNanoSecs (time - now') `div` 1000)
           -- We don't care whether the timeout expired or whether we got woken up;
           -- in any case, loop around.
-          _ <- timeout (fromIntegral diff_us) $ atomically $ takeTMVar (wpWakeup wpool)
+          _ <- timeout (fromIntegral @_ @Int diff_us) $
+                 atomically $ takeTMVar (wpWakeup wpool)
           return state
 
 handleEvent :: WPool -> PoolState -> N.Manager -> Event -> IO PoolState
@@ -278,14 +288,13 @@ handleEvent' wpool state mgr = \case
     if host `Map.member` psWorkers state
       then do
         hPutStrLn stderr $ "A worker with this host already in pool: " ++ show addr
-        atomically $ submitEvent wpool 0 (EVersionRefresh addr)
+        atomically $ submitEvent wpool 0 (EHealthCheck addr)
         return state
       else do
-        atomically $ submitEvent wpool 0 (EVersionRefresh addr)
+        atomically $ submitEvent wpool 0 (EHealthCheck addr)
         now <- Clock.getTime Clock.Monotonic
         let worker = Worker { wAddr = addr
-                            , wStatus = Disabled now 0
-                            , wVersions = [] }
+                            , wStatus = Disabled now 0 }
         let state' = state { psWorkers = Map.insert host worker (psWorkers state) }
         recomputeAvailableVersions wpool state'
         return state'
@@ -295,88 +304,182 @@ handleEvent' wpool state mgr = \case
       Just Worker{wStatus = Disabled{}} ->
         -- No need to recompute available versions, because this worker was
         -- disabled anyway (and disabled workers don't influence the set of
-        -- available versions)
-        return state { psWorkers = Map.delete host (psWorkers state) }
+        -- available versions).
+        -- It's unnecessary to remove the worker from psToBeRemoved, but we do
+        -- it anyway because paranoia.
+        return state { psWorkers = Map.delete host (psWorkers state)
+                     , psToBeRemoved = Set.delete host (psToBeRemoved state) }
 
-      Just Worker{wAddr = addr, wStatus = OK} -> do
+      Just Worker{wStatus = ok@OK{}} -> do
         let state'
-              | addr `Set.member` psIdle state =
+              | wsokNumCapsTaken ok == 0 =
                   state { psWorkers = Map.delete host (psWorkers state)
-                        , psIdle = Set.delete addr (psIdle state) }
+                          -- unnecessary, but paranoia
+                        , psToBeRemoved = Set.delete host (psToBeRemoved state) }
               | otherwise =
                   state { psToBeRemoved = Set.insert host (psToBeRemoved state) }
         recomputeAvailableVersions wpool state'
         return state'
 
-      Nothing -> return state  -- worker didn't even exist
+      Nothing -> return state  -- worker doesn't even exist anymore
 
-  ENewJob job
-    | Map.null (psWorkers state) -> do
-        -- If there are no workers at all, don't accept the job
-        atomically $ modifyTVar' (wpNumQueuedJobs wpool) pred
-        let Job _ callback = job
-        _ <- forkIO $ callback (RunResponseErr REBackend)
-        return state
-    | Set.null (psIdle state) ->
-        -- Don't need to increment wpNumQueuedJobs because the job already got
-        -- added to that counter when it was submitted to the event queue.
-        return state { psBacklog = Queue.push (psBacklog state) job }
-    | otherwise -> do
-        -- select a random worker
-        let (idx, rng') = uniformR (0, Set.size (psIdle state) - 1) (psRNG state)
-            Worker.Addr host _ = Set.elemAt idx (psIdle state)
-            idle' = Set.deleteAt idx (psIdle state)
-        -- Yay, we've unqueued a job, so we can decrement the counter
-        atomically $ modifyTVar' (wpNumQueuedJobs wpool) pred
-        sendJobToWorker wpool (psWorkers state Map.! host) job mgr
-        return state { psIdle = idle'
-                     , psRNG = rng' }
+  ENewJob job -> do
+    let activeSet = [worker
+                    | worker <- Map.elems (psWorkers state)
+                    , let Worker.Addr host _ = wAddr worker
+                    , host `Set.notMember` psToBeRemoved state
+                    , case wStatus worker of
+                        OK{} -> True  -- might be busy now, but at least it's working
+                        Disabled{} -> False]
+        eligibleSet = [worker
+                      | worker <- activeSet
+                      , case wStatus worker of
+                          ok@OK{} -> wsokNumCapsTaken ok < wsokNumCaps ok
+                          Disabled{} -> False]
 
-  EWorkerIdle addr@(Worker.Addr host _)
+    if -- If all workers are dead, even if potentially temporarily, don't
+       -- accept the job
+       | null activeSet -> do
+           atomically $ modifyTVar' (wpNumQueuedJobs wpool) pred
+           let Job _ callback = job
+           _ <- forkIO $ callback (RunResponseErr REBackend)
+           return state
+
+       -- There are active workers, but all are busy: enqueue on the backlog
+       | null eligibleSet ->
+           -- Don't need to increment wpNumQueuedJobs because it's still
+           -- "submitted but not yet sent to a worker".
+           return state { psBacklog = Queue.push (psBacklog state) job }
+
+       | otherwise -> do
+           -- select a random worker
+           let (idx, rng') = uniformR (0, length eligibleSet - 1) (psRNG state)
+               worker = eligibleSet !! idx
+               addr@(Worker.Addr host _) = wAddr worker
+           -- remove one capability from that worker
+           let okstatus = case wStatus worker of
+                            ok@OK{} -> ok
+                            Disabled{} -> error "Worker idle but disabled?"
+               okstatus' = okstatus { wsokNumCapsTaken = wsokNumCapsTaken okstatus + 1 }
+               worker' = worker { wStatus = okstatus' }
+               workers' = Map.insert host worker' (psWorkers state)
+           -- Yay, we've unqueued a job, so we can decrement the counter
+           atomically $ modifyTVar' (wpNumQueuedJobs wpool) pred
+           sendJobToWorker wpool addr job mgr
+           return state { psWorkers = workers'
+                        , psRNG = rng' }
+
+  EWorkerDoneJob addr@(Worker.Addr host _)
     | host `Set.member` psToBeRemoved state ->
-        return state { psWorkers = Map.delete host (psWorkers state)
-                     , psIdle = Set.delete addr (psIdle state)
-                     , psToBeRemoved = Set.delete host (psToBeRemoved state) }
+        case Map.lookup host (psWorkers state) of
+          -- it was already deleted somehow
+          Nothing -> return state { psToBeRemoved = Set.delete host (psToBeRemoved state) }
 
-    | Just Worker{wStatus=Disabled{}} <- Map.lookup host (psWorkers state) -> do
-        -- Since we are already health-checking the worker (that process was
-        -- started when the worker entered Disabled state), we don't need to
-        -- start health-checking it here. Just ensure it's not marked idle.
-        return state { psIdle = Set.delete addr (psIdle state) }
+          -- if the worker still has other jobs active, leave it alive for the
+          -- time being, just update records
+          Just worker@Worker{wStatus = ok@OK{}} | wsokNumCapsTaken ok > 1 ->
+            let ok' = ok { wsokNumCapsTaken = wsokNumCapsTaken ok - 1 }
+                worker' = worker { wStatus = ok' }
+            in return state { psWorkers = Map.insert host worker' (psWorkers state) }
 
-    | Just (job, backlog') <- Queue.pop (psBacklog state) -> do
-        -- Yay, we've unqueued a job, so we can decrement the counter
-        atomically $ modifyTVar' (wpNumQueuedJobs wpool) pred
-        sendJobToWorker wpool (psWorkers state Map.! host) job mgr
-        -- We don't know whether it was idle before, but for sure it isn't now.
-        return state { psIdle = Set.delete addr (psIdle state)
-                     , psBacklog = backlog' }
+          -- otherwise, it can be removed now, so do so
+          Just _ ->
+            return state { psWorkers = Map.delete host (psWorkers state)
+                         , psToBeRemoved = Set.delete host (psToBeRemoved state) }
 
     | otherwise ->
-        -- No queued job to give to this worker, so just mark it as idle.
-        return state { psIdle = Set.insert addr (psIdle state) }
+        case Map.lookup host (psWorkers state) of
+          Nothing -> return state
 
-  EVersionRefresh addr -> do
+          Just worker -> case wStatus worker of
+            Disabled{} ->
+              -- Since we are already health-checking the worker (that process was
+              -- started when the worker entered Disabled state), we don't need to
+              -- start health-checking it here.
+              return state
+
+            okstatus@OK{} -> do
+              -- Just update records here; we submit an 'EWorkerHasRoom' event
+              -- to handle the assigning of a new job to this worker.
+              let okstatus' = okstatus { wsokNumCapsTaken = wsokNumCapsTaken okstatus - 1 }
+                  worker' = worker { wStatus = okstatus' }
+              atomically $ submitEvent wpool 0 (EWorkerHasRoom addr)
+              return state { psWorkers = Map.insert host worker' (psWorkers state) }
+
+  EWorkerHasRoom addr@(Worker.Addr host _) ->
+    case Map.lookup host (psWorkers state) of
+      Nothing -> return state
+
+      Just worker
+        | -- Check that it indeed still has room
+          ok@OK{} <- wStatus worker
+        , wsokNumCapsTaken ok < wsokNumCaps ok
+        , -- And check that there is a job to be given out from the backlog
+          Just (job, backlog') <- Queue.pop (psBacklog state) -> do
+            -- Yay, we've unqueued a job, so we can decrement the counter
+            atomically $ modifyTVar' (wpNumQueuedJobs wpool) pred
+            sendJobToWorker wpool addr job mgr
+            -- Update the records
+            let ok' = ok { wsokNumCapsTaken = wsokNumCapsTaken ok + 1 }
+                worker' = worker { wStatus = ok' }
+            -- If the worker has more room, try again!
+            when (wsokNumCapsTaken ok' < wsokNumCaps ok') $
+              atomically $ submitEvent wpool 0 (EWorkerHasRoom addr)
+            return state { psBacklog = backlog'
+                         , psWorkers = Map.insert host worker' (psWorkers state) }
+
+        -- Either the worker is full again already, or there are no jobs to be
+        -- given out. In any case, nothing to do here.
+        | otherwise -> return state
+
+  EHealthCheck addr -> do
     _ <- forkIO $ do
-      Worker.getVersions mgr addr >>= \case
-        Just vers -> atomically $ submitEvent wpool 0 (EWorkerVersions addr vers)
-        Nothing -> atomically $ submitEvent wpool 0 (EWorkerFailed addr)
+      Worker.getHealth mgr addr >>= \case
+        -- If the version list is empty, consider it a failure
+        Just res | _:_ <- hlresVersions res ->
+          atomically $ submitEvent wpool 0 (EWorkerHealth addr res)
+        _ -> atomically $ submitEvent wpool 0 (EWorkerFailed addr)
 
     return state
 
   EWorkerFailed addr@(Worker.Addr host _)
     | host `Set.member` psToBeRemoved state ->
-        return state { psWorkers = Map.delete host (psWorkers state)
-                     , psIdle = Set.delete addr (psIdle state)
-                     , psToBeRemoved = Set.delete host (psToBeRemoved state) }
+        case Map.lookup host (psWorkers state) of
+          Nothing -> return state { psToBeRemoved = Set.delete host (psToBeRemoved state) }
+
+          Just worker -> case wStatus worker of
+            -- If the worker still has other jobs running, update records and
+            -- keep the situation as-is
+            ok@OK{} | wsokNumCapsTaken ok > 1 ->
+              let ok' = ok { wsokNumCapsTaken = wsokNumCapsTaken ok - 1 }
+                  worker' = worker { wStatus = ok' }
+              in return state { psWorkers = Map.insert host worker' (psWorkers state) }
+
+            -- If not, this is the time to remove the worker
+            _ -> return state { psWorkers = Map.delete host (psWorkers state)
+                              , psToBeRemoved = Set.delete host (psToBeRemoved state) }
 
     | Just worker <- Map.lookup host (psWorkers state) -> do
         now <- Clock.getTime Clock.Monotonic
+        -- TODO: If the worker was OK so far, they may still have jobs running.
+        -- If so, we _should_ wait until those are all done before setting the
+        -- worker to disabled -- but that cannot work with the current design.
+        -- Hence, we just set the worker to disabled immediately, and leave the
+        -- pending jobs as they are.
+        -- - If the worker health-checks fine quickly after this, the worker
+        --   will have jobs running that we aren't tracking in the
+        --   wsokNumCapsTaken statistic. This is not great for job
+        --   distribution and will result in unnecessary delays, but it not a
+        --   _correctness_ issue in a sense.
+        -- - If the worker continues to fail after this, the running jobs will
+        --   presumably either finish or timeout at some point, solving the
+        --   problem without us doing anything.
+        -- In conclusion, it's unfortunate, but not a huge problem.
         let iv = case wStatus worker of
-                   OK -> healthCheckIvStart
+                   OK{} -> healthCheckIvStart
                    Disabled _ iv' -> healthCheckIvNext iv'
             worker' = worker { wStatus = Disabled now iv }
-        atomically $ submitEvent wpool (now + iv) (EVersionRefresh addr)
+        atomically $ submitEvent wpool (now + iv) (EHealthCheck addr)
         let state' = state { psWorkers = Map.insert host worker' (psWorkers state) }
         recomputeAvailableVersions wpool state'
         return state'
@@ -385,18 +488,32 @@ handleEvent' wpool state mgr = \case
         hPutStrLn stderr $ "[EWF] Worker does not exist: " ++ show addr
         return state
 
-  EWorkerVersions addr@(Worker.Addr host _) versions
-    | Just worker <- Map.lookup host (psWorkers state) -> do
-        -- If the worker was disabled before, notify that it's idle now
-        case wStatus worker of
-          OK -> return ()
-          Disabled{} -> atomically $ submitEvent wpool 0 (EWorkerIdle addr)
+  EWorkerHealth addr@(Worker.Addr host _) (HealthResponse versions numcaps)
+    -- If the worker is set to be removed, we don't care about health
+    | host `Set.member` psToBeRemoved state -> return state
 
-        -- Note that we don't put the worker in the psIdle set here yet; that's
-        -- the task of the EWorkerIdle handler.
-        let worker' = worker { wStatus = OK
-                             , wVersions = versions }
-        let state' = state { psWorkers = Map.insert host worker' (psWorkers state) }
+    | Just worker <- Map.lookup host (psWorkers state) -> do
+        let oldstatus = wStatus worker
+            (newstatus, wasdisabled) = case oldstatus of
+              ok@OK{} ->
+                (OK { wsokNumCaps = numcaps
+                    , wsokNumCapsTaken = wsokNumCapsTaken ok
+                    , wsokVersions = versions }
+                ,False)
+              Disabled{} ->
+                (OK { wsokNumCaps = numcaps
+                    , wsokNumCapsTaken = 0
+                    , wsokVersions = versions }
+                ,True)
+
+        -- If the worker has obtained a free capability where it previously had
+        -- none, submit an 'EWorkerHasRoom' event
+        when (wasdisabled || (wsokNumCapsTaken oldstatus >= wsokNumCaps oldstatus
+                              && wsokNumCapsTaken newstatus < wsokNumCaps newstatus)) $
+          atomically $ submitEvent wpool 0 (EWorkerHasRoom addr)
+
+        let worker' = worker { wStatus = newstatus }
+            state' = state { psWorkers = Map.insert host worker' (psWorkers state) }
         recomputeAvailableVersions wpool state'
         return state'
 
@@ -409,17 +526,17 @@ handleEvent' wpool state mgr = \case
     _ <- forkIO $ callback status
     return state
 
-sendJobToWorker :: WPool -> Worker -> Job -> N.Manager -> IO ()
-sendJobToWorker wpool worker (Job runreq resphandler) mgr =
+sendJobToWorker :: WPool -> Worker.Addr -> Job -> N.Manager -> IO ()
+sendJobToWorker wpool addr (Job runreq resphandler) mgr =
   void $ forkIO $ do
-    result <- Worker.runJob (wpSecretKey wpool) mgr (wAddr worker) runreq
+    result <- Worker.runJob (wpSecretKey wpool) mgr addr runreq
     case result of
       Just response -> do
         _ <- forkIO $ resphandler response
-        atomically $ submitEvent wpool 0 (EWorkerIdle (wAddr worker))
+        atomically $ submitEvent wpool 0 (EWorkerDoneJob addr)
       Nothing -> do
         _ <- forkIO $ resphandler (RunResponseErr REBackend)
-        atomically $ submitEvent wpool 0 (EWorkerFailed (wAddr worker))
+        atomically $ submitEvent wpool 0 (EWorkerFailed addr)
 
 submitEvent :: WPool -> TimeSpec -> Event -> STM ()
 submitEvent wpool at event = do
@@ -432,9 +549,9 @@ submitEvent wpool at event = do
 -- to-be-removed, and store the result in wpVersions.
 recomputeAvailableVersions :: WPool -> PoolState -> IO ()
 recomputeAvailableVersions wpool state = do
-  let perworker = [Set.fromList (wVersions worker)
+  let perworker = [Set.fromList versions
                   | (host, worker) <- Map.assocs (psWorkers state)
-                  , OK <- [wStatus worker]
+                  , OK{wsokVersions=versions} <- [wStatus worker]
                   , host `Set.notMember` psToBeRemoved state]
       available = case perworker of
                     [] -> []
@@ -492,24 +609,31 @@ collectStatus wpool state = do
   jqlen <- readTVarIO (wpNumQueuedJobs wpool)
   eqlen <- PQ.length <$> readTVarIO (wpEventQueue wpool)
   now <- Clock.getTime Clock.Monotonic
-  return Status { statWorkers = map (makeWorkerStatus (psIdle state))
-                                    (Map.elems (psWorkers state))
+  return Status { statWorkers = map makeWorkerStatus (Map.elems (psWorkers state))
                 , statJobQueueLength = jqlen
                 , statEventQueueLength = eqlen
                 , statNow = now }
   where
-    makeWorkerStatus idleset worker = WorkerStatus
+    removeset = psToBeRemoved state
+
+    makeWorkerStatus worker = WorkerStatus
       { wstatAddr = wAddr worker
       , wstatDisabled = case wStatus worker of
-                          OK -> Nothing
+                          OK{} -> Nothing
                           Disabled lastCheck iv -> Just (lastCheck, iv)
-      , wstatVersions = wVersions worker
-      , wstatIdle = wAddr worker `Set.member` idleset }
+      , wstatVersions = case wStatus worker of
+                          OK{wsokVersions=vs} -> Just vs
+                          Disabled{} -> Nothing
+      , wstatNumCaps = case wStatus worker of
+                          ok@OK{} -> Just (wsokNumCapsTaken ok, wsokNumCaps ok)
+                          Disabled{} -> Nothing
+      , wstatToBeRemoved = let Worker.Addr host _ = wAddr worker
+                           in host `Set.member` removeset }
 
 healthCheckIvStart :: TimeSpec
 healthCheckIvStart = TimeSpec 1 0
 
--- 1.5 * previous, but start with something positive (1.5s) if previous was tiny
+-- 1.5 * previous, but start with something positive (1s) if previous was tiny
 healthCheckIvNext :: TimeSpec -> TimeSpec
 healthCheckIvNext ts =
   let prev = max ts (TimeSpec 1 0)

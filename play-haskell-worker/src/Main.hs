@@ -36,13 +36,13 @@ data Context = Context
 
 data WhatRequest
   = SubmitJob
-  | Versions
+  | Health
   deriving (Show)
 
 parseRequest :: Method -> [ByteString] -> Maybe WhatRequest
 parseRequest method comps = case (method, comps) of
   (POST, ["job"]) -> Just SubmitJob
-  (GET, ["versions"]) -> Just Versions
+  (GET, ["health"]) -> Just Health
   _ -> Nothing
 
 handleRequest :: Context -> WhatRequest -> Snap ()
@@ -78,8 +78,9 @@ handleRequest ctx = \case
     
     lift $ writeJSON (signMessage (ctxSecretKey ctx) response)
 
-  Versions -> do
-    response <- VersionsResponse . map Version <$> liftIO availableVersions
+  Health -> do
+    response <- HealthResponse <$> (map Version <$> liftIO availableVersions)
+                               <*> pure (poolParallelism (ctxPool ctx))
     writeJSON (signMessage (ctxSecretKey ctx) response)
 
 splitPath :: ByteString -> Maybe [ByteString]

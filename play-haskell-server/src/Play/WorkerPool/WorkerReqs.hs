@@ -8,7 +8,7 @@
 {-| Intended to be imported as "Worker". -}
 module Play.WorkerPool.WorkerReqs (
   Addr(..),
-  getVersions,
+  getHealth,
   runJob,
 ) where
 
@@ -36,10 +36,9 @@ import Snap.Server.Utils.ExitEarly
 data Addr = Addr ByteString PublicKey
   deriving (Show, Eq, Ord)
 
-getVersions :: N.Manager -> Addr -> IO (Maybe [Version])
-getVersions mgr addr =
-  fmap (\(VersionsResponse vs) -> vs) <$>
-    sendMessageWithoutReq mgr addr (fromString "/versions")
+getHealth :: N.Manager -> Addr -> IO (Maybe HealthResponse)
+getHealth mgr addr =
+  sendMessageWithoutReq mgr addr (fromString "/health")
 
 runJob :: SecretKey -> N.Manager -> Addr -> RunRequest -> IO (Maybe RunResponse)
 runJob skey mgr addr req =
