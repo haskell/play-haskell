@@ -161,7 +161,7 @@ main = do
             Nothing -> die "Secret key file contains invalid key"
             Just skey -> return skey
 
-  when (oTrustedKeys options == "") $ die "'--trustedkeys is required"
+  when (oTrustedKeys options == "") $ die "'--trustedkeys' is required"
   pkeys <- mapM (hexDecodeBS >=> Sign.readPublicKey) . words <$> readFile (oTrustedKeys options) >>= \case
              Nothing -> die "Trusted public keys file of invalid format"
              Just pkeys -> return pkeys
