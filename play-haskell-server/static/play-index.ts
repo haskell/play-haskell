@@ -105,12 +105,12 @@ addMediaListener("(prefers-color-scheme: dark)", null, function(ql) {
 let currentChallenge: string | null = null;
 
 type json =
-| string
-| number
-| boolean
-| null
-| json[]
-| {[key: string]: json}
+	| string
+	| number
+	| boolean
+	| null
+	| json[]
+	| {[key: string]: json};
 
 enum Runner {
 	Run = 0,
