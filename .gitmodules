@@ -1,0 +1,3 @@
+[submodule "play-haskell-server/static/ace-builds"]
+	path = play-haskell-server/static/ace-builds
+	url = https://github.com/ajaxorg/ace-builds

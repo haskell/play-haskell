@@ -37,12 +37,18 @@ data GlobalContext = GlobalContext
 
 type MimeType = String
 
+data StaticFile = StaticFile
+  { sfPath :: FilePath       -- ^ Where to find the file
+  , sfMount :: [ByteString]  -- ^ At what URI it should be accessible to the client
+  , sfMime :: MimeType }     -- ^ Mime type of the file
+  deriving (Show)
+
 data ServerModule =
     forall ctx req. ServerModule
         { smMakeContext :: GlobalContext -> Options -> (ctx -> IO ()) -> IO ()  -- bracket
         , smParseRequest :: Method -> [ByteString] -> Maybe req
         , smHandleRequest :: GlobalContext -> ctx -> req -> Snap ()
-        , smStaticFiles :: [(FilePath, MimeType)] }
+        , smStaticFiles :: [StaticFile] }
 
 
 staticFile :: String -> FilePath -> Snap ()

@@ -2,7 +2,6 @@ module Main (main) where
 
 import Control.Concurrent.STM
 import Control.Monad
-import Data.Bifunctor (first)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as Char8
 import Data.ByteString (ByteString)
@@ -32,7 +31,7 @@ import Snap.Server.Utils.SpamDetect
 
 data InstantiatedModule = InstantiatedModule
     { imHandler :: Method -> [ByteString] -> Maybe (Snap ())
-    , imStatics :: Map ByteString MimeType }
+    , imStatics :: Map [ByteString] (FilePath, MimeType) }
 
 instantiate :: GlobalContext -> Options -> ServerModule -> (InstantiatedModule -> IO ()) -> IO ()
 instantiate gctx options m k =
@@ -45,7 +44,8 @@ instantiate gctx options m k =
               k $ InstantiatedModule
                     { imHandler = \method path ->
                                       (\req -> handle gctx ctx req) <$> parse method path
-                    , imStatics = Map.fromList (map (first Char8.pack) statics) }
+                    , imStatics = Map.fromList [(mount, (path, mime))
+                                               | StaticFile path mount mime <- statics] }
 
 instantiates :: GlobalContext -> Options -> [ServerModule] -> ([InstantiatedModule] -> IO ()) -> IO ()
 instantiates _ _ [] f = f []
@@ -65,12 +65,11 @@ splitPath path = Just (BS.split (fromIntegral (ord '/')) (trimSlashes path))
                   in BS.dropWhile (== slash) . BS.dropWhileEnd (== slash)
 
 handleStaticFiles :: [InstantiatedModule] -> [ByteString] -> Maybe (Snap ())
-handleStaticFiles ms [component] =
-  case mapMaybe (\m -> Map.lookup component (imStatics m)) ms of
-    [mime] -> Just (staticFile mime (Char8.unpack component))
+handleStaticFiles ms components =
+  case mapMaybe (\m -> Map.lookup components (imStatics m)) ms of
+    [(path, mime)] -> Just (staticFile mime path)
     [] -> Nothing
-    _ -> error $ "Multiple handlers for the same static file:" ++ show component
-handleStaticFiles _ _ = Nothing
+    _ -> error $ "Multiple handlers for the same static file: " ++ show components
 
 refreshPages :: TVar Pages -> IO ()
 refreshPages var = do
@@ -193,6 +192,6 @@ main = do
                      , gcAdminPassword = adminPassword
                      , gcPreloadWorkers = preloadWorkers }
 
-        let modules = [playModule]
+        modules <- sequence [playModule]
         instantiates gctx options modules $ \modules' -> do
             httpServe (config (oPort options)) (server options modules')

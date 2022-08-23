@@ -1,10 +1,3 @@
-import {EditorState, EditorView, basicSetup} from "@codemirror/basic-setup";
-import {Compartment} from "@codemirror/state";
-import {javascript} from "@codemirror/lang-javascript";
-import {keymap} from "@codemirror/view";
-import {indentWithTab} from "@codemirror/commands";
-import {basicDark} from "cm6-theme-basic-dark";
-
 function addMediaListener(querystr: string, fallbackevent: string | null, cb: (q: MediaQueryList | MediaQueryListEvent | null) => void) {
 	if ("matchMedia" in window) {
 		const queryList = window.matchMedia(querystr);
@@ -84,22 +77,22 @@ merge (x:xs) (y:ys)
 declare var preload_script: string | null;
 const snippet = preload_script != null ? preload_script : example_snippets[Math.floor(Math.random() * example_snippets.length)];
 
-const themeCompartment = new Compartment();
+// defined in ace-files/ace.js with a <script src> block in play.mustache
+declare var ace: any;
 
-const state = EditorState.create({
-	doc: snippet,
-	extensions: [
-		basicSetup,
-		javascript(),
-		keymap.of([indentWithTab]),
-		themeCompartment.of([]),
-	]
+ace.config.set("basePath", location.origin + "/ace-files");
+const editor = ace.edit("leftcol");
+editor.setOptions({
+	printMargin: false,
+	fontSize: "large",
+	useSoftTabs: true,
+	mode: "ace/mode/haskell",
 });
-(window as any).view = new EditorView({state, parent: document.getElementById("leftcol")!});
+editor.session.setValue(snippet);
 
 addMediaListener("(prefers-color-scheme: dark)", null, function(ql) {
-	if (ql.matches) (window as any).view.dispatch({effects: themeCompartment.reconfigure([basicDark])});
-	else (window as any).view.dispatch({effects: themeCompartment.reconfigure([])});
+	if (ql.matches) editor.setTheme("ace/theme/monokai");
+	else editor.setTheme("ace/theme/github");
 });
 
 let currentChallenge: string | null = null;
@@ -225,7 +218,7 @@ function sendRun(source: string, version: string, opt: string, run: Runner, cb: 
 }
 
 function doRun(run: Runner) {
-	const source: string = (window as any).view.state.doc.toString();
+	const source: string = editor.getValue();
 	let version = (document.getElementById("ghcversionselect") as any).value;
 	let opt = (document.getElementById("optselect") as any).value;
 	if (typeof version != "string" || version == "") version = "8.10.7";
@@ -270,7 +263,7 @@ function doRun(run: Runner) {
 }
 
 function doSave() {
-	const source: string = (window as any).view.state.doc.toString();
+	const source: string = editor.getValue();
 
 	performXHR(
 		"POST", "/save", "text",
@@ -295,6 +288,7 @@ function setSeparatorToWidth(wid: number | null) {
 	if (wid == null) containerelem.style.gridTemplateColumns = "";
 	else containerelem.style.gridTemplateColumns =
 			"[left-start] " + wid + "px [left-end] 4px [right-start] 1fr [right-end]";
+	editor.resize();
 }
 
 function handleSeparatorDragEvents() {

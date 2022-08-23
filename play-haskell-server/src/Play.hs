@@ -2,6 +2,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 module Play (playModule) where
@@ -24,6 +25,8 @@ import Data.Time (secondsToDiffTime)
 import Data.Word (Word64)
 import GHC.Generics (Generic)
 import Snap.Core hiding (path, method, pass)
+import System.Directory (listDirectory)
+import System.FilePath (takeExtension, takeFileName, (</>))
 import System.Random (StdGen, genByteString, newStdGen)
 
 import DB (KeyType, Contents(..), ClientAddr)
@@ -287,23 +290,30 @@ handleAdminRequest ctx = \case
     liftIO $ WP.removeWorker (ctxPool ctx) (Char8.pack host)
     lift $ putResponse $ setResponseCode 200 emptyResponse
 
-playModule :: ServerModule
-playModule = ServerModule
-  { smMakeContext = \gctx _options k -> do
-      -- TODO: the max queue length is a completely arbitrary value
-      pool <- WP.newPool (gcServerSecretKey gctx) 10
-      challenge <- makeRefreshingChallenge (secondsToDiffTime (24 * 3600))
-      rng <- newStdGen >>= newTVarIO
+playModule :: IO ServerModule
+playModule = do
+  let aceDir = "ace-builds/src-min-noconflict"
+  aceFiles <- map (\path -> StaticFile (aceDir </> path) ["ace-files", Char8.pack (takeFileName path)] "text/javascript")
+              . filter (\path -> takeExtension path == ".js")
+              <$> listDirectory ("static" </> aceDir)
 
-      forM_ (gcPreloadWorkers gctx) $ \(host, pubkey) ->
-        WP.addWorker pool host pubkey
+  return $ ServerModule
+    { smMakeContext = \gctx _options k -> do
+        -- TODO: the max queue length is a completely arbitrary value
+        pool <- WP.newPool (gcServerSecretKey gctx) 10
+        challenge <- makeRefreshingChallenge (secondsToDiffTime (24 * 3600))
+        rng <- newStdGen >>= newTVarIO
 
-      k (Context { ctxPool = pool
-                 , ctxChallengeKey = challenge
-                 , ctxRNG = rng })
-  , smParseRequest = parseRequest
-  , smHandleRequest = handleRequest
-  , smStaticFiles = [("bundle.js", "text/javascript")
-                    ,("haskell-logo-tw.svg", "image/svg+xml")
-                    ,("haskell-play-logo.png", "image/png")]
-  }
+        forM_ (gcPreloadWorkers gctx) $ \(host, pubkey) ->
+          WP.addWorker pool host pubkey
+
+        k (Context { ctxPool = pool
+                   , ctxChallengeKey = challenge
+                   , ctxRNG = rng })
+    , smParseRequest = parseRequest
+    , smHandleRequest = handleRequest
+    , smStaticFiles = StaticFile "play-index.js" ["play-index.js"] "text/javascript"
+                      : StaticFile "haskell-logo-tw.svg" ["haskell-logo-tw.svg"] "image/svg+xml"
+                      : StaticFile "haskell-play-logo.png" ["haskell-play-logo.png"] "image/png"
+                      : aceFiles
+    }
