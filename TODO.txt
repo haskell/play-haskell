@@ -12,10 +12,6 @@ Priority:
 
 Medium:
 - Hotkey for Run
-- Haskell syntax highlighting in codemirror
-  - Parser from strictly? (-> wasm)
-  - https://codemirror.net/examples/lang-package/
-  - https://github.com/odc19/haskell_code_mirror
 - STG
 
 Backlog:
@@ -26,7 +22,5 @@ Backlog:
 - Additional flags for Core output (-dsuppress-all?)
 - Button for code formatting using a formatter
 - Stretch goal: ghci on the playground module?
-- Different editor?
-  - https://www.npmjs.com/package/monaco-editor (doesn't support mobile browsers, uses some odd web workers)
 - Vim bindings for code pane?
   - Perhaps using this: https://codemirror.net/6/docs/ref/#state.StateEffect%5Ereconfigure
