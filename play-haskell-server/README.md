@@ -2,8 +2,7 @@
 
 There's lots still to do, see
 [TODO.txt](https://github.com/tomsmeding/pastebin-haskell/blob/play/TODO.txt).
-Currently I'm working on a horizontally scalable backend on the `scalable-play`
-branch, so for backend PRs, perhaps connect with me (either via an issue or on
+If you want to contribute, perhaps connect with me (either via an issue or on
 [IRC](https://wiki.haskell.org/IRC_channel)) before writing lots of code.
 
 ## GHCup target platform
