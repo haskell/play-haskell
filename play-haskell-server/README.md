@@ -6,6 +6,17 @@ Currently I'm working on a horizontally scalable backend on the `scalable-play`
 branch, so for backend PRs, perhaps connect with me (either via an issue or on
 [IRC](https://wiki.haskell.org/IRC_channel)) before writing lots of code.
 
+## GHCup target platform
+
+Because the GHCup installation from the host machine will be used as-is in the
+containers of the workers, and because said containers run Ubuntu, the desired
+GHC versions must be installed as follows with `ghcup`:
+
+    ghcup install ghc -p x86_64-deb10-linux 8.10.7
+
+This ensures that the GHCs will work in the Ubuntu container. Note that
+currently (2022-08), Ubuntu GHCs seem to work fine on Arch Linux, for example.
+
 ## Installation
 
 On ubuntu (though 20.04 doesn't work because libarchive is too old)
@@ -35,6 +46,8 @@ sudo systemctl enable --now earlyoom
 sudo pacman -S base-devel
 # Install ghcup: https://www.haskell.org/ghcup/ (skip HLS and stack)
 # Open a new terminal to get ghcup in PATH
+# MAKE SURE TO INSTALL GHC FOR TARGET x86_64-deb10-linux
+# See above in the 'GHCup target platform' section
 
 make  # equivalent to `make chroot frontend-dependencies frontend`; note, `make chroot` is interactive
 cabal run play-haskell-server
