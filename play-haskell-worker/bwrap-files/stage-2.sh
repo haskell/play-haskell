@@ -41,17 +41,6 @@ args=(
   /bin/bash "/tmp/stage-3.sh" "$ghc_out_fd"
 )
 
-# Turn off core files
-ulimit -c 0
-
-# Limit on the number of processes
-ulimit -u 10000
-
-# Limit memory to 600 MiB. Note that the compiled program gets a 500 MiB memory
-# limit via the GHC RTS, so this limit is 1. to constrain GHC itself (including
-# any TH code), and 2. as a second-layer defense.
-ulimit -d $(( 600 * 1024 ))
-
 [[ -x ./bwrap ]] && BWRAP=./bwrap || BWRAP=bwrap
 
 # Need to do this under eval because otherwise the fd-redirect syntax is not

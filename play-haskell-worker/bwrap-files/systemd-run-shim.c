@@ -41,7 +41,7 @@ int main(int argc, char **argv) {
 
   // Note: the allocation size here must be increased if the number of
   // arguments to systemd-run increases.
-  const size_t num_pre_args = 13;
+  const size_t num_pre_args = 16;
   char ** const run_args = malloc((num_pre_args + (argc-1) + 1) * sizeof(*run_args));
 
   run_args[0] = xstrdup("systemd-run");
@@ -56,10 +56,16 @@ int main(int argc, char **argv) {
   run_args[9] = xasprintf("--setenv=PATH=%s", getenv("PATH"));
   run_args[10] = xstrdup("--quiet");
   run_args[11] = xstrdup("--property=CPUQuota=100%");
-  run_args[12] = xstrdup("--");
+  // Limit memory to 600 MiB. Note that the compiled program gets a 500 MiB memory
+  // limit via the GHC RTS, so this limit is 1. to constrain GHC itself (including
+  // any TH code), and 2. as a second-layer defense.
+  run_args[12] = xstrdup("--property=MemoryMax=600M");
+  run_args[13] = xstrdup("--property=TasksMax=50");
+  run_args[14] = xstrdup("--property=LimitCORE=0");
+  run_args[15] = xstrdup("--");
   // If more arguments are added above, please modify the run_args allocation above!
   for (int i = 0; i < argc - 1; i++) {
-    run_args[num_pre_args + i] = strdup(argv[i + 1]);
+    run_args[num_pre_args + i] = xstrdup(argv[i + 1]);
   }
   run_args[num_pre_args + (argc-1)] = NULL;
 
