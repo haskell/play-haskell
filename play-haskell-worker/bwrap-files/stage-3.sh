@@ -6,6 +6,7 @@ cd "$(dirname "$0")"
 # Read ghc output FD from command-line arguments
 if [[ $# -ne 1 ]]; then
   echo >&2 "Usage: $0 <ghc_out_fd>"
+  echo >&2 "This script should be run within bwrap by ./stage-2.sh"
   exit 1
 fi
 ghc_out_fd="$1"

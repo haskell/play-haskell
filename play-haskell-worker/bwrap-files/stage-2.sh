@@ -1,22 +1,24 @@
 #!/bin/bash
 set -euo pipefail
 
-filesdir="$(dirname "$0")"
-cd "$filesdir"
-
 # Read ghc output FD from command-line arguments
 if [[ $# -ne 1 ]]; then
-  echo >&2 "Usage: $0 <ghc_out_fd>"
+  echo >&2 "Usage: $0 <ghc_out_fifo>"
+  echo >&2 "This script should be run within ./systemd-run-shim by ./stage-1.sh"
   exit 1
 fi
-ghc_out_fd="$1"
+ghc_out_fifo="$1"
 
 ghcup_base=$(ghcup whereis basedir)
 
-chroot="${filesdir}/ubuntu-base"
+chroot="ubuntu-base"
+
+# We will connect this fd to the ghc_out_fifo for bwrap
+ghc_out_fd=100
 
 args=(
-  --tmpfs /tmp
+  # Using my bwrap fork: https://github.com/tomsmeding/bubblewrap/tree/tmpfs-size
+  --size $((100 * 1024 * 1024)) --tmpfs /tmp
   --ro-bind "${chroot}/bin" /bin
   --ro-bind "${chroot}/usr/bin" /usr/bin
   --ro-bind "${chroot}/usr/lib" /usr/lib
@@ -35,8 +37,8 @@ args=(
   --new-session
   --unshare-all
   --die-with-parent
-  --file 4 "/tmp/entry.sh"
-  /bin/bash "/tmp/entry.sh" "$ghc_out_fd"
+  --file 4 "/tmp/stage-3.sh"
+  /bin/bash "/tmp/stage-3.sh" "$ghc_out_fd"
 )
 
 # Turn off core files
@@ -50,19 +52,10 @@ ulimit -u 10000
 # any TH code), and 2. as a second-layer defense.
 ulimit -d $(( 600 * 1024 ))
 
-# Close all open file descriptors other than 0,1,2 and the ghc output FD
-close_cmdline="exec"
-for fd in $(ls /proc/$$/fd); do
-  if [[ "$fd" -gt 2 && "$fd" -ne "$ghc_out_fd" ]]; then
-    close_cmdline="$close_cmdline $fd>&-"
-  fi
-done
-eval "$close_cmdline"
+[[ -x ./bwrap ]] && BWRAP=./bwrap || BWRAP=bwrap
 
-# TODO:
-# Write a utility in C that does the following:
-#   systemd-run --description="kaas ding" --uid=$PARENT_UID --gid=$PARENT_GID --pipe --wait --collect --service-type=exec --property='CPUQuota=100%' "$@"
-# and make the utility suid root. The $PARENT_{UID,GID} should be taken from getuid() and getgid(). Reference: https://unix.stackexchange.com/questions/74527/setuid-bit-seems-to-have-no-effect-on-bash
-# Then use that utility here to call bwrap in the constrained environment, and check that the bwrapped process indeed inherits the cpu quota (and that bwrap's own namespacing doesn't interfere).
+# Need to do this under eval because otherwise the fd-redirect syntax is not
+# recognised.
+eval exec "$ghc_out_fd"'>"$ghc_out_fifo"'
 
-exec bwrap "${args[@]}" 4<"${filesdir}/entry.sh"
+exec $BWRAP "${args[@]}" 4<stage-3.sh

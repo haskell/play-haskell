@@ -1,3 +1,4 @@
 dist-newstyle/
 node_modules/
 .stack-work/
+.ccls-cache/

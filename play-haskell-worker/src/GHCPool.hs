@@ -88,7 +88,7 @@ makeWorker = do
     -- Create a pipe that GHC output will be written to
     (ghcOutReadFD, ghcOutWriteFD) <- createPipe
     ghcOutReadHandle <- fdToHandle ghcOutReadFD
-    let spec = (Pr.proc (workdir </> "bwrap-files/start.sh") [show ghcOutWriteFD])
+    let spec = (Pr.proc (workdir </> "bwrap-files/stage-1.sh") [show ghcOutWriteFD])
                   { Pr.std_in = Pr.CreatePipe
                   , Pr.std_out = Pr.CreatePipe
                   , Pr.std_err = Pr.CreatePipe }
