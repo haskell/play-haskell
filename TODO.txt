@@ -11,7 +11,6 @@ Priority:
   - Perhaps enforce memory control via cgroups too?
 
 Medium:
-- Hotkey for Run
 - STG
 
 Backlog:

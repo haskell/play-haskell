@@ -111,6 +111,8 @@ enum Runner {
 	Asm = 2
 }
 
+let lastRunKind: Runner = Runner.Run;
+
 
 function performXHR(
 	method: string,
@@ -218,6 +220,8 @@ function sendRun(source: string, version: string, opt: string, run: Runner, cb: 
 }
 
 function doRun(run: Runner) {
+	lastRunKind = run;
+
 	const source: string = editor.getValue();
 	let version = (document.getElementById("ghcversionselect") as any).value;
 	let opt = (document.getElementById("optselect") as any).value;
@@ -346,6 +350,22 @@ window.addEventListener("load", function() {
 	//         doRun();
 	//     }
 	// });
+	editor.commands.addCommand({
+		name: "Run",
+		bindKey: {win: "Ctrl-Enter", mac: "Command-Enter"},
+		exec: function() {
+			doRun(lastRunKind);
+		},
+		readOnly: true,
+	});
+
+	let runTooltip =
+			editor.commands.platform == "win"
+				? "Press Ctrl-Enter to run again"
+				: "Press Cmd-Enter to run again";
+	document.getElementById("btn-run").setAttribute("title", runTooltip);
+	document.getElementById("btn-core").setAttribute("title", runTooltip);
+	document.getElementById("btn-asm").setAttribute("title", runTooltip);
 
 	getVersions(function(versions) {
 		const sel: HTMLElement = document.getElementById("ghcversionselect");
