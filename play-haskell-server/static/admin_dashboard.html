@@ -76,6 +76,17 @@ function timeSpecSubtract(a, b) {
   return res;
 }
 
+function callRefreshWorker(host) {
+  performXHR(
+    "POST", "/admin/worker/refresh", "",
+    function(response) {},
+    function(xhr) {
+      alert("Could not refresh worker: " + xhr.status + "\n" + xhr.responseText);
+    },
+    "text/json", JSON.stringify({hostname: host})
+  );
+}
+
 function callRemoveWorker(host, button) {
   performXHR(
     "DELETE", "/admin/worker", "text",
@@ -117,6 +128,14 @@ function populateStatusFromResponse(response) {
         }
       }.bind(null, w, removeBtn));
       item.appendChild(removeBtn);
+
+      var refreshBtn = document.createElement("button");
+      refreshBtn.classList.add("worker-refresh-btn");
+      refreshBtn.textContent = "Refresh versions";
+      refreshBtn.addEventListener("click", function(w, refreshBtn) {
+        callRefreshWorker(w.addr[0]);
+      }.bind(null, w, refreshBtn));
+      item.appendChild(refreshBtn);
     }
 
     if (w.disabled != null) {
@@ -285,6 +304,11 @@ html {
 }
 .worker-pubkey {
   font-size: 8pt;
+}
+.worker-refresh-btn {
+  color: blue;
+  float: right;
+  margin-left: 20px;
 }
 .worker-remove-btn {
   color: red;

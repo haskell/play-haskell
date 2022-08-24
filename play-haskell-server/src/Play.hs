@@ -119,6 +119,7 @@ data AdminReq
   | ARStatus
   | ARAddWorker
   | ARRemoveWorker
+  | ARRefreshWorker
   deriving (Show)
 
 parseRequest :: Method -> [ByteString] -> Maybe WhatRequest
@@ -135,6 +136,7 @@ parseRequest method comps = case (method, comps) of
   (GET, ["admin", "status"]) -> Just (AdminReq ARStatus)
   (PUT, ["admin", "worker"]) -> Just (AdminReq ARAddWorker)
   (DELETE, ["admin", "worker"]) -> Just (AdminReq ARRemoveWorker)
+  (POST, ["admin", "worker", "refresh"]) -> Just (AdminReq ARRefreshWorker)
 
   (GET, ["play"]) -> Just (LegacyRedirect "/")
   (GET, ["play", "paste", key]) -> Just (LegacyRedirect ("/saved/" <> key))
@@ -254,11 +256,18 @@ instance J.FromJSON AddWorkerRequest where
   parseJSON = J.genericParseJSON J.defaultOptions { J.fieldLabelModifier = J.camelTo2 '_' . drop 5 }
 
 data RemoveWorkerRequest = RemoveWorkerRequest
-  { rwreqHostname :: String }
+  { rmwreqHostname :: String }
   deriving (Show, Generic)
 
 instance J.FromJSON RemoveWorkerRequest where
-  parseJSON = J.genericParseJSON J.defaultOptions { J.fieldLabelModifier = J.camelTo2 '_' . drop 5 }
+  parseJSON = J.genericParseJSON J.defaultOptions { J.fieldLabelModifier = J.camelTo2 '_' . drop 6 }
+
+data RefreshWorkerRequest = RefreshWorkerRequest
+  { rfwreqHostname :: String }
+  deriving (Show, Generic)
+
+instance J.FromJSON RefreshWorkerRequest where
+  parseJSON = J.genericParseJSON J.defaultOptions { J.fieldLabelModifier = J.camelTo2 '_' . drop 6 }
 
 handleAdminRequest :: Context -> AdminReq -> Snap ()
 handleAdminRequest ctx = \case
@@ -288,6 +297,12 @@ handleAdminRequest ctx = \case
     RemoveWorkerRequest host <- getRequestBodyEarlyExitJSON 1024 "request too large"
 
     liftIO $ WP.removeWorker (ctxPool ctx) (Char8.pack host)
+    lift $ putResponse $ setResponseCode 200 emptyResponse
+
+  ARRefreshWorker -> execExitEarlyT $ do
+    RefreshWorkerRequest host <- getRequestBodyEarlyExitJSON 1024 "request too large"
+
+    liftIO $ WP.refreshWorker (ctxPool ctx) (Char8.pack host)
     lift $ putResponse $ setResponseCode 200 emptyResponse
 
 playModule :: IO ServerModule

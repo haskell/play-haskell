@@ -15,6 +15,7 @@ module Play.WorkerPool (
   submitJob,
   addWorker,
   removeWorker,
+  refreshWorker,
 ) where
 
 import Control.Concurrent (forkIO)
@@ -172,7 +173,7 @@ data Event = EAddWorker ByteString PublicKey  -- ^ New worker
            | ENewJob Job  -- ^ New job has arrived!
            | EWorkerDoneJob Worker.Addr  -- ^ Worker has finished a job, we should free up one capability
            | EWorkerHasRoom Worker.Addr  -- ^ Worker has obtained a free capability where it previously had none
-           | EHealthCheck Worker.Addr  -- ^ Should healthcheck this worker now
+           | EHealthCheck ByteString  -- ^ Should healthcheck this worker now
            | EWorkerFailed Worker.Addr  -- ^ Should be marked disabled
            | EWorkerHealth Worker.Addr HealthResponse  -- ^ Health check succeeded
            | EStatus (Status -> IO ())  -- ^ Called in forkIO
@@ -288,10 +289,10 @@ handleEvent' wpool state mgr = \case
     if host `Map.member` psWorkers state
       then do
         hPutStrLn stderr $ "A worker with this host already in pool: " ++ show addr
-        atomically $ submitEvent wpool 0 (EHealthCheck addr)
+        atomically $ submitEvent wpool 0 (EHealthCheck host)
         return state
       else do
-        atomically $ submitEvent wpool 0 (EHealthCheck addr)
+        atomically $ submitEvent wpool 0 (EHealthCheck host)
         now <- Clock.getTime Clock.Monotonic
         let worker = Worker { wAddr = addr
                             , wStatus = Disabled now 0 }
@@ -432,15 +433,18 @@ handleEvent' wpool state mgr = \case
         -- given out. In any case, nothing to do here.
         | otherwise -> return state
 
-  EHealthCheck addr -> do
-    _ <- forkIO $ do
-      Worker.getHealth mgr addr >>= \case
-        -- If the version list is empty, consider it a failure
-        Just res | _:_ <- hlresVersions res ->
-          atomically $ submitEvent wpool 0 (EWorkerHealth addr res)
-        _ -> atomically $ submitEvent wpool 0 (EWorkerFailed addr)
+  EHealthCheck host
+    | Just Worker{wAddr=addr} <- Map.lookup host (psWorkers state) -> do
+        _ <- forkIO $ do
+          Worker.getHealth mgr addr >>= \case
+            -- If the version list is empty, consider it a failure
+            Just res | _:_ <- hlresVersions res ->
+              atomically $ submitEvent wpool 0 (EWorkerHealth addr res)
+            _ -> atomically $ submitEvent wpool 0 (EWorkerFailed addr)
 
-    return state
+        return state
+
+    | otherwise -> return state  -- worker doesn't exist
 
   EWorkerFailed addr@(Worker.Addr host _)
     | host `Set.member` psToBeRemoved state ->
@@ -479,7 +483,7 @@ handleEvent' wpool state mgr = \case
                    OK{} -> healthCheckIvStart
                    Disabled _ iv' -> healthCheckIvNext iv'
             worker' = worker { wStatus = Disabled now iv }
-        atomically $ submitEvent wpool (now + iv) (EHealthCheck addr)
+        atomically $ submitEvent wpool (now + iv) (EHealthCheck host)
         let state' = state { psWorkers = Map.insert host worker' (psWorkers state) }
         recomputeAvailableVersions wpool state'
         return state'
@@ -603,6 +607,13 @@ addWorker wpool host publickey
 removeWorker :: WPool -> ByteString -> IO ()
 removeWorker wpool host =
   atomically $ submitEvent wpool 0 (ERemoveWorker host)
+
+-- | Refresh version list of the given worker. This also functions as a status
+-- check: if the worker is unresponsive to this request, it will be disabled
+-- and periodically checked upon, etc.
+refreshWorker :: WPool -> ByteString -> IO ()
+refreshWorker wpool host =
+  atomically $ submitEvent wpool 0 (EHealthCheck host)
 
 collectStatus :: WPool -> PoolState -> IO Status
 collectStatus wpool state = do
