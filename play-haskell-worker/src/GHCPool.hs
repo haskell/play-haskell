@@ -101,11 +101,11 @@ makeWorker = do
         BS.hPutStr inh (TE.encodeUtf8 source)
         hClose inh
       ghcoutmvar <- newEmptyMVar
-      _ <- forkIO $ hGetContentsUTF8Bounded maxOutputSizeBytes ghcOutReadHandle >>= putMVar ghcoutmvar
+      readTh1 <- forkIO $ hGetContentsUTF8Bounded maxOutputSizeBytes ghcOutReadHandle >>= putMVar ghcoutmvar
       stdoutmvar <- newEmptyMVar
-      _ <- forkIO $ hGetContentsUTF8Bounded maxOutputSizeBytes outh >>= putMVar stdoutmvar
+      readTh2 <- forkIO $ hGetContentsUTF8Bounded maxOutputSizeBytes outh >>= putMVar stdoutmvar
       stderrmvar <- newEmptyMVar
-      _ <- forkIO $ hGetContentsUTF8Bounded maxOutputSizeBytes errh >>= putMVar stderrmvar
+      readTh3 <- forkIO $ hGetContentsUTF8Bounded maxOutputSizeBytes errh >>= putMVar stderrmvar
       (dur, mec) <- duration $ timeout runTimeoutMicrosecs $ Pr.waitForProcess proch
       case mec of
         Just ec -> do
@@ -114,6 +114,7 @@ makeWorker = do
           err <- readMVar stderrmvar
           putMVar resultvar (Right (Result ec ghcout out err dur))
         Nothing -> do
+          mapM_ killThread [readTh1, readTh2, readTh3]
           -- Paranoid termination is technically unnecessary since bwrap seems
           -- to kill its child with SIGKILL if it is itself killed using
           -- SIGTERM, which is what Pr.terminateProcess sends. However, let's
