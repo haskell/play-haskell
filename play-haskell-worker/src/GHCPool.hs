@@ -2,6 +2,11 @@
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
+
+-- I'm using unsafePerformIO to create a global mutex. I believe this is
+-- necessary to let that go alright.
+{-# OPTIONS -fno-full-laziness -fno-cse #-}
+
 module GHCPool (
   availableVersions,
   Pool,
@@ -18,11 +23,14 @@ import qualified Data.ByteString.Builder as BSB
 import qualified Data.ByteString.Lazy as Lazy
 import Data.Text (Text)
 import qualified Data.Text.Encoding as TE
+import Foreign.C.Error (eFAULT, Errno (Errno))
 import Foreign.Marshal.Alloc (allocaBytes)
+import GHC.IO.Exception (IOException(ioe_errno))
 import qualified System.Clock as Clock
 import System.Exit (ExitCode(..))
 import System.FilePath ((</>))
-import System.IO (hPutStr, hClose, Handle, hGetBufSome)
+import System.IO (hPutStr, hClose, Handle, hGetBufSome, hPutStrLn, stderr)
+import System.IO.Error (catchIOError)
 import System.Posix.Directory (getWorkingDirectory)
 import System.Posix.IO (createPipe, fdToHandle, closeFd)
 import System.Posix.Signals (signalProcess, sigKILL)
@@ -30,11 +38,23 @@ import qualified System.Process as Pr
 import qualified System.Process.Internals as PrI
 import System.Timeout (timeout)
 
+import System.IO.Unsafe (unsafePerformIO)
+
 import Data.Queue (Queue)
 import qualified Data.Queue as Queue
 import PlayHaskellTypes (Command(..), Optimisation(..), Version(..), RunError(..))
 import PlayHaskellTypes.Constants
 
+
+{-# NOINLINE debugMutex #-}
+debugMutex :: MVar ()
+debugMutex = unsafePerformIO $ newMVar ()
+
+debug :: String -> IO ()
+debug str = do
+  () <- takeMVar debugMutex
+  hPutStrLn stderr str
+  putMVar debugMutex ()
 
 maxOutputSizeBytes :: Int
 maxOutputSizeBytes = 100_000
@@ -92,7 +112,8 @@ makeWorker = do
                   { Pr.std_in = Pr.CreatePipe
                   , Pr.std_out = Pr.CreatePipe
                   , Pr.std_err = Pr.CreatePipe }
-    Pr.withCreateProcess spec $ \(Just inh) (Just outh) (Just errh) proch -> do
+    withCreateProcessRetry spec $ \(Just inh) (Just outh) (Just errh) proch -> do
+      -- debug $ "Created new stage-1 process: inh=" ++ show inh ++ " outh=" ++ show outh ++ " errh=" ++ show errh ++ " ghcoutread=" ++ show ghcOutReadHandle
       -- Make sure our copy of the writing end of the pipe is closed, so that the pipe gets closed when the process is done
       closeFd ghcOutWriteFD
       (cmd, opt, Version ver, source) <- readMVar mvar
@@ -106,12 +127,18 @@ makeWorker = do
       readTh2 <- forkIO $ hGetContentsUTF8Bounded maxOutputSizeBytes outh >>= putMVar stdoutmvar
       stderrmvar <- newEmptyMVar
       readTh3 <- forkIO $ hGetContentsUTF8Bounded maxOutputSizeBytes errh >>= putMVar stderrmvar
+      -- debug $ "[pool] Waiting for process"
       (dur, mec) <- duration $ timeout runTimeoutMicrosecs $ Pr.waitForProcess proch
+      -- debug $ "[pool] done with " ++ show (dur, mec)
       case mec of
         Just ec -> do
+          -- debug $ "[pool] waiting on ghc out fd " ++ show ghcOutReadFD
           ghcout <- readMVar ghcoutmvar
+          -- debug $ "[pool] ghc out done len=" ++ show (Lazy.length ghcout)
           out <- readMVar stdoutmvar
+          -- debug $ "[pool] out done len=" ++ show (Lazy.length out)
           err <- readMVar stderrmvar
+          -- debug $ "[pool] err done len=" ++ show (Lazy.length err)
           putMVar resultvar (Right (Result ec ghcout out err dur))
         Nothing -> do
           mapM_ killThread [readTh1, readTh2, readTh3]
@@ -205,9 +232,11 @@ hGetContentsUTF8Bounded bound h = do
           | numleft <= 0 = do
               -- read everything there is to read without storing it
               nread <- hGetBufSome h ptr bufsize
+              -- debug $ "hGCU8B(" ++ show h ++ "): read " ++ show nread ++ " excess bytes"
               if nread == 0 then return mempty else loop 0
           | otherwise = do
               nread <- hGetBufSome h ptr bufsize
+              -- debug $ "hGCU8B(" ++ show h ++ "): read " ++ show nread ++ " bytes"
               if nread == 0
                 then do return mempty
                 else do let numprocessed = min nread numleft
@@ -215,3 +244,21 @@ hGetContentsUTF8Bounded bound h = do
                         (BSB.byteString bs <>) <$> loop (numleft - numprocessed)
     loop bound
   return (BSB.toLazyByteString builder)
+
+withCreateProcessRetry
+  :: Pr.CreateProcess
+  -> (Maybe Handle -> Maybe Handle -> Maybe Handle -> Pr.ProcessHandle -> IO a)
+  -> IO a
+withCreateProcessRetry spec f = do
+  res <- catchIOError
+    (Pr.withCreateProcess spec $ \minh mouth merrh proch -> do
+       Just <$> f minh mouth merrh proch)
+    (\ioe -> let Errno efault = eFAULT
+             in if ioe_errno ioe == Just efault
+                  then do debug "Oops, EFAULT!"
+                          return Nothing
+                  else ioError ioe)
+
+  case res of
+    Just r -> return r
+    Nothing -> withCreateProcessRetry spec f
