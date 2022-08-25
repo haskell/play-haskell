@@ -1,0 +1,25 @@
+import Control.Concurrent
+import Control.Monad
+import System.Process
+
+main :: IO ()
+main = do
+  writeFile "a.c"
+    "#include <stdio.h>\n\
+    \#include <stdlib.h>\n\
+    \#include <stdint.h>\n\
+    \int main(void) {\n\
+    \  size_t total = 0;\n\
+    \  for (size_t sz = (1 << 20); sz != 0; sz += sz / 10) {\n\
+    \    volatile uint64_t *buf = malloc(sz);\n\
+    \    for (size_t i = 0; i < sz / sizeof(*buf); i++) {\n\
+    \      buf[i] = i;\n\
+    \    }\n\
+    \    total += sz;\n\
+    \    printf(\"Successfully allocated %zu MB\\n\", total >> 20);\n\
+    \    fflush(stdout);\n\
+    \  }\n\
+    \}\n"
+  callProcess "gcc" ["-Wall", "-O2", "a.c", "-o", "a"]
+  putStrLn $ "Running ./a"
+  callProcess "bash" ["-c", "time ./a"]
