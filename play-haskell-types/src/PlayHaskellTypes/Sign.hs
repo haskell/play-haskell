@@ -30,7 +30,7 @@ import Snap.Server.Utils.Hex
 
 -- | 32 bytes.
 newtype PublicKey = PublicKey BSS.ShortByteString
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord)
 
 -- | Generate a secret key by applying 'readSecretKey' to 32 random bytes.
 --
@@ -41,6 +41,10 @@ newtype SecretKey = SecretKey Cr.SecretKey
 -- | 64 bytes.
 newtype Signature = Signature BSS.ShortByteString
   deriving (Show)
+
+instance Show PublicKey where
+  showsPrec d (PublicKey sbs) = showParen (d > 10) $
+    showString ("PublicKey$hexDecode \"" ++ hexEncode sbs ++ "\"")
 
 -- | Returns 'Nothing' if the input is not 32 bytes long.
 readSecretKey :: ByteString -> Maybe SecretKey
