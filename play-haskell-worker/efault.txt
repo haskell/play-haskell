@@ -1,0 +1,27 @@
+# Setup
+set -U unikaas
+set unikaas 0
+
+# Teardown
+set -e unikaas
+
+# Loop
+while true; if test $unikaas = 1; echo "Kaas!"; break; end; echo -n '*'; timeout 0.4 /home/tom-local/git/pastebin-haskell/dist-newstyle/build/x86_64-linux/ghc-8.10.7/play-haskell-worker-0.1.0.0/x/play-haskell-worker/build/play-haskell-worker/play-haskell-worker --secretkey secret-key.txt --trustedkeys ../play-haskell-server/public-key.txt +RTS -N 2>&1 | grep --line-buffered EFAULT | cat; end
+
+# Kill the loop if ^C doesn't work
+set unikaas 1
+
+
+# Notes
+
+If the worker's stdout is connected to a process whose stdout is line-buffered
+(or a pty), EFAULT can occur. If not, it cannot occur. This makes no sense, but
+it is the observation.
+- When piped to `2>&1 | grep --line-buffered EFAULT | cat`, errors occur.
+- When piped to `2>&1 | grep --line-buffered EFAULT`, errors occur.
+- When piped to `2>&1 | grep EFAULT`, errors occur.
+- When piped to `2>&1 | grep EFAULT | cat`, errors DO NOT occur.
+
+Errors only occur if the invoked process is a bash script. Even if said bash
+script contains only 'sleep 10'. When invoking 'sleep 10' directly, errors do
+not occur.
