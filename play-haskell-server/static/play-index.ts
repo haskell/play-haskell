@@ -89,6 +89,9 @@ editor.setOptions({
 	mode: "ace/mode/haskell",
 });
 editor.session.setValue(snippet);
+editor.session.setOptions({
+	tabSize: 2,
+})
 
 addMediaListener("(prefers-color-scheme: dark)", null, function(ql) {
 	if (ql.matches) editor.setTheme("ace/theme/monokai");
