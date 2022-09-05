@@ -19,6 +19,7 @@ import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Short as BSS
 import Data.Char (chr)
 import Data.Maybe (fromMaybe)
+import qualified Data.Map.Strict as Map
 import Data.String (fromString)
 import Data.Text (Text)
 import Data.Time (secondsToDiffTime)
@@ -105,6 +106,7 @@ data Context = Context
 
 data WhatRequest
   = Index
+  | PostedIndex
   | FromSaved ByteString
   | Save
   | Versions
@@ -125,6 +127,7 @@ data AdminReq
 parseRequest :: Method -> [ByteString] -> Maybe WhatRequest
 parseRequest method comps = case (method, comps) of
   (GET, []) -> Just Index
+  (POST, []) -> Just PostedIndex
   (GET, ["saved", key]) -> Just (FromSaved key)
   (POST, ["save"]) -> Just Save
   (GET, ["versions"]) -> Just Versions
@@ -148,6 +151,15 @@ handleRequest gctx ctx = \case
   Index -> do
     renderer <- liftIO $ getPageFromGCtx pPlay gctx
     writeHTML (renderer Nothing)
+
+  PostedIndex -> do
+    req <- getRequest
+    case Map.lookup "code" (rqPostParams req) of
+      Just [source] -> do
+        renderer <- liftIO $ getPageFromGCtx pPlay gctx
+        writeHTML (renderer (Just source))
+      _ ->
+        httpError 400 "Invalid request"
 
   FromSaved key -> do
     res <- liftIO $ DB.getPaste (gcDb gctx) key
