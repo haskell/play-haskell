@@ -181,6 +181,20 @@ function doToggleLineNumbers() {
 	if (loaded) applyLineNumbers(wantLineNumbers);
 }
 
+function doPostPlayground(source) {
+	var form = document.createElement("form");
+	form.method = "POST";
+	form.action = "https://play-haskell.tomsmeding.com/";
+	var el = document.createElement("textarea");
+	el.name = "code";
+	el.textContent = source;
+	form.appendChild(el);
+
+	form.setAttribute("style", "display: none");
+	document.body.appendChild(form);
+	form.submit();
+}
+
 function applyLineNumbers(yes) {
 	if ("localStorage" in window) {
 		localStorage.setItem("linenumbers", yes ? "1" : "0");
@@ -239,13 +253,17 @@ document.addEventListener("DOMContentLoaded", () => {
 		(Edited from: <a href="/{{&parentAttr}}"><code>{{parent}}</code></a>)
 	</div>{{/parent}}
 
+	<script>codeValues = {};</script>
+
 	{{#pastes}}
+	<script>codeValues[{{index}}] = {{&contentsJS}};</script>
 	<div class="pure-g filename-header">
 		<div class="pure-u-1-2">
 			<a id="file-{{index}}" href="#file-{{index}}" class="filename-link" role="heading" aria-level="2">{{#fname}}<code>{{fname}}</code>{{/fname}}{{^fname}}#{{/fname}}</a>
 		</div>
 		<div class="pure-u-1-2" style="text-align: right">
-			[<a href="/{{key}}/raw/{{index}}">raw</a>]
+			[<a href="/{{key}}/raw/{{index}}">raw</a>,
+			<a href="javascript:doPostPlayground(codeValues[{{index}}])">playground</a>]
 		</div>
 	</div>
 	<table class="lnumtable"><tbody><tr>

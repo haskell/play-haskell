@@ -4,8 +4,10 @@ module Pages (
     Pages(..), pagesFromDisk
 ) where
 
+import Data.Bits (shiftR)
 import qualified Data.ByteString as BS
 import Data.ByteString (ByteString)
+import Data.Char (chr, ord)
 import qualified Data.Text as Text
 import Data.Text (Text)
 import qualified Data.Text.Encoding as Enc
@@ -62,6 +64,7 @@ mixinSinglePaste index (mfname, contents) = Mustache.object
     [(Text.pack "fname", mixinMaybeNull decodeUtf8 mfname)
     ,(Text.pack "fnameAttr", maybe (toMustache "") (toMustache . escapeAttribute . decodeUtf8) mfname)
     ,(Text.pack "contents", toMustache (decodeUtf8 contents))
+    ,(Text.pack "contentsJS", toMustache (jsStringEncode (decodeUtf8 contents)))
     ,(Text.pack "linenums", toMustache (unlines (map show [1 .. numlines])))
     ,(Text.pack "index", toMustache index)
     ,(Text.pack "firstFile", toMustache (index == 1))]
@@ -94,3 +97,23 @@ escapeAttribute text
 
 decodeUtf8 :: ByteString -> Text
 decodeUtf8 = Enc.decodeUtf8With Enc.lenientDecode
+
+-- | Puts quotes around the text and escapes the inside, so that the result is
+-- a valid JS string that evaluates to the argument.
+jsStringEncode :: Text -> Text
+jsStringEncode text =
+  let inner = flip Text.concatMap text $ \case
+                '\n' -> Text.pack "\\n"
+                '\t' -> Text.pack "\\t"
+                '\\' -> Text.pack "\\\\"
+                '"' -> Text.pack "\\\""
+                c | ord c < 32 -> Text.pack ("\\x" ++ toHexN 2 (ord c))
+                  | ord c < 127 -> Text.singleton c
+                  | ord c >= 127, ord c <= 0xffff -> Text.pack ("\\u" ++ toHexN 4 (ord c))
+                  | otherwise -> Text.pack ("\\u{" ++ toHexN 6 (ord c) ++ "}")
+  in Text.singleton '"' <> inner <> Text.singleton '"'
+  where
+    toHexN nibbles n = [toHex1 ((n `shiftR` (4 * i)) `mod` 16) | i <- [nibbles - 1, nibbles - 2 .. 0]]
+    toHex1 n | n < 10 = chr (ord '0' + n)
+             | n < 16 = chr (ord 'a' + n - 10)
+             | otherwise = error "Invalid"
