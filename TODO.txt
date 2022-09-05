@@ -11,5 +11,8 @@ Backlog:
 - Additional flags for Core output (-dsuppress-all?)
 - Button for code formatting using a formatter
 - Stretch goal: ghci on the playground module?
+  - Or maybe per-line eval mode?
+    - Fancy rendering of stuff with a ToHTML instance or somesuch?
 - Vim bindings for code pane?
   - Perhaps using this: https://codemirror.net/6/docs/ref/#state.StateEffect%5Ereconfigure
+- Download of compileable project zip (with minimal cabal file)
