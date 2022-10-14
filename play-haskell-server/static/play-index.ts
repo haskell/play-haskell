@@ -116,6 +116,8 @@ enum Runner {
 
 let lastRunKind: Runner = Runner.Run;
 
+const defaultGHCversion: string = "9.2.4";
+
 
 function performXHR(
 	method: string,
@@ -228,7 +230,7 @@ function doRun(run: Runner) {
 	const source: string = editor.getValue();
 	let version = (document.getElementById("ghcversionselect") as any).value;
 	let opt = (document.getElementById("optselect") as any).value;
-	if (typeof version != "string" || version == "") version = "8.10.7";
+	if (typeof version != "string" || version == "") version = defaultGHCversion;
 	if (typeof opt != "string" || opt == "") opt = "O1";
 
 	sendRun(source, version, opt, run, function(response: {[key: string]: json}) {
@@ -376,7 +378,7 @@ window.addEventListener("load", function() {
 			const opt: HTMLOptionElement = document.createElement("option");
 			opt.value = versions[i];
 			opt.textContent = "GHC " + versions[i];
-			if (versions[i] == "8.10.7") opt.setAttribute("selected", "");
+			if (versions[i] == defaultGHCversion) opt.setAttribute("selected", "");
 			sel.appendChild(opt);
 		}
 	});

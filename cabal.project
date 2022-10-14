@@ -5,6 +5,8 @@ packages:
     play-haskell-server/
     pastebin-haskell/
 
+with-compiler: ghc-8.10.7
+
 -- Contains bump of attoparsec dependency upper bound, that hasn't been pushed to hackage yet
 source-repository-package
     type: git
