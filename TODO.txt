@@ -9,6 +9,7 @@ Backlog:
 - Access to stackage LTS packages
   - https://ircbrowse.tomsmeding.com/day/lchaskell/2022/05/19?id=558067#trid558067
 - Additional flags for Core output (-dsuppress-all?)
+  - See suggestions in issue #23
 - Button for code formatting using a formatter
 - Stretch goal: ghci on the playground module?
   - Or maybe per-line eval mode?
