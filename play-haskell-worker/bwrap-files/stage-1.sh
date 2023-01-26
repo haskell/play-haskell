@@ -6,10 +6,7 @@ cd "$(dirname "$0")"
 # Read ghc output FD from command-line arguments
 if [[ $# -ne 1 ]]; then
   echo >&2 "Usage: $0 <ghc_out_fd>"
-  echo >&2 "stage-2 needs to run bwrap with tomsmeding/tmpfs-size patch."
-  echo >&2 "Build https://github.com/tomsmeding/bubblewrap/tree/tmpfs-size and"
-  echo >&2 "put the executable in this directory as 'bwrap'. If such an executable"
-  echo >&2 "exists, stage-2 will use it instead of the 'bwrap' from PATH."
+  echo >&2 "stage-2 needs bwrap >=v0.7.0."
   exit 1
 fi
 ghc_out_fd="$1"

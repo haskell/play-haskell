@@ -17,7 +17,7 @@ chroot="ubuntu-base"
 ghc_out_fd=100
 
 args=(
-  # Using my bwrap fork: https://github.com/tomsmeding/bubblewrap/tree/tmpfs-size
+  # Need bwrap >=v0.7.0 for --size
   --size $((100 * 1024 * 1024)) --tmpfs /tmp
   --ro-bind "${chroot}/bin" /bin
   --ro-bind "${chroot}/usr/bin" /usr/bin
@@ -41,10 +41,8 @@ args=(
   /bin/bash "/tmp/stage-3.sh" "$ghc_out_fd"
 )
 
-[[ -x ./bwrap ]] && BWRAP=./bwrap || BWRAP=bwrap
-
 # Need to do this under eval because otherwise the fd-redirect syntax is not
 # recognised.
 eval exec "$ghc_out_fd"'>"$ghc_out_fifo"'
 
-exec $BWRAP "${args[@]}" 4<stage-3.sh
+exec bwrap "${args[@]}" 4<stage-3.sh
