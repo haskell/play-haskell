@@ -116,7 +116,7 @@ enum Runner {
 
 let lastRunKind: Runner = Runner.Run;
 
-const defaultGHCversion: string = "9.2.4";
+const defaultGHCversion: string = "9.2.5";
 
 
 function performXHR(
