@@ -3,7 +3,6 @@ packages:
     play-haskell-types/
     play-haskell-worker/
     play-haskell-server/
-    pastebin-haskell/
 
 with-compiler: ghc-8.10.7
 
