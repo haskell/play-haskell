@@ -7,7 +7,7 @@ license-file:        LICENSE
 author:              Tom Smeding
 maintainer:          tom@tomsmeding.com
 build-type:          Simple
-homepage:            https://github.com/tomsmeding/pastebin-haskell
+homepage:            https://github.com/tomsmeding/play-haskell
 
 library
   exposed-modules:
@@ -42,4 +42,4 @@ executable gen-secret-key
 
 source-repository head
   type: git
-  location: https://github.com/tomsmeding/pastebin-haskell
+  location: https://github.com/tomsmeding/play-haskell

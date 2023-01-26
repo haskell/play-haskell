@@ -1,7 +1,7 @@
 # Haskell Playground
 
 There's lots still to do, see
-[TODO.txt](https://github.com/tomsmeding/pastebin-haskell/blob/play/TODO.txt).
+[TODO.txt](https://github.com/tomsmeding/play-haskell/blob/master/TODO.txt).
 If you want to contribute, perhaps connect with me (either via an issue or on
 [IRC](https://wiki.haskell.org/IRC_channel)) before writing lots of code.
 

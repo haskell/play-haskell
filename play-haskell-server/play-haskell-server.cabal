@@ -7,7 +7,7 @@ license-file:        LICENSE
 author:              Tom Smeding
 maintainer:          tom@tomsmeding.com
 build-type:          Simple
-homepage:            https://github.com/tomsmeding/pastebin-haskell
+homepage:            https://github.com/tomsmeding/play-haskell
 extra-source-files:  index.mustache read.mustache highlight-light.pack.css highlight-dark.pack.css
                      migrate_db_1_2.sh migrate_db_2_3.sh migrate_db_3_4.sh migrate_db_4_5.sh
                      static/highlight.pack.js static/robots.txt
@@ -73,4 +73,4 @@ test-suite play-test
 
 source-repository head
   type: git
-  location: https://github.com/tomsmeding/pastebin-haskell
+  location: https://github.com/tomsmeding/play-haskell
