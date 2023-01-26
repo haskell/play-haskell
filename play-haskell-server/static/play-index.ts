@@ -4,8 +4,10 @@ function addMediaListener(querystr: string, fallbackevent: string | null, cb: (q
 		// Invoke the callback once to get the current media setting
 		cb(queryList);
 		// Apparently older Safari doesn't have addEventListener here yet
+		// (Note that we need to cast to 'any' here to convince Typescript that
+		// no, not every browser has addEventListener on this object)
 		if ("addEventListener" in queryList) queryList.addEventListener("change", cb);
-		else if ("addListener" in queryList) queryList.addListener(function() { cb(window.matchMedia(querystr)); });
+		else if ("addListener" in (queryList as any)) (queryList as any).addListener(function() { cb(window.matchMedia(querystr)); });
 	} else if (fallbackevent != null) {
 		document.addEventListener(fallbackevent, function() { cb(null); });
 	}
