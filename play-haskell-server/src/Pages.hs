@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TypeApplications #-}
 module Pages (
-    Pages(..), pagesFromDisk
+  Pages(..), pagesFromDisk
 ) where
 
 import Data.Bits (shiftR)
@@ -24,15 +24,15 @@ pagesFromDisk = Pages <$> (renderPlayPage <$> loadTemplate "play.mustache")
 
 loadTemplate :: FilePath -> IO Mustache.Template
 loadTemplate fp = do
-    res <- Mustache.localAutomaticCompile fp
-    case res of
-        Right templ -> return templ
-        Left err -> die (show err)
+  res <- Mustache.localAutomaticCompile fp
+  case res of
+    Right templ -> return templ
+    Left err -> die (show err)
 
 renderPlayPage :: Mustache.Template -> Maybe ByteString -> ByteString
 renderPlayPage templ mcontents = Enc.encodeUtf8 $
-    Mustache.substituteValue templ $ Mustache.object
-        [(Text.pack "preload", mixinMaybeNull (jsStringEncode . decodeUtf8) mcontents)]
+  Mustache.substituteValue templ $ Mustache.object
+    [(Text.pack "preload", mixinMaybeNull (jsStringEncode . decodeUtf8) mcontents)]
 
 mixinMaybeNull :: Mustache.ToMustache b => (a -> b) -> Maybe a -> Mustache.Value
 mixinMaybeNull _ Nothing = toMustache False
