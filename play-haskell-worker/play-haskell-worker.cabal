@@ -16,10 +16,10 @@ executable play-haskell-worker
     Data.Queue
     GHCPool
   build-depends:
-    base >= 4.13 && < 4.15,
+    base >= 4.16 && < 4.17,
     snap-server-utils,
     play-haskell-types,
-    bytestring >= 0.10.12 && < 0.11,
+    bytestring >= 0.11 && < 0.12,
     containers >= 0.6.3.1 && < 0.7,
     clock >= 0.8 && < 0.9,
     filepath >= 1.4.2.1 && < 1.5,
@@ -39,7 +39,7 @@ test-suite worker-test
   hs-source-dirs:
     test
   build-depends:
-    base >= 4.13 && < 4.15,
+    base,
     snap-server-utils,
     play-haskell-types,
     aeson >= 2.0.3 && < 2.1,

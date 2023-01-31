@@ -17,10 +17,10 @@ library
   other-modules:
     PlayHaskellTypes.UTF8
   build-depends:
-    base >= 4.13 && < 4.15,
+    base >= 4.16 && < 4.17,
     snap-server-utils,
     aeson >= 2.0.3 && < 2.1,
-    bytestring >= 0.10.12 && < 0.11,
+    bytestring >= 0.11 && < 0.12,
     cryptonite >= 0.30 && < 0.31,
     memory >= 0.17 && < 0.18,
     text

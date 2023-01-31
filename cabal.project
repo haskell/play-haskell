@@ -4,18 +4,6 @@ packages:
     play-haskell-worker/
     play-haskell-server/
 
-with-compiler: ghc-8.10.7
-
--- Contains bump of attoparsec dependency upper bound, that hasn't been pushed to hackage yet
-source-repository-package
-    type: git
-    location: https://github.com/snapframework/snap-server
-    tag: 8d89c10014d8d295bfbf5419bbb8551de32d7f85
-
--- Contains fix for new conditional restrictions in Cabal 3.8(?)
--- source-repository-package
---     type: git
---     location: https://github.com/hasufell/snap-server
---     tag: 0f87bc06d36f4ac90ba4feded96b98469e095ae2
+with-compiler: ghc-9.2.5
 
 -- vim: set et sw=4 ts=8:
