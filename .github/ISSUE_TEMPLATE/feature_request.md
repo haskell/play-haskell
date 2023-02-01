@@ -1,7 +1,6 @@
 ---
 name: Feature request
 about: You have an idea for how to improve the playground
-title: "Idea: [SHORT DESCRIPTION]"
 ---
 
 ### Feature request

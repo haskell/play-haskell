@@ -1,7 +1,6 @@
 ---
 name: Bug report
 about: You have encountered a bug in the code
-title: "Bug: [SHORT DESCRIPTION]"
 ---
 
 * Operating system: [ENTER HERE, for Linux also the distro and version]
