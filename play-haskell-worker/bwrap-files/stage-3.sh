@@ -38,12 +38,12 @@ case "$command" in
 		;;
 	core)
 		cat >input.hs
-		ghcup_run ghc -ddump-simpl -ddump-to-file -o Main "${opt}" input.hs
+		ghcup_run ghc -ddump-simpl -ddump-to-file "${opt}" input.hs
 		cat input.dump-simpl
 		;;
 	asm)
 		cat >input.hs
-		ghcup_run ghc -ddump-asm -ddump-to-file -o Main "${opt}" input.hs
+		ghcup_run ghc -ddump-asm -ddump-to-file "${opt}" input.hs
 		cat input.dump-asm
 		;;
 
