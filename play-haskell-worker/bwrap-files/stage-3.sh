@@ -5,9 +5,9 @@ cd "$(dirname "$0")"
 
 # Read ghc output FD from command-line arguments
 if [[ $# -ne 1 ]]; then
-  echo >&2 "Usage: $0 <ghc_out_fd>"
-  echo >&2 "This script should be run within bwrap by ./stage-2.sh"
-  exit 1
+	echo >&2 "Usage: $0 <ghc_out_fd>"
+	echo >&2 "This script should be run within bwrap by ./stage-2.sh"
+	exit 1
 fi
 ghc_out_fd="$1"
 
@@ -21,30 +21,48 @@ if [[ "${version//[0-9.]/}" != "" ]]; then
 	exit 1
 fi
 
-if ! ghcup --offline whereis ghc "${version}" 2>/tmp/null 1>/tmp/null ; then
+if ! ghcup --no-verbose --offline whereis ghc "${version}" 2>/tmp/null 1>/tmp/null ; then
 	echo >&2 "Version ${version} not available"
 	exit 1
 fi
 
 function ghcup_run() {
-	ghcup --offline run --ghc "$version" -- "$@" >/tmp/null 2>&"$ghc_out_fd"
+	ghcup --no-verbose --offline run --ghc "$version" -- "$@" >/tmp/null 2>&"$ghc_out_fd"
 }
+
+# arguments: ghc options (excluding -O*)
+function write_cabal_project() {
+	cat >cabal.project <<EOF
+packages: .
+package sandbox
+    ghc-options: ${opt} $@
+EOF
+}
+
+cp -rv dist-newstyle-bind dist-newstyle
+cp -rv dot-cabal-bind ~/.cabal
 
 case "$command" in
 	run)
-		cat >input.hs
-		ghcup_run ghc -rtsopts -o Main "${opt}" input.hs
-		./Main +RTS -M500m -RTS
+		cat >Main.hs
+		cpp -traditional -DAS_EXECUTABLE sandbox.cabal.in | grep -v '^#' >sandbox.cabal
+		write_cabal_project
+		ghcup_run cabal build --offline
+		"$(ghcup_run cabal list-bin thing)" +RTS -M500m -RTS
 		;;
 	core)
-		cat >input.hs
-		ghcup_run ghc -ddump-simpl -ddump-to-file "${opt}" input.hs
-		cat input.dump-simpl
+		cat >Main.hs
+		write_cabal_project -ddump-simpl -ddump-to-file
+		cpp -traditional -DAS_EXECUTABLE sandbox.cabal.in | grep -v '^#' >sandbox.cabal
+		ghcup_run cabal build --offline
+		cat Main.dump-simpl
 		;;
 	asm)
-		cat >input.hs
-		ghcup_run ghc -ddump-asm -ddump-to-file "${opt}" input.hs
-		cat input.dump-asm
+		cat >Main.hs
+		write_cabal_project -ddump-asm -ddump-to-file
+		cpp -traditional -DAS_EXECUTABLE sandbox.cabal.in | grep -v '^#' >sandbox.cabal
+		ghcup_run cabal build --offline
+		cat Main.dump-asm
 		;;
 
 	*)
@@ -52,3 +70,5 @@ case "$command" in
 		exit 1
 		;;
 esac
+
+# vim: set sw=4 ts=4 noet:
