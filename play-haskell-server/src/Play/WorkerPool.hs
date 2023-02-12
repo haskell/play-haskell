@@ -46,6 +46,7 @@ import Data.Queue (Queue)
 import Data.Queue.Priority (PQueue)
 import qualified Data.Queue.Priority as PQ
 import qualified Data.Queue as Queue
+import LinuxStats
 import PlayHaskellTypes
 import PlayHaskellTypes.Sign (PublicKey, SecretKey)
 import qualified Play.WorkerPool.WorkerReqs as Worker
@@ -115,6 +116,9 @@ data Status = Status
   , statJobQueueLength :: Int
   , statEventQueueLength :: Int
   , statNow :: TimeSpec  -- ^ Current time to compare Disabled times with
+  , statUptime :: TimeSpec  -- ^ Number of seconds since boot
+  , statLinuxLoad :: (Double, Double, Double)
+  , statCPUusage :: (Double, TimeSpec)  -- ^ In [0, ncpus], measured over given interval
   }
   deriving (Show, Generic)
 
@@ -137,16 +141,22 @@ instance J.ToJSON TimeSpecJSON where
     fromString "sec" J..= s <> fromString "nsec" J..= ns
 
 instance J.ToJSON Status where
-  toJSON (Status workers jql eql now) =
+  toJSON (Status workers jql eql now up load cpu) =
     J.object [fromString "workers" J..= workers
              ,fromString "job_queue_length" J..= jql
              ,fromString "event_queue_length" J..= eql
-             ,fromString "now" J..= TimeSpecJSON now]
-  toEncoding (Status workers jql eql now) =
+             ,fromString "now" J..= TimeSpecJSON now
+             ,fromString "uptime" J..= TimeSpecJSON up
+             ,fromString "loadavg" J..= load
+             ,fromString "cpuusage" J..= fmap TimeSpecJSON cpu]
+  toEncoding (Status workers jql eql now up load cpu) =
     JE.pairs (fromString "workers" J..= workers
            <> fromString "job_queue_length" J..= jql
            <> fromString "event_queue_length" J..= eql
-           <> fromString "now" J..= TimeSpecJSON now)
+           <> fromString "now" J..= TimeSpecJSON now
+           <> fromString "uptime" J..= TimeSpecJSON up
+           <> fromString "loadavg" J..= load
+           <> fromString "cpuusage" J..= fmap TimeSpecJSON cpu)
 
 instance J.ToJSON WorkerStatus where
   toJSON (WorkerStatus (Worker.Addr host pkey) disabled versions ncaps toberemoved) =
@@ -620,10 +630,16 @@ collectStatus wpool state = do
   jqlen <- readTVarIO (wpNumQueuedJobs wpool)
   eqlen <- PQ.length <$> readTVarIO (wpEventQueue wpool)
   now <- Clock.getTime Clock.Monotonic
+  uptime <- getUptime
+  load <- getLoad
+  cpuusage <- getCPUusage
   return Status { statWorkers = map makeWorkerStatus (Map.elems (psWorkers state))
                 , statJobQueueLength = jqlen
                 , statEventQueueLength = eqlen
-                , statNow = now }
+                , statNow = now
+                , statUptime = uptime
+                , statLinuxLoad = load
+                , statCPUusage = cpuusage }
   where
     removeset = psToBeRemoved state
 

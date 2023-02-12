@@ -33,6 +33,10 @@ function performXHR(method, path, responseType, successcb /* text/json => void *
 
 function formatSeconds(secs) {
   var res = "";
+  if (secs >= 24 * 3600) {
+    res += ~~(secs / (24 * 3600)) + "d";
+    secs %= 24 * 3600;
+  }
   if (secs >= 3600) {
     res += ~~(secs / 3600) + "h";
     secs %= 3600;
@@ -44,8 +48,8 @@ function formatSeconds(secs) {
   return res + secs;  // not sure what to do with negative values
 }
 
-// Returns a <span>
-function formatTimeSpec(ts_in) {
+// Puts content in the given <span>
+function formatTimeSpecInto(span, ts_in) {
   var ts = {sec: ts_in.sec, nsec: ts_in.nsec};  // make a copy so we can mutate
   while (ts.nsec < 0) { ts.sec--; ts.nsec += 1e9; }
   while (ts.nsec >= 1e9) { ts.sec++; ts.nsec -= 1e9; }
@@ -61,9 +65,14 @@ function formatTimeSpec(ts_in) {
   alt += nsec_str;
   alt += "s";
 
-  var span = document.createElement("span");
   span.textContent = display;
   span.title = alt;
+}
+
+// Returns a <span>
+function formatTimeSpec(ts_in) {
+  var span = document.createElement("span");
+  formatTimeSpecInto(span, ts_in);
   return span;
 }
 
@@ -74,6 +83,10 @@ function timeSpecSubtract(a, b) {
     res.sec++;
   }
   return res;
+}
+
+function formatPercentage(fraction) {
+  return Math.round(fraction * 10) / 10 + "%";
 }
 
 function callRefreshWorker(host) {
@@ -104,6 +117,10 @@ function populateStatusFromResponse(response) {
   document.getElementById("jobqueuelength").textContent = response.job_queue_length;
   document.getElementById("eventqueuelength").textContent = response.event_queue_length;
   document.getElementById("numworkers").textContent = response.workers.length;
+  formatTimeSpecInto(document.getElementById("uptime"), response.uptime);
+  document.getElementById("loadavg").textContent = response.loadavg.join(" ");
+  document.getElementById("cpuusage").textContent = formatPercentage(response.cpuusage[0]);
+  formatTimeSpecInto(document.getElementById("cpuusagetime"), response.cpuusage[1]);
   var wlist = document.getElementById("workers-list");
   wlist.textContent = "";
   for (var i = 0; i < response.workers.length; i++) {
@@ -327,9 +344,17 @@ html {
     <input type="text" id="autorefreshsec" size="3" value="10">
     seconds)
   </span><br>
-  Job queue length: <span id="jobqueuelength"></span><br>
-  Event queue length: <span id="eventqueuelength"></span><br>
-  Workers: <span id="numworkers"></span>
+  <table><tbody><tr>
+    <td>
+      Job queue length: <span id="jobqueuelength"></span><br>
+      Event queue length: <span id="eventqueuelength"></span><br>
+      Workers: <span id="numworkers"></span>
+    </td><td style="padding-left: 30px">
+      Uptime: <span id="uptime"></span><br>
+      Load avg: <span id="loadavg"></span><br>
+      CPU usage: <span id="cpuusage"></span> (avg over <span id="cpuusagetime"></span>)
+    </td>
+  </tr></tbody></table>
   <div id="workers-list"></div>
 </div>
 
