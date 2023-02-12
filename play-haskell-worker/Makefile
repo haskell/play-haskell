@@ -1,9 +1,12 @@
-.PHONY: all chroot
+.PHONY: all chroot builders
 
-all: chroot bwrap-files/systemd-run-shim
+all: chroot bwrap-files/systemd-run-shim builders
 
 chroot: bwrap-files/ubuntu-base
 	bwrap --bind bwrap-files/ubuntu-base / --ro-bind /etc/resolv.conf /etc/resolv.conf --tmpfs /tmp --dev /dev --proc /proc --new-session --unshare-all --share-net --die-with-parent --gid 0 --uid 0 --chdir / --ro-bind bwrap-files/chroot-initialise.sh /tmp/chinit.sh /bin/bash /tmp/chinit.sh
+
+builders:
+	bwrap-files/mkallbuildscripts.sh
 
 bwrap-files/ubuntu-base:
 	mkdir '$@'

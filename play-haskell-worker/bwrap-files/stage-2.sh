@@ -29,6 +29,8 @@ args=(
   --ro-bind "${ghcup_base}/bin"   "${ghcup_base}/bin"
   --ro-bind "${ghcup_base}/ghc"   "${ghcup_base}/ghc"
   --ro-bind "${ghcup_base}/cache" "${ghcup_base}/cache"
+  --ro-bind "${PWD}/builderprojs" "/builderprojs"
+  --ro-bind "${PWD}/builders" "/builders"
   --setenv PATH "/bin:/usr/bin:${ghcup_base}/bin"
   --setenv GHCUP_INSTALL_BASE_PREFIX "$(dirname "${ghcup_base}")"
   --setenv GHCUP_SKIP_UPDATE_CHECK ""

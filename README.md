@@ -22,7 +22,7 @@ currently (2022-08), Ubuntu GHCs seem to work fine on Arch Linux, for example.
 
 ```bash
 # Note: earlyoom is only advised if you're deploying; not necessary on your local machine
-sudo apt update && sudo apt install earlyoom bubblewrap make npm
+sudo apt update && sudo apt install earlyoom bubblewrap make npm jq
 # Change "-r 60" to "-r 3600" in /etc/default/earlyoom (less spammy logs)
 sudo systemctl restart earlyoom
 
@@ -35,7 +35,7 @@ sudo apt install build-essential curl libffi-dev libffi7 libgmp-dev libgmp10 lib
 
 ```bash
 # Note: earlyoom is only advised if you're deploying; not necessary on your local machine
-sudo pacman -Syu earlyoom bubblewrap make npm
+sudo pacman -Syu earlyoom bubblewrap make npm jq
 sudo systemctl enable --now earlyoom
 
 sudo pacman -S base-devel
@@ -62,7 +62,16 @@ cabal build
 To build the worker (that the server will connect to, and that runs user code (in a sandbox)):
 ```bash
 cd play-haskell-worker
-make  # this one is interactive, select en_US.UTF-8
+make  # Or equivalently:
+      #   make chroot ; make bwrap-files/systemd-run-shim ; make builders
+      # 'make chroot' is interactive, select en_US.UTF-8.
+      # 'make builders' takes a long time because it builds all packages that should
+      #   be available on the playground with all GHCs you have installed with GHCup.
+      #   If you want just a few of those GHCs to work in the playground, manually run:
+      #     bwrap-files/mkbuildscript.sh 9.2.5
+      #     bwrap-files/mkbuildscript.sh 8.10.7
+      #   etc., once for each version you want to be available. Change available
+      # packages in bwrap-files/mkbuildscript.sh .
 cabal build
 ```
 

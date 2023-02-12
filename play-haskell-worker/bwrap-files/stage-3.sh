@@ -21,29 +21,25 @@ if [[ "${version//[0-9.]/}" != "" ]]; then
 	exit 1
 fi
 
-if ! ghcup --offline whereis ghc "${version}" 2>/tmp/null 1>/tmp/null ; then
+if [[ ! -f /builders/build-"${version}".sh ]]; then
 	echo >&2 "Version ${version} not available"
 	exit 1
 fi
 
-function ghcup_run() {
-	ghcup --offline run --ghc "$version" -- "$@" >/tmp/null 2>&"$ghc_out_fd"
-}
-
 case "$command" in
 	run)
-		cat >input.hs
-		ghcup_run ghc -rtsopts -o Main "${opt}" input.hs
+		cat >Main.hs
+		/builders/build-"${version}".sh "${opt}" Main.hs >/tmp/null 2>&"$ghc_out_fd"
 		./Main +RTS -M500m -RTS
 		;;
 	core)
 		cat >input.hs
-		ghcup_run ghc -ddump-simpl -ddump-to-file "${opt}" input.hs
+		/builders/build-"${version}".sh -ddump-simpl -ddump-to-file "${opt}" input.hs >/tmp/null 2>&"$ghc_out_fd"
 		cat input.dump-simpl
 		;;
 	asm)
 		cat >input.hs
-		ghcup_run ghc -ddump-asm -ddump-to-file "${opt}" input.hs
+		/builders/build-"${version}".sh -ddump-asm -ddump-to-file "${opt}" input.hs >/tmp/null 2>&"$ghc_out_fd"
 		cat input.dump-asm
 		;;
 
