@@ -66,22 +66,23 @@ args=(
   --ro-bind "${chroot}/usr/include" /usr/include
   --ro-bind "${chroot}/lib" /lib
   --ro-bind "${chroot}/lib64" /lib64
+  --ro-bind /etc/resolv.conf /etc/resolv.conf
   --dir "${ghcup_base}"
   --ro-bind "${ghcup_base}/bin"   "${ghcup_base}/bin"
   --ro-bind "${ghcup_base}/ghc"   "${ghcup_base}/ghc"
   --ro-bind "${ghcup_base}/cache" "${ghcup_base}/cache"
   --ro-bind "${HOME}/.cabal" "${HOME}/.cabal"
+  --bind "${HOME}/.cabal/packages" "${HOME}/.cabal/packages"  # should be safe to modify this? Just stores downloads
   --bind "${workdir}" /builderprojs
   --bind "${projdir}" /project
-  --ro-bind "${PWD}/builders" /tmp/builders
   --setenv PATH "/bin:/usr/bin:${ghcup_base}/bin"
   --setenv GHCUP_INSTALL_BASE_PREFIX "$(dirname "${ghcup_base}")"
   --setenv GHCUP_SKIP_UPDATE_CHECK ""
   --proc /proc
   --chdir "/tmp"
   --new-session
-  # below is same as --unshare-all, but without --unshare-net; we need network for cabal to download packages
-  --unshare-user-try --unshare-ipc --unshare-pid --unshare-uts --unshare-cgroup-try
+  --unshare-all
+  --share-net
   --die-with-parent
   --file 4 "/tmp/script.sh"
   /bin/bash "/tmp/script.sh"
