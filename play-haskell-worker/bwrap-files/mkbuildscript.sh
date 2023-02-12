@@ -24,6 +24,17 @@ mkdir -p "$projdir"
 mkdir -p "$cabaldir"
 mkdir -p "$outdir"
 
+function build_depends_for() {
+  case "$1" in
+    8.6.5)
+      echo "aeson, array, assoc, async, attoparsec, base, base16, base64, bifunctors, binary, bytestring, Cabal, comonad, containers, contravariant, deepseq, directory, distributive, dlist, effectful, exceptions, filepath, generically, ghc-boot, ghc-boot-th, ghc-heap, ghci, ghc-prim, hashable, haskeline, hpc, indexed-traversable, integer-gmp, integer-logarithms, libiserv, monad-control, mtl, parsec, pretty, primitive, process, QuickCheck, random, rts, safe-exceptions, scientific, semialign, semigroupoids, stm, strict, template-haskell, terminfo, text, text-short, th-abstraction, these, time, transformers, transformers-base, unix, unliftio, unliftio-core, unordered-containers, uuid-types, vector, vector-stream, witherable, xhtml"
+      ;;
+    *)
+      echo "aeson, array, assoc, async, attoparsec, base, base16, base64, bifunctors, binary, bytestring, Cabal, comonad, containers, contravariant, deepseq, directory, distributive, dlist, effectful, effectful-core, exceptions, filepath, generically, ghc-boot, ghc-boot-th, ghc-heap, ghci, ghc-prim, hashable, haskeline, hpc, indexed-traversable, integer-gmp, integer-logarithms, libiserv, monad-control, mtl, parsec, pretty, primitive, process, QuickCheck, random, rts, safe-exceptions, scientific, semialign, semigroupoids, stm, strict, template-haskell, terminfo, text, text-short, th-abstraction, these, time, transformers, transformers-base, unix, unliftio, unliftio-core, unordered-containers, uuid-types, vector, vector-stream, witherable, xhtml"
+      ;;
+  esac
+}
+
 cat >"$projdir/sandbox.cabal" <<EOF
 cabal-version: 2.0
 name:          sandbox
@@ -34,7 +45,7 @@ executable thing
   hs-source-dirs:   .
   default-language: Haskell2010
   ghc-options:      -Wall -rtsopts
-  build-depends: aeson, array, assoc, async, attoparsec, base, base16, base64, bifunctors, binary, bytestring, Cabal, comonad, containers, contravariant, deepseq, directory, distributive, dlist, effectful, effectful-core, exceptions, filepath, generically, ghc-boot, ghc-boot-th, ghc-heap, ghci, ghc-prim, hashable, haskeline, hpc, indexed-traversable, integer-gmp, integer-logarithms, libiserv, monad-control, mtl, parsec, pretty, primitive, process, QuickCheck, random, rts, safe-exceptions, scientific, semialign, semigroupoids, stm, strict, template-haskell, terminfo, text, text-short, th-abstraction, these, time, transformers, transformers-base, unix, unliftio, unliftio-core, unordered-containers, uuid-types, vector, vector-stream, witherable, xhtml
+  build-depends: $(build_depends_for "$ghcversion")
   -- shorter dep list that only builds splitmix and random:
   -- build-depends: array, base, binary, bytestring, Cabal, containers, deepseq, directory, exceptions, filepath, ghc-boot, ghc-boot-th, ghc-heap, ghci, ghc-prim, haskeline, hpc, integer-gmp, libiserv, mtl, parsec, pretty, process, random, rts, stm, template-haskell, terminfo, text, time, transformers, unix, xhtml
 EOF
