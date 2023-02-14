@@ -75,6 +75,13 @@ merge (x:xs) (y:ys)
   | otherwise       = y : merge (x:xs) ys`
 ];
 
+// If a version is not present in this dictionary, just display it as-is
+const ghcReadableVersion: Record<string, string> = {
+	"9.6.0.20230111": "9.6.1-alpha1",
+	"9.6.0.20230128": "9.6.1-alpha2",
+	"9.6.0.20230210": "9.6.1-alpha3",
+};
+
 // defined in a <script> block in play.mustache
 declare var preload_script: string | null;
 const snippet = preload_script != null ? preload_script : example_snippets[Math.floor(Math.random() * example_snippets.length)];
@@ -379,7 +386,8 @@ window.addEventListener("load", function() {
 		for (let i = 0; i < versions.length; i++) {
 			const opt: HTMLOptionElement = document.createElement("option");
 			opt.value = versions[i];
-			opt.textContent = "GHC " + versions[i];
+			const readable = versions[i] in ghcReadableVersion ? ghcReadableVersion[versions[i]] : versions[i];
+			opt.textContent = "GHC " + readable;
 			if (versions[i] == defaultGHCversion) opt.setAttribute("selected", "");
 			sel.appendChild(opt);
 		}
