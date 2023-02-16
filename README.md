@@ -11,7 +11,7 @@ Because the GHCup installation from the host machine will be used as-is in the
 containers of the workers, and because said containers run Ubuntu, the desired
 GHC versions must be installed as follows with `ghcup`:
 
-    ghcup install ghc -p x86_64-deb10-linux 8.10.7
+    ghcup -p x86_64-deb10-linux install ghc 8.10.7
 
 This ensures that the GHCs will work in the Ubuntu container. Note that
 currently (2022-08), Ubuntu GHCs seem to work fine on Arch Linux, for example.
