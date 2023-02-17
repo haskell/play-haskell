@@ -149,8 +149,11 @@ parseRequest method comps = case (method, comps) of
 handleRequest :: GlobalContext -> Context -> WhatRequest -> Snap ()
 handleRequest gctx ctx = \case
   Index -> do
+    req <- getRequest
     renderer <- liftIO $ getPageFromGCtx pPlay gctx
-    writeHTML (renderer Nothing)
+    case Map.lookup "code" (rqQueryParams req) of
+      Just (source : _) -> writeHTML (renderer (Just source))
+      _ -> writeHTML (renderer Nothing)
 
   PostedIndex -> do
     req <- getRequest
