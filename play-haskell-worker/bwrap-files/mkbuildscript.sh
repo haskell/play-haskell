@@ -29,7 +29,7 @@ function build_depends_for() {
     8.6.5)
       echo "aeson, array, assoc, async, attoparsec, base, base16, base64, bifunctors, binary, bytestring, Cabal, comonad, containers, contravariant, deepseq, directory, distributive, dlist, effectful, exceptions, filepath, generically, ghc-boot, ghc-boot-th, ghc-heap, ghci, ghc-prim, hashable, haskeline, hpc, indexed-traversable, integer-gmp, integer-logarithms, libiserv, monad-control, mtl, parsec, pretty, primitive, process, QuickCheck, random, rts, safe-exceptions, scientific, semialign, semigroupoids, stm, strict, template-haskell, terminfo, text, text-short, th-abstraction, these, time, transformers, transformers-base, unix, unliftio, unliftio-core, unordered-containers, uuid-types, vector, vector-stream, witherable, xhtml"
       ;;
-    9.6.0.20230128)
+    9.6.0.2*)
       echo "array, base, binary, bytestring, Cabal, containers, deepseq, directory, exceptions, filepath, ghc-boot, ghc-boot-th, ghc-heap, ghci, ghc-prim, haskeline, hpc, integer-gmp, libiserv, mtl, parsec, pretty, primitive, process, random, rts, stm, template-haskell, terminfo, text, time, transformers, transformers-base, unix, vector, xhtml"
       ;;
     *)
@@ -104,6 +104,8 @@ args=(
 
 bwrap "${args[@]}" 4<<EOF
 cd /project
+ghcup --no-verbose --offline run --ghc '$ghcversion' -- \\
+  cabal --store-dir=/builderprojs/ghc-'$ghcversion'-cabal/store --logs-dir=/builderprojs/ghc-'$ghcversion'-cabal/logs freeze
 ghcup --no-verbose --offline run --ghc '$ghcversion' -- \\
   cabal --store-dir=/builderprojs/ghc-'$ghcversion'-cabal/store --logs-dir=/builderprojs/ghc-'$ghcversion'-cabal/logs build
 EOF
