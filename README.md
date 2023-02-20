@@ -114,3 +114,33 @@ On `example.com/admin` the server exposes a simple admin interface through which
 ## Storage
 
 Pasted snippets are stored in an SQLite database in the file `pastes.db`.
+
+## API
+
+The playground web client uses a simple API to submit jobs to the server; this API can also be used by others.
+Be aware that there is simple IP-based rate-limiting imposed on job requests; you might get back [429](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429) responses if you submit too many jobs.
+
+The API is as follows: `POST` to `/submit` on the playground server with the following JSON content:
+```jsonc
+{
+  "code": "... the Haskell code ...",
+  "version": "9.2.4",  // or "8.10.7", or "9.6.0.20230210", etc.
+  "opt": "O1",  // "O0", "O1" or "O2"
+  "output: "run"  // "run", "core" or "asm"
+}
+```
+
+The response will be a JSON object (with `Content-Type: text/json`) that has one of the following forms:
+```jsonc
+{"err": "... an error message ..."}
+```
+or
+```jsonc
+{
+  "ec": 0,  // exit code; 0 on success
+  "ghcout": "",  // stderr output from GHC; GHC warnings/error end up here
+  "sout": "42\n",  // stdout from the program, empty if it didn't get to run
+  "serr": "",  // stderr from the program, empty if it didn't get to run
+  "timesecs": 0.595881831  // time taken to run the job on the worker, excludes server queueing time
+}
+```
