@@ -1,7 +1,8 @@
 # Haskell Playground
 
 There's lots still to do, see
-[TODO.txt](https://github.com/tomsmeding/play-haskell/blob/master/TODO.txt).
+[the issue list](https://github.com/tomsmeding/play-haskell/issues) (as well as
+[TODO.txt](https://github.com/tomsmeding/play-haskell/blob/master/TODO.txt) for some further ideas).
 If you want to contribute, perhaps connect with me (either via an issue or on
 [IRC](https://wiki.haskell.org/IRC_channel)) before writing lots of code.
 
@@ -15,6 +16,8 @@ GHC versions must be installed as follows with `ghcup`:
 
 This ensures that the GHCs will work in the Ubuntu container. Note that
 currently (2022-08), Ubuntu GHCs seem to work fine on Arch Linux, for example.
+
+(This seems to be necessary with certain GHC versions only, and it's probably related to [GHC #22268](https://gitlab.haskell.org/ghc/ghc/-/issues/22268).)
 
 ## Installation
 
