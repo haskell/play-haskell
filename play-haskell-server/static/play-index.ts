@@ -107,8 +107,6 @@ addMediaListener("(prefers-color-scheme: dark)", null, function(ql) {
 	else editor.setTheme("ace/theme/github");
 });
 
-let currentChallenge: string | null = null;
-
 type json =
 	| string
 	| number
@@ -117,13 +115,9 @@ type json =
 	| json[]
 	| {[key: string]: json};
 
-enum Runner {
-	Run = 0,
-	Core = 1,
-	Asm = 2
-}
+type Runner = "run" | "core" | "asm";
 
-let lastRunKind: Runner = Runner.Run;
+let lastRunKind: Runner = "run";
 
 const defaultGHCversion: string = "9.2.5";
 
@@ -186,49 +180,16 @@ function getVersions(cb: (response: string) => void) {
 	});
 }
 
-function refreshChallenge(cb?: () => void) {
-	performXHR("GET", "/challenge", "text",
-		function(challenge) {
-			if (typeof challenge == "string") {
-				currentChallenge = challenge;
-				if (cb) cb();
-			} else {
-				alert("Error getting challenge for submitting run requests (not a string: " + challenge + ")");
-			}
-		}, function(xhr) {
-			alert("Error getting challenge for submitting run requests (status " + xhr.status + "): " + xhr.responseText);
-		}
-	);
-}
-
-function sendRun(source: string, version: string, opt: string, run: Runner, cb: (response: json) => void, retryChallenge: boolean = true) {
-	const payload: string = JSON.stringify({challenge: currentChallenge, source, version, opt});
+function sendRun(source: string, version: string, opt: string, run: Runner, cb: (response: json) => void) {
+	const payload: string = JSON.stringify({code: source, version, opt, output: run});
 	setWorking(true);
-	let ep: string = null;
-	switch (run) {
-		case Runner.Run:
-			ep = "/compile/run"
-			break;
-		case Runner.Core:
-			ep = "/compile/core"
-			break;
-		case Runner.Asm:
-			ep = "/compile/asm"
-			break;
-	}
-	performXHR("POST", ep, "json",
+	performXHR("POST", "/submit", "json",
 		function(res: json) {
 			setWorking(false);
 			cb(res);
 		}, function(xhr) {
-			if (retryChallenge) {
-				refreshChallenge(function() {
-					sendRun(source, version, opt, run, cb, false);
-				});
-			} else {
-				setWorking(false);
-				alert("Failed to submit run job (status " + xhr.status + "): " + xhr.responseText);
-			}
+			setWorking(false);
+			alert("Failed to submit run job (status " + xhr.status + "): " + xhr.responseText);
 		}, "text/plain", payload
 	);
 }
@@ -393,9 +354,6 @@ window.addEventListener("load", function() {
 		}
 	});
 
-	refreshChallenge();
-	setInterval(refreshChallenge, 12 * 3600 * 1000);  // once per half a day (i.e. half the server refresh interval)
-
 	const sel: HTMLElement = document.getElementById("optselect");
 	["O0", "O1", "O2"].forEach(o => {
 		const opt: HTMLOptionElement = document.createElement("option");
@@ -406,9 +364,9 @@ window.addEventListener("load", function() {
 	});
 });
 
-document.getElementById("btn-run").addEventListener('click', () => { doRun(Runner.Run) });
-document.getElementById("btn-core").addEventListener('click', () => { doRun(Runner.Core) });
-document.getElementById("btn-asm").addEventListener('click', () => { doRun(Runner.Asm) });
+document.getElementById("btn-run").addEventListener('click', () => { doRun("run") });
+document.getElementById("btn-core").addEventListener('click', () => { doRun("core") });
+document.getElementById("btn-asm").addEventListener('click', () => { doRun("asm") });
 document.getElementById("btn-save").addEventListener('click', () => { doSave() });
 handleSeparatorDragEvents();
 addMediaListener("screen and (max-width: 800px)", "resize", function(ql) {

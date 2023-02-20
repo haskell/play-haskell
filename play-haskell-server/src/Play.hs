@@ -61,6 +61,22 @@ instance J.FromJSON ClientJobReq where
                  <*> (fromMaybe O1 <$> (v J..:? fromString "opt"))
   parseJSON val = J.prependFailure "parsing ClientJobReq failed, " (J.typeMismatch "Object" val)
 
+data ClientSubmitReq = ClientSubmitReq
+  { csrCode :: Text
+  , csrVersion :: Version
+  , csrOpt :: Optimisation
+  , csrOutput :: Command }
+  deriving (Show)
+
+instance J.FromJSON ClientSubmitReq where
+  parseJSON (J.Object v) =
+    ClientSubmitReq
+      <$> v J..: fromString "code"
+      <*> v J..: fromString "version"
+      <*> (fromMaybe O1 <$> (v J..:? fromString "opt"))
+      <*> v J..: fromString "output"
+  parseJSON val = J.prependFailure "parsing ClientSubmitReq failed, " (J.typeMismatch "Object" val)
+
 
 saveKeyLength :: Int
 saveKeyLength = 8
@@ -111,8 +127,9 @@ data WhatRequest
   | Save
   | Versions
   | CurrentChallenge
-  | RunGHC Command
+  | Submit
   | AdminReq AdminReq
+  | LegacyRunGHC Command
   | LegacyRedirect ByteString  -- ^ to destination URL
   deriving (Show)
 
@@ -132,15 +149,16 @@ parseRequest method comps = case (method, comps) of
   (POST, ["save"]) -> Just Save
   (GET, ["versions"]) -> Just Versions
   (GET, ["challenge"]) -> Just CurrentChallenge
-  (POST, ["compile", "run"]) -> Just (RunGHC CRun)
-  (POST, ["compile", "core"]) -> Just (RunGHC CCore)
-  (POST, ["compile", "asm"]) -> Just (RunGHC CAsm)
+  (POST, ["submit"]) -> Just Submit
   (GET, ["admin"]) -> Just (AdminReq ARDashboard)
   (GET, ["admin", "status"]) -> Just (AdminReq ARStatus)
   (PUT, ["admin", "worker"]) -> Just (AdminReq ARAddWorker)
   (DELETE, ["admin", "worker"]) -> Just (AdminReq ARRemoveWorker)
   (POST, ["admin", "worker", "refresh"]) -> Just (AdminReq ARRefreshWorker)
 
+  (POST, ["compile", "run"]) -> Just (LegacyRunGHC CRun)
+  (POST, ["compile", "core"]) -> Just (LegacyRunGHC CCore)
+  (POST, ["compile", "asm"]) -> Just (LegacyRunGHC CAsm)
   (GET, ["play"]) -> Just (LegacyRedirect "/")
   (GET, ["play", "paste", key]) -> Just (LegacyRedirect ("/saved/" <> key))
   (GET, ["play", "paste", key, _]) -> Just (LegacyRedirect ("/saved/" <> key))
@@ -202,6 +220,7 @@ handleRequest gctx ctx = \case
     versions <- liftIO (WP.getAvailableVersions (ctxPool ctx))
     writeJSON versions
 
+  -- TODO: remove this. This is present only to let the upgrade to /submit go a bit more smoothly.
   CurrentChallenge -> do
     modifyResponse (setContentType (Char8.pack "text/plain"))
     key <- liftIO $ servingChallenge (ctxChallengeKey ctx)
@@ -209,7 +228,27 @@ handleRequest gctx ctx = \case
 
   -- Open a local exit-early block instead of using Snap's early-exit
   -- functionality, because this is more local.
-  RunGHC runner -> execExitEarlyT $ do
+  Submit -> execExitEarlyT $ do
+    req <- lift getRequest
+    isSpam <- liftIO $ recordCheckSpam PlayRunStart (gcSpam gctx) (rqClientAddr req)
+    when isSpam $ do
+      lift (httpError 429 "Please slow down a bit, you're rate limited")
+      exitEarly ()
+
+    postdata <- getRequestBodyEarlyExit 1000_000 "Program too large"
+
+    csr <-
+      case J.decodeStrict' postdata of
+        Just request -> return request
+        _ -> do lift (httpError 400 "Invalid JSON")
+                exitEarly ()
+
+    handleSubmitRequest req csr
+
+  -- Open a local exit-early block instead of using Snap's early-exit
+  -- functionality, because this is more local.
+  -- TODO: remove this. This is present only to let the upgrade to /submit go a bit more smoothly. Then also remove /challenge.
+  LegacyRunGHC runner -> execExitEarlyT $ do
     req <- lift getRequest
     isSpam <- liftIO $ recordCheckSpam PlayRunStart (gcSpam gctx) (rqClientAddr req)
     when isSpam $ do
@@ -229,28 +268,11 @@ handleRequest gctx ctx = \case
       False -> do lift (httpError 400 "Invalid challenge, request again")
                   exitEarly ()
 
-    let runreq = RunRequest { runreqCommand = runner
-                            , runreqSource = source
-                            , runreqVersion = version
-                            , runreqOpt = opt }
-
-    mresult <- liftIO $ WP.submitJob (ctxPool ctx) runreq
-    result <- case mresult of
-      Just r -> return r
-      Nothing -> do lift (httpError 503 "Service busy, please try again later")
-                    exitEarly ()
-
-    -- Record the run as a spam-checking action, but don't actually act
-    -- on the return value yet; that will come on the next user action
-    let timeoutSecs = fromIntegral runTimeoutMicrosecs / 1e6
-        timeTakenSecs = case result of
-          RunResponseErr RETimeOut -> timeoutSecs
-          RunResponseErr REBackend -> timeoutSecs / 6  -- shrug
-          RunResponseOk{} -> runresTimeTakenSecs result
-        timeFraction = timeTakenSecs / timeoutSecs
-    _ <- liftIO $ recordCheckSpam (PlayRunTimeoutFraction timeFraction) (gcSpam gctx) (rqClientAddr req)
-
-    lift $ writeJSON result
+    handleSubmitRequest req
+      ClientSubmitReq { csrCode = source
+                      , csrVersion = version
+                      , csrOpt = opt
+                      , csrOutput = runner }
 
   AdminReq adminreq -> do
     getBasicAuthCredentials <$> getRequest >>= \case
@@ -261,6 +283,31 @@ handleRequest gctx ctx = \case
       _ -> modifyResponse (requireBasicAuth "admin")
 
   LegacyRedirect url -> redirect' url 301  -- moved permanently
+  where
+    handleSubmitRequest :: Request -> ClientSubmitReq -> ExitEarlyT () Snap ()
+    handleSubmitRequest req ClientSubmitReq {csrCode=source, csrVersion=version, csrOpt=opt, csrOutput=submitType} = do
+      let runreq = RunRequest { runreqCommand = submitType
+                              , runreqSource = source
+                              , runreqVersion = version
+                              , runreqOpt = opt }
+
+      mresult <- liftIO $ WP.submitJob (ctxPool ctx) runreq
+      result <- case mresult of
+        Just r -> return r
+        Nothing -> do lift (httpError 503 "Service busy, please try again later")
+                      exitEarly ()
+
+      -- Record the run as a spam-checking action, but don't actually act
+      -- on the return value yet; that will come on the next user action
+      let timeoutSecs = fromIntegral runTimeoutMicrosecs / 1e6
+          timeTakenSecs = case result of
+            RunResponseErr RETimeOut -> timeoutSecs
+            RunResponseErr REBackend -> timeoutSecs / 6  -- shrug
+            RunResponseOk{} -> runresTimeTakenSecs result
+          timeFraction = timeTakenSecs / timeoutSecs
+      _ <- liftIO $ recordCheckSpam (PlayRunTimeoutFraction timeFraction) (gcSpam gctx) (rqClientAddr req)
+
+      lift $ writeJSON result
 
 data AddWorkerRequest = AddWorkerRequest
   { awreqHostname :: String
