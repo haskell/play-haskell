@@ -1,8 +1,8 @@
 # Haskell Playground
 
 There's lots still to do, see
-[the issue list](https://github.com/tomsmeding/play-haskell/issues) (as well as
-[TODO.txt](https://github.com/tomsmeding/play-haskell/blob/master/TODO.txt) for some further ideas).
+[the issue list](https://github.com/haskell/play-haskell/issues) (as well as
+[TODO.txt](https://github.com/haskell/play-haskell/blob/master/TODO.txt) for some further ideas).
 If you want to contribute, perhaps connect with me (either via an issue or on
 [IRC](https://wiki.haskell.org/IRC_channel)) before writing lots of code.
 
@@ -51,7 +51,7 @@ sudo pacman -S base-devel
 ### Building the applications
 
 ```bash
-git clone https://github.com/tomsmeding/play-haskell --recurse-submodules
+git clone https://github.com/haskell/play-haskell --recurse-submodules
 cd play-haskell
 ```
 
@@ -89,7 +89,7 @@ sudo swapon /swapfile
 
 During development:
 
-- `make frontend-dependencies` in `play-haskell-server/` whenever [play-haskell-server/static/package.json](https://github.com/tomsmeding/play-haskell/blob/master/play-haskell-server/static/package.json) changes
+- `make frontend-dependencies` in `play-haskell-server/` whenever [play-haskell-server/static/package.json](https://github.com/haskell/play-haskell/blob/master/play-haskell-server/static/package.json) changes
 - `make frontend` in `play-haskell-server/` whenever some `*.ts` file for the frontend changes
 - `make reload-pages` in `play-haskell-server/` (or re-run `cabal run play-haskell-server`) to reload mustache pages (or send `SIGUSR1`)
 

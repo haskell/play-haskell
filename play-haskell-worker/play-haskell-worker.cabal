@@ -7,7 +7,7 @@ license-file:        LICENSE
 author:              Tom Smeding
 maintainer:          tom@tomsmeding.com
 build-type:          Simple
-homepage:            https://github.com/tomsmeding/play-haskell
+homepage:            https://github.com/haskell/play-haskell
 
 executable play-haskell-worker
   main-is:
@@ -52,4 +52,4 @@ test-suite worker-test
 
 source-repository head
   type: git
-  location: https://github.com/tomsmeding/play-haskell
+  location: https://github.com/haskell/play-haskell
