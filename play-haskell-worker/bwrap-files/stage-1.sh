@@ -30,7 +30,13 @@ mkfifo "${tmpdir}/ghc-out"
 ( cat <"${tmpdir}/ghc-out" >&"$ghc_out_fd" ) &
 ghc_out_catpid=$!
 
-# Tricky part: we generate a hopefully unique unit name, tell systemd-run to use that unit name, and kill that unit on exit. This requires that stage-1 is not killed using SIGKILL.
+# Tricky part: we generate a hopefully unique unit name, tell systemd-run to
+# use that unit name, and kill that unit on exit. This requires that stage-1 is
+# not killed using SIGKILL.
+#
+# Another property that makes this work: this stage-1 script is not yet subject
+# to the memory limit in the systemd unit, hence we can more _more_ sure (not
+# fully, even) that we won't get killed on OOM.
 unit_name="play-haskell-sandbox-u$(date +%s-%N)-$SRANDOM"
 
 trap "./systemd-kill-shim '$unit_name'" EXIT
