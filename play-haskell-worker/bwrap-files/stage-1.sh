@@ -39,6 +39,9 @@ ghc_out_catpid=$!
 # fully, even) that we won't get killed on OOM.
 unit_name="play-haskell-sandbox-u$(date +%s-%N)-$SRANDOM"
 
-trap "./systemd-kill-shim '$unit_name'" EXIT
+successful_exit=0
+
+trap "[[ \$successful_exit = 0 ]] && ./systemd-kill-shim '$unit_name'" EXIT
 
 ./systemd-run-shim "$unit_name" ./stage-2.sh "${tmpdir}/ghc-out"
+successful_exit=1
