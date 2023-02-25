@@ -39,9 +39,16 @@ ghc_out_catpid=$!
 # fully, even) that we won't get killed on OOM.
 unit_name="play-haskell-sandbox-u$(date +%s-%N)-$SRANDOM"
 
-successful_exit=0
+# If we make it to the =0 assignment later, the systemd unit apparently exited
+# already, so no need to kill it manually.
+we_were_killed=1
 
-trap "[[ \$successful_exit = 0 ]] && ./systemd-kill-shim '$unit_name'" EXIT
+trap "[[ \$we_were_killed = 1 ]] && ./systemd-kill-shim '$unit_name'" EXIT
 
+# Don't exit the script on error here!
+set +e
 ./systemd-run-shim "$unit_name" ./stage-2.sh "${tmpdir}/ghc-out"
-successful_exit=1
+exitstatus=$?
+we_were_killed=0
+
+exit "$exitstatus"
