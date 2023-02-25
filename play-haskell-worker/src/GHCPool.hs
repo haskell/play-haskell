@@ -33,9 +33,7 @@ import System.IO (hPutStr, hClose, Handle, hGetBufSome, hPutStrLn, stderr)
 import System.IO.Error (catchIOError)
 import System.Posix.Directory (getWorkingDirectory)
 import System.Posix.IO (createPipe, fdToHandle, closeFd)
-import System.Posix.Signals (signalProcess, sigKILL)
 import qualified System.Process as Pr
-import qualified System.Process.Internals as PrI
 import System.Timeout (timeout)
 
 import System.IO.Unsafe (unsafePerformIO)
@@ -142,11 +140,18 @@ makeWorker = do
           putMVar resultvar (Right (Result ec ghcout out err dur))
         Nothing -> do
           mapM_ killThread [readTh1, readTh2, readTh3]
-          -- Paranoid termination is technically unnecessary since bwrap seems
-          -- to kill its child with SIGKILL if it is itself killed using
-          -- SIGTERM, which is what Pr.terminateProcess sends. However, let's
-          -- be safe.
-          terminateParanoid proch
+          -- debug $ "[pool] killed read threads for timeouted process"
+          -- mpid <- Pr.getPid proch
+
+          -- Note that this just kills the stage-1 script with SIGTERM. (The fact that it
+          -- does is an implementation detail of the 'process' library...) This should be
+          -- sufficient (i.e. we don't have to resort to SIGKILL) because stage-1 doesn't
+          -- itself run user code, it just starts the systemd unit and is thus still
+          -- known/trusted code. And we know that stage-1 will kill the systemd unit as it
+          -- should upon SIGTERM, and it won't if we SIGKILL it. Hence we unfortunately
+          -- cannot SIGKILL as a second-layer defense.
+          -- debug $ "[pool] terminateParanoid: terminating " ++ show mpid
+          Pr.terminateProcess proch
           putMVar resultvar (Left RETimeOut)
   return (Worker thread mvar resultvar)
 
@@ -207,20 +212,6 @@ duration action = do
   let diff = Clock.diffTimeSpec starttm endtm
       secs = fromIntegral (Clock.sec diff) + fromIntegral (Clock.nsec diff) / 1e9
   return (secs, res)
-
-terminateParanoid :: Pr.ProcessHandle -> IO ()
-terminateParanoid ph = do
-  Pr.terminateProcess ph
-  -- Wait 50ms to let the process exit somewhat cleanly (more cleanly than SIGKILL, at least)
-  mec <- timeout 50_000 $ Pr.waitForProcess ph
-  case mec of
-    Just _ -> return ()
-    Nothing -> do
-      putStrLn "(Had to SIGKILL process...)"
-      PrI.withProcessHandle ph $ \case
-        PrI.OpenHandle pid -> signalProcess sigKILL pid
-        PrI.OpenExtHandle pid _ -> signalProcess sigKILL pid
-        PrI.ClosedHandle _ -> return ()
 
 -- | The passed 'Int' is the maximum number of bytes read. The rest of the
 -- handle is consumed but not stored.

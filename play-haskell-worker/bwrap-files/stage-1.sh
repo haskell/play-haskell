@@ -7,6 +7,7 @@ cd "$(dirname "$0")"
 if [[ $# -ne 1 ]]; then
   echo >&2 "Usage: $0 <ghc_out_fd>"
   echo >&2 "stage-2 needs bwrap >=v0.7.0."
+  echo >&2 "Do not kill this script using SIGKILL; it needs to be able to clean up the systemd unit on exit."
   exit 1
 fi
 ghc_out_fd="$1"
@@ -29,4 +30,9 @@ mkfifo "${tmpdir}/ghc-out"
 ( cat <"${tmpdir}/ghc-out" >&"$ghc_out_fd" ) &
 ghc_out_catpid=$!
 
-exec ./systemd-run-shim ./stage-2.sh "${tmpdir}/ghc-out"
+# Tricky part: we generate a hopefully unique unit name, tell systemd-run to use that unit name, and kill that unit on exit. This requires that stage-1 is not killed using SIGKILL.
+unit_name="play-haskell-sandbox-u$(date +%s-%N)-$SRANDOM"
+
+trap "./systemd-kill-shim '$unit_name'" EXIT
+
+./systemd-run-shim "$unit_name" ./stage-2.sh "${tmpdir}/ghc-out"

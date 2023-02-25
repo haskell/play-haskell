@@ -1,4 +1,5 @@
 bwrap
 systemd-run-shim
+systemd-kill-shim
 builderprojs/
 builders/
