@@ -128,7 +128,6 @@ ghcup --no-verbose --offline run --ghc '$ghcversion' -- ghc \\
   -no-user-package-db \\
   -package-db /builderprojs/ghc-'$ghcversion'-cabal/store/ghc-'$ghcversion'/package.db \\
   ${depends[@]} \\
-  -XHaskell2010 \\
   -rtsopts \\
   "\$@"
 EOF
