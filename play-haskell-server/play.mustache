@@ -293,6 +293,14 @@ html, body {
 .ace_mobile-menu {
   display: none;
 }
+#exitcode-note.initial:after {
+  content: "Click the Run button to execute the code on the left.";
+}
+@media screen and (max-width: 800px) {
+  #exitcode-note.initial:after {
+    content: "Click the Run button to execute the code above.";
+  }
+}
 </style>
 <link rel="stylesheet" href="https://unpkg.com/purecss@2.0.3/build/pure-min.css" integrity="sha384-cg6SkqEOCV1NbJoCu11+bm0NvBRc8IYLRGXkmNrqUBfTjmMYwNKPWBTIKyw9mHNJ" crossorigin="anonymous">
 <script>
@@ -323,7 +331,7 @@ preload_script = null;
 	<div id="colseparator"></div>
 	<div id="rightcol">
 		<div id="output-pane">
-			<div id="exitcode-note">Click the Run button to execute the code on the left.</div>
+			<div id="exitcode-note" class="initial"></div>
 			<div id="out-container-ghcout" class="invisible">
 				<div class="output-header">GHC output</div>
 				<pre id="out-ghcout"></pre>

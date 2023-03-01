@@ -214,6 +214,7 @@ function doRun(run: Runner) {
 		if (!response.serr) response.serr = "";
 
 		const ecNote: HTMLElement = document.getElementById("exitcode-note");
+		ecNote.classList.remove("initial");
 		if (response.err != null) {
 			setInvisible(ecNote, false);
 			switch (response.err) {
