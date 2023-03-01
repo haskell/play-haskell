@@ -36,11 +36,9 @@ mergesort :: Ord a => [a] -> [a]
 mergesort [] = []
 mergesort [x] = [x]
 mergesort l =
-  let toleft []      = ([], [])
-      toleft (x:xs)  = first (x :) (toright xs)
-      toright []     = ([], [])
-      toright (x:xs) = second (x :) (toright xs)
-      (l1, l2) = toleft l
+  let distribute l1 l2 []     = (l1, l2)
+      distribute l1 l2 (x:xs) = distribute l2 (x:l1) xs
+      (l1, l2) = distribute [] [] l
   in mergesort l1 \`merge\` mergesort l2
 
 merge :: Ord a => [a] -> [a] -> [a]
