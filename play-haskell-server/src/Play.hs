@@ -30,7 +30,6 @@ import System.Directory (listDirectory)
 import System.FilePath (takeExtension, takeFileName, (</>))
 import System.Random (StdGen, genByteString, newStdGen)
 
-import DB (KeyType, Contents(..), ClientAddr)
 import qualified DB
 import Pages
 import ServerModule
@@ -101,7 +100,7 @@ genKey' var = atomically $ do
   return key
 
 -- returns the generated key, or an error string
-genStorePaste :: GlobalContext -> TVar StdGen -> ClientAddr -> Contents -> IO (Either String KeyType)
+genStorePaste :: GlobalContext -> TVar StdGen -> ClientAddr -> Paste -> IO (Either String KeyType)
 genStorePaste gctx stvar srcip contents =
   let loop iter = do
         key <- genKey' stvar
@@ -170,7 +169,7 @@ handleRequest gctx ctx = \case
     req <- getRequest
     renderer <- liftIO $ getPageFromGCtx pPlay gctx
     case Map.lookup "code" (rqQueryParams req) of
-      Just (source : _) -> writeHTML (renderer (Just source))
+      Just (source : _) -> writeHTML (renderer (Just $ newPaste defaultGHCVersion Nothing source))
       _ -> writeHTML (renderer Nothing)
 
   PostedIndex -> do
@@ -178,7 +177,7 @@ handleRequest gctx ctx = \case
     case Map.lookup "code" (rqPostParams req) of
       Just [source] -> do
         renderer <- liftIO $ getPageFromGCtx pPlay gctx
-        writeHTML (renderer (Just source))
+        writeHTML (renderer (Just $ newPaste defaultGHCVersion Nothing source))
       _ ->
         httpError 400 "Invalid request"
 
@@ -188,12 +187,12 @@ handleRequest gctx ctx = \case
           renderer <- liftIO $ getPageFromGCtx pPlay gctx
           writeHTML (renderer (Just contents))
     case res of
-      Just (_, Contents [] _ _) -> do
+      Just (_, Paste _ [] _ _) -> do
         modifyResponse (setContentType (Char8.pack "text/plain"))
         writeBS (Char8.pack "Save key not found (empty file list?)")
 
-      Just (_, Contents ((_, source) : _) _ _) ->
-        buildPage source
+      Just (_, contents) ->
+        buildPage contents
 
       Nothing -> do
         modifyResponse (setContentType (Char8.pack "text/plain"))
@@ -206,7 +205,7 @@ handleRequest gctx ctx = \case
       then httpError 429 "Please slow down a bit, you're rate limited"
       else do body <- readRequestBody (fromIntegral @Int @Word64 maxSaveFileSize)
               let body' = BSL.toStrict body
-              let contents = Contents [(Nothing, body')] Nothing Nothing
+              let contents = Paste defaultGHCVersion [(Nothing, body')] Nothing Nothing
                   srcip = Char8.unpack (rqClientAddr req)
               mkey <- liftIO $ genStorePaste gctx (ctxRNG ctx) srcip contents
               case mkey of

@@ -3,10 +3,15 @@
 {-# LANGUAGE TypeApplications #-}
 {-# OPTIONS -Wno-orphans #-}
 module PlayHaskellTypes (
+  Paste(..),
+  newPaste,
+  ClientAddr,
+  KeyType,
   -- * Supporting types
   Command(..),
   Optimisation(..),
   Version(..),
+  defaultGHCVersion,
   RunError(..),
 
   -- * Request/response types
@@ -43,7 +48,23 @@ import System.Exit
 import PlayHaskellTypes.Sign (PublicKey, SecretKey, Signature)
 import qualified PlayHaskellTypes.Sign as Sign
 import PlayHaskellTypes.UTF8
+import Data.Time.Clock.POSIX (POSIXTime)
 
+
+
+type ClientAddr = String
+
+type KeyType = ByteString
+
+data Paste = Paste{
+  pasteVersion :: Version,                            -- ^ Paste Ghc Version
+  pasteContents :: [(Maybe ByteString, ByteString)],  -- ^ Files with optional filenames
+  pasteKey :: Maybe KeyType,                          -- ^ Parent paste this was edited from, if any
+  pasteExpiration :: Maybe POSIXTime                  -- ^ Expiration date
+} deriving (Show, Eq)
+
+newPaste :: Version -> Maybe ByteString -> ByteString -> Paste
+newPaste version fname content = Paste version [(fname, content)] Nothing Nothing
 
 -- | JSON: string; "run", "core", "asm".
 data Command = CRun   -- ^ Compile and execute a Haskell file
@@ -60,6 +81,9 @@ data Optimisation = O0 | O1 | O2
 -- JSON: string.
 newtype Version = Version String
   deriving (Show, Eq)
+
+defaultGHCVersion :: Version
+defaultGHCVersion = Version "default"
 
 -- | JSON: string; "timeout", "backend".
 data RunError = RETimeOut

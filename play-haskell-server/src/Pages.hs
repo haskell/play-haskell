@@ -4,6 +4,7 @@ module Pages (
   Pages(..), pagesFromDisk
 ) where
 
+import PlayHaskellTypes
 import Data.Bits (shiftR)
 import Data.ByteString (ByteString)
 import Data.Char (ord, chr)
@@ -17,7 +18,7 @@ import Text.Mustache (toMustache)
 import qualified Text.Mustache.Types as Mustache (Value)
 
 
-data Pages = Pages { pPlay :: Maybe ByteString -> ByteString }
+data Pages = Pages { pPlay :: Maybe Paste -> ByteString }
 
 pagesFromDisk :: IO Pages
 pagesFromDisk = Pages <$> (renderPlayPage <$> loadTemplate "play.mustache")
@@ -29,10 +30,21 @@ loadTemplate fp = do
     Right templ -> return templ
     Left err -> die (show err)
 
-renderPlayPage :: Mustache.Template -> Maybe ByteString -> ByteString
-renderPlayPage templ mcontents = Enc.encodeUtf8 $
-  Mustache.substituteValue templ $ Mustache.object
-    [(Text.pack "preload", mixinMaybeNull (jsStringEncode . decodeUtf8) mcontents)]
+renderPlayPage :: Mustache.Template -> Maybe Paste -> ByteString
+renderPlayPage templ = \case
+  Just paste -> Enc.encodeUtf8 $ Mustache.substituteValue templ $ pasteToMustacheObject paste
+  Nothing -> Enc.encodeUtf8 $ Mustache.substituteValue templ $ Mustache.object [(Text.pack "preload", toMustache False)]
+
+pasteToMustacheObject :: Paste -> Mustache.Value
+pasteToMustacheObject (Paste (Version version) contents _ _) = Mustache.object l
+  where
+    l = [(Text.pack "preload", mixinMaybeNull (jsStringEncode . decodeUtf8) msource),
+        (Text.pack "ghc_version", toMustache $ jsStringEncode (Text.pack version))]
+    msource = case contents of
+       ((_, source) : _) -> Just source
+       _ -> Nothing
+
+
 
 mixinMaybeNull :: Mustache.ToMustache b => (a -> b) -> Maybe a -> Mustache.Value
 mixinMaybeNull _ Nothing = toMustache False

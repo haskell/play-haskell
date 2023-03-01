@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
 module DB (
-  Database, ErrCode(..), ClientAddr, KeyType, Contents(..),
+  Database, ErrCode(..),
   withDatabase,
   storePaste, getPaste,
   removeExpiredPastes,
@@ -17,6 +17,7 @@ import Data.Time.Clock.POSIX (POSIXTime, getPOSIXTime)
 import Database.SQLite.Simple
 import System.Exit (die)
 import System.IO (hPutStrLn, stderr)
+import PlayHaskellTypes (Version(..), Paste(..), KeyType, ClientAddr)
 
 
 maxDbFileSize :: Int
@@ -27,13 +28,6 @@ dbFileName dbdir = dbdir ++ "/pastes.db"
 
 
 newtype Database = Database Connection
-
-type ClientAddr = String
-type KeyType = ByteString
-data Contents =
-  Contents [(Maybe ByteString, ByteString)]  -- ^ Files with optional filenames
-           (Maybe KeyType)                   -- ^ Parent paste this was edited from, if any
-           (Maybe POSIXTime)                 -- ^ Expiration date
 
 data ErrCode = ErrExists  -- ^ Key already exists in database
              | ErrFull    -- ^ Database disk quota has been reached
@@ -71,6 +65,7 @@ schemaVersion :: Int
    ,"CREATE TABLE pastes (\n\
     \    id INTEGER PRIMARY KEY NOT NULL, \n\
     \    key BLOB NOT NULL, \n\
+    \    ghcVersion TEXT NOT NULL, \n\
     \    date INTEGER NULL, \n\
     \    expire INTEGER NULL, \n\
     \    srcip TEXT NULL, \n\
@@ -104,8 +99,8 @@ applySchema (Database conn) = do
   mapM_ (execute_ conn) schema
   execute conn "INSERT INTO meta (version) VALUES (?)" (Only schemaVersion)
 
-storePaste :: Database -> ClientAddr -> KeyType -> Contents -> IO (Maybe ErrCode)
-storePaste (Database conn) clientaddr key (Contents files mparent mexpire) = do
+storePaste :: Database -> ClientAddr -> KeyType -> Paste -> IO (Maybe ErrCode)
+storePaste (Database conn) clientaddr key (Paste (Version ghcVersion) files mparent mexpire) = do
   now <- truncate <$> getPOSIXTime :: IO Int
   let mexpire' = truncate <$> mexpire :: Maybe Int
   let predicate (SQLError { sqlError = ErrorError }) = Just ()
@@ -118,9 +113,9 @@ storePaste (Database conn) clientaddr key (Contents files mparent mexpire) = do
         then do
           case mparent of
             Just parent ->
-              execute conn "INSERT INTO pastes (key, date, expire, srcip, parent) \
-                           \VALUES (?, ?, ?, ?, (SELECT id FROM pastes WHERE key = ?))"
-                           (key, now, mexpire', clientaddr, parent)
+              execute conn "INSERT INTO pastes (key, ghcVersion, date, expire, srcip, parent) \
+                           \VALUES (?, ?, ?, ?, ?, (SELECT id FROM pastes WHERE key = ?))"
+                           (key, ghcVersion, now, mexpire', clientaddr, parent)
             Nothing ->
               execute conn "INSERT INTO pastes (key, date, expire, srcip) \
                            \VALUES (?, ?, ?, ?)"
@@ -133,19 +128,20 @@ storePaste (Database conn) clientaddr key (Contents files mparent mexpire) = do
           return Nothing
         else return (Just ErrExists)
 
-getPaste :: Database -> KeyType -> IO (Maybe (Maybe POSIXTime, Contents))
+getPaste :: Database -> KeyType -> IO (Maybe (Maybe POSIXTime, Paste))
 getPaste (Database conn) key = do
-  res <- query @_ @(Maybe Int, Maybe Int, Maybe ByteString, ByteString, Maybe ByteString)
-               conn "SELECT P.date, P.expire, F.fname, F.value, (SELECT key FROM pastes WHERE id = P.parent) \
+  res <- query @_ @(Maybe Int, String, Maybe Int, Maybe ByteString, ByteString, Maybe ByteString)
+               conn "SELECT P.date, P.ghcVersion, P.expire, F.fname, F.value, (SELECT key FROM pastes WHERE id = P.parent) \
                     \FROM pastes AS P, files as F \
                     \WHERE P.id = F.paste AND P.key = ? ORDER BY F.fileorder"
                (Only key)
   case res of
-    (date, expire, _, _, mparent) : _ ->
+    (date, ghcVersion, expire, _, _, mparent) : _ ->
       let date' = secondsToNominalDiffTime . fromIntegral <$> date
           expire' = secondsToNominalDiffTime . fromIntegral <$> expire
-          files = [(mfname, contents) | (_, _, mfname, contents, _) <- res]
-      in return (Just (date', Contents files mparent expire'))
+          files = [(mfname, contents) | (_, _, _, mfname, contents, _) <- res]
+          ghcVersion' = Version ghcVersion
+      in return (Just (date', Paste ghcVersion' files mparent expire'))
     [] -> return Nothing
 
 removeExpiredPastes :: Database -> IO ()

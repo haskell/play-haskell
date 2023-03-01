@@ -82,7 +82,9 @@ const ghcReadableVersion: Record<string, string> = {
 
 // defined in a <script> block in play.mustache
 declare var preload_script: string | null;
+declare var preload_ghc_version: string | null;
 const snippet = preload_script != null ? preload_script : example_snippets[Math.floor(Math.random() * example_snippets.length)];
+
 
 // defined in ace-files/ace.js with a <script src> block in play.mustache
 declare var ace: any;
@@ -242,9 +244,11 @@ function doRun(run: Runner) {
 
 function doSave() {
 	const source: string = editor.getValue();
+	let version = (document.getElementById("ghcversionselect") as any).value;
+	const payload: string = JSON.stringify({code: source, version});
 
 	performXHR(
-		"POST", "/save", "text",
+		"POST", "/save", "json",
 		response => {
 			if (typeof response != "string") {
 				alert("Invalid response returned by server: " + response);
@@ -257,7 +261,7 @@ function doSave() {
 		xhr => {
 			alert("Could not save your code!\nServer returned status code " + xhr.status + ": " + xhr.responseText);
 		},
-		"text/plain", source
+		"application/json", payload
 	);
 }
 
