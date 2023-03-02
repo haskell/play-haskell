@@ -25,9 +25,7 @@ quicksort :: Ord a => [a] -> [a]
 quicksort []     = []
 quicksort (x:xs) = let (lesser, greater) = partition (<= x) xs
                    in quicksort lesser ++ [x] ++ quicksort greater`,
-	`import Data.Bifunctor (first, second)
-
-main :: IO ()
+	`main :: IO ()
 main = do
   let unsorted = [10,9..1]
   putStrLn $ show $ mergesort unsorted
