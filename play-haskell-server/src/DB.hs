@@ -117,9 +117,9 @@ storePaste (Database conn) clientaddr key (Paste (Version ghcVersion) files mpar
                            \VALUES (?, ?, ?, ?, ?, (SELECT id FROM pastes WHERE key = ?))"
                            (key, ghcVersion, now, mexpire', clientaddr, parent)
             Nothing ->
-              execute conn "INSERT INTO pastes (key, date, expire, srcip) \
-                           \VALUES (?, ?, ?, ?)"
-                           (key, now, mexpire', clientaddr)
+              execute conn "INSERT INTO pastes (key, ghcVersion, date, expire, srcip) \
+                           \VALUES (?, ?, ?, ?, ?)"
+                           (key, ghcVersion, now, mexpire', clientaddr)
           pasteid <- lastInsertRowId conn
           forM_ (zip files [1::Int ..]) $ \((mfname, contents), idx) ->
             execute conn "INSERT INTO files (paste, fname, value, fileorder) \

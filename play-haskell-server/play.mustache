@@ -310,12 +310,9 @@ preload_script = {{&preload}};
 {{^preload}}
 preload_script = null;
 {{/preload}}
-{{#ghc_version}}
-preload_ghc_version = {{&ghc_version}};
-{{/ghc_version}}
-{{^ghc_version}}
-preload_ghc_version = "default";
-{{/ghc_version}}
+{{#version}}
+preload_ghc_version = {{&version}};
+{{/version}}
 </script>
 </head>
 <body>

@@ -39,7 +39,7 @@ pasteToMustacheObject :: Paste -> Mustache.Value
 pasteToMustacheObject (Paste (Version version) contents _ _) = Mustache.object l
   where
     l = [(Text.pack "preload", mixinMaybeNull (jsStringEncode . decodeUtf8) msource),
-        (Text.pack "ghc_version", toMustache $ jsStringEncode (Text.pack version))]
+        (Text.pack "version", toMustache $ jsStringEncode (Text.pack version))]
     msource = case contents of
        ((_, source) : _) -> Just source
        _ -> Nothing

@@ -15,15 +15,15 @@ import qualified Data.Aeson.Types as J
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as Char8
-import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Short as BSS
 import Data.Char (chr)
+import qualified Data.List as L
 import Data.Maybe (fromMaybe)
 import qualified Data.Map.Strict as Map
 import Data.String (fromString)
 import Data.Text (Text)
+import qualified Data.Text as T
 import Data.Time (secondsToDiffTime)
-import Data.Word (Word64)
 import GHC.Generics (Generic)
 import Snap.Core hiding (path, method, pass)
 import System.Directory (listDirectory)
@@ -59,6 +59,17 @@ instance J.FromJSON ClientJobReq where
                  <*> v J..: fromString "version"
                  <*> (fromMaybe O1 <$> (v J..:? fromString "opt"))
   parseJSON val = J.prependFailure "parsing ClientJobReq failed, " (J.typeMismatch "Object" val)
+
+data ClientSavePasteReq = ClientSavePasteReq
+  {
+    csprCode :: Text,
+    csprVersion :: Version
+  } deriving (Show)
+
+instance J.FromJSON ClientSavePasteReq where
+  parseJSON (J.Object v) =
+    ClientSavePasteReq <$> v J..: fromString "code" <*> v J..: fromString "version"
+  parseJSON val = J.prependFailure "parsing ClientSavePasteReq failed, " (J.typeMismatch "Object" val)
 
 data ClientSubmitReq = ClientSubmitReq
   { csrCode :: Text
@@ -198,21 +209,27 @@ handleRequest gctx ctx = \case
         modifyResponse (setContentType (Char8.pack "text/plain"))
         writeBS (Char8.pack "Save key not found")
 
-  Save -> do
-    req <- getRequest
+  Save -> execExitEarlyT $ do
+    req <- lift getRequest
     isSpam <- liftIO $ recordCheckSpam PlaySave (gcSpam gctx) (rqClientAddr req)
     if isSpam
-      then httpError 429 "Please slow down a bit, you're rate limited"
-      else do body <- readRequestBody (fromIntegral @Int @Word64 maxSaveFileSize)
-              let body' = BSL.toStrict body
-              let contents = Paste defaultGHCVersion [(Nothing, body')] Nothing Nothing
+      then lift $ httpError 429 "Please slow down a bit, you're rate limited"
+      else do postdata <- getRequestBodyEarlyExit maxSaveFileSize "Program too large"
+              ClientSavePasteReq{csprCode =code, csprVersion = version} <- case J.decodeStrict' postdata of
+                Just request -> return request
+                _ -> do lift (httpError 400 "Invalid JSON")
+                        exitEarly ()
+              versions <- liftIO (WP.getAvailableVersions (ctxPool ctx))
+              let version' = fromMaybe defaultGHCVersion $ L.find (==version) versions
+                  code' = Char8.pack $ T.unpack code
+                  contents = Paste version' [(Nothing, code')] Nothing Nothing
                   srcip = Char8.unpack (rqClientAddr req)
               mkey <- liftIO $ genStorePaste gctx (ctxRNG ctx) srcip contents
               case mkey of
-                Right key -> do
+                Right key -> lift $ do
                   modifyResponse (setContentType (Char8.pack "text/plain"))
                   writeBS key
-                Left err -> httpError 500 err
+                Left err -> lift $ httpError 500 err
 
   Versions -> do
     modifyResponse (setContentType (Char8.pack "text/plain"))
