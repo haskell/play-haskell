@@ -14,7 +14,7 @@ function addMediaListener(querystr: string, fallbackevent: string | null, cb: (q
 }
 
 const example_snippets: string[] = [
-	`import Data.List (partition)
+`import Data.List (partition)
 
 main :: IO ()
 main = do
@@ -24,51 +24,78 @@ main = do
 quicksort :: Ord a => [a] -> [a]
 quicksort []     = []
 quicksort (x:xs) = let (lesser, greater) = partition (<= x) xs
-                   in quicksort lesser ++ [x] ++ quicksort greater`,
-	`main :: IO ()
+                   in quicksort lesser ++ [x] ++ quicksort greater`
+,
+`{-# LANGUAGE OverloadedStrings #-}
+
+import qualified Data.Text as T
+import qualified Data.Time as Time
+
+data Visitor
+  = Member Profile
+  | NonMember (Maybe T.Text)
+  deriving Show
+
+data Profile =
+  Profile
+    { name :: T.Text
+    , birthday :: Time.Day
+    } deriving Show
+
+main :: IO ()
 main = do
-  let unsorted = [10,9..1]
-  putStrLn $ show $ mergesort unsorted
+  let haskell = Member Profile
+        { name = "Haskell Curry"
+        , birthday = read "1900-09-12"
+        }
+  greeting <- makeGreeting haskell
+  putStrLn $ T.unpack greeting
 
-mergesort :: Ord a => [a] -> [a]
-mergesort [] = []
-mergesort [x] = [x]
-mergesort l =
-  let distribute l1 l2 []     = (l1, l2)
-      distribute l1 l2 (x:xs) = distribute l2 (x:l1) xs
-      (l1, l2) = distribute [] [] l
-  in mergesort l1 \`merge\` mergesort l2
+makeGreeting :: Visitor -> IO T.Text
+makeGreeting visitor =
+  case visitor of
+    NonMember maybeName ->
+      pure $ case maybeName of
+        Just name -> "Hello, " <> name <> "!"
+        Nothing   -> "Hello, mysterious visitor!"
+    Member profile -> do
+      today <- Time.utctDay <$> Time.getCurrentTime
+      let monthAndDay = (\\(_y, m, d) -> (m, d)) . Time.toGregorian
+      if monthAndDay today == monthAndDay (birthday profile)
+      then pure $ "Happy birthday, " <> name profile <> "!"
+      else pure $ "Welcome back, " <> name profile <> "!"`
+,
+`import Control.Monad (replicateM)
+import Data.Foldable (foldl')
+import qualified System.Random.Stateful as Rand
 
-merge :: Ord a => [a] -> [a] -> [a]
-merge [] ys         = ys
-merge xs []         = xs
-merge (x:xs) (y:ys)
-  | x <= y          = x : merge xs (y:ys)
-  | otherwise       = y : merge (x:xs) ys`,
-	`main :: IO ()
+data Drone = Drone
+  { xPos :: Int
+  , yPos :: Int
+  , zPos :: Int
+  } deriving Show
+
+data Movement
+  = Forward | Back | ToLeft | ToRight | Up | Down
+  deriving (Show, Enum, Bounded)
+
+main :: IO ()
 main = do
-  let unsorted = [10,9..1]
-  putStrLn $ show $ mergesort unsorted
+  let initDrone = Drone { xPos = 0, yPos = 100, zPos = 0 }
+  -- Generate 15 moves randomly
+  randomMoves <- replicateM 15 $ Rand.uniformEnumM Rand.globalStdGen
+  let resultDrone = foldl' moveDrone initDrone randomMoves
+  print resultDrone
 
-mergesort :: Ord a => [a] -> [a]
-mergesort = mergeUp . map pure
-  where
-    mergeUp :: Ord a => [[a]] -> [a]
-    mergeUp []      = []
-    mergeUp [chunk] = chunk
-    mergeUp chunks  = mergeUp (map (uncurry merge) (pairs chunks))
-
-    pairs :: Monoid a => [a] -> [(a, a)]
-    pairs []        = []
-    pairs [x]       = [(x, mempty)]
-    pairs (x:y:xs)  = (x, y) : pairs xs
-
-merge :: Ord a => [a] -> [a] -> [a]
-merge [] ys         = ys
-merge xs []         = xs
-merge (x:xs) (y:ys)
-  | x <= y          = x : merge xs (y:ys)
-  | otherwise       = y : merge (x:xs) ys`
+moveDrone :: Drone -> Movement -> Drone
+moveDrone drone move =
+  case move of
+    Forward -> drone { zPos = zPos drone + 1 }
+    Back    -> drone { zPos = zPos drone - 1 }
+    ToLeft  -> drone { xPos = xPos drone - 1 }
+    ToRight -> drone { xPos = xPos drone + 1 }
+    Up      -> drone { yPos = yPos drone + 1 }
+    Down    -> drone { yPos = yPos drone - 1 }`
 ];
 
 // If a version is not present in this dictionary, just display it as-is
