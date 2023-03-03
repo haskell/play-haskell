@@ -313,6 +313,9 @@ preload_script = null;
 {{#version}}
 preload_ghc_version = {{&version}};
 {{/version}}
+{{^preload_ghc_version}}
+preload_ghc_version = "default";
+{{/preload_ghc_version}}
 </script>
 </head>
 <body>

@@ -16,7 +16,7 @@ PRAGMA foreign_keys = on;
 
 UPDATE meta SET version = 6;
 
-ALTER TABLE pastes ADD COLUMN ghcVersion TEXT NOT NULL;
+ALTER TABLE pastes ADD COLUMN ghcVersion TEXT;
 
 VACUUM;
 EOF

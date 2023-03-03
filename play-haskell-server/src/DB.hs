@@ -15,10 +15,14 @@ import qualified Data.Text as T
 import Data.Time.Clock (secondsToNominalDiffTime)
 import Data.Time.Clock.POSIX (POSIXTime, getPOSIXTime)
 import Database.SQLite.Simple
+import Database.SQLite.Simple.ToField
 import System.Exit (die)
 import System.IO (hPutStrLn, stderr)
 import PlayHaskellTypes (Version(..), Paste(..), KeyType, ClientAddr)
 
+
+instance ToField Version where
+  toField (Version v)= toField v
 
 maxDbFileSize :: Int
 maxDbFileSize = 1024 * 1024 * 1024  -- 1 GiB
@@ -65,7 +69,7 @@ schemaVersion :: Int
    ,"CREATE TABLE pastes (\n\
     \    id INTEGER PRIMARY KEY NOT NULL, \n\
     \    key BLOB NOT NULL, \n\
-    \    ghcVersion TEXT NOT NULL, \n\
+    \    ghcVersion TEXT, \n\
     \    date INTEGER NULL, \n\
     \    expire INTEGER NULL, \n\
     \    srcip TEXT NULL, \n\
@@ -100,7 +104,7 @@ applySchema (Database conn) = do
   execute conn "INSERT INTO meta (version) VALUES (?)" (Only schemaVersion)
 
 storePaste :: Database -> ClientAddr -> KeyType -> Paste -> IO (Maybe ErrCode)
-storePaste (Database conn) clientaddr key (Paste (Version ghcVersion) files mparent mexpire) = do
+storePaste (Database conn) clientaddr key (Paste ghcVersion files mparent mexpire) = do
   now <- truncate <$> getPOSIXTime :: IO Int
   let mexpire' = truncate <$> mexpire :: Maybe Int
   let predicate (SQLError { sqlError = ErrorError }) = Just ()
@@ -130,18 +134,18 @@ storePaste (Database conn) clientaddr key (Paste (Version ghcVersion) files mpar
 
 getPaste :: Database -> KeyType -> IO (Maybe (Maybe POSIXTime, Paste))
 getPaste (Database conn) key = do
-  res <- query @_ @(Maybe Int, String, Maybe Int, Maybe ByteString, ByteString, Maybe ByteString)
+  res <- query @_ @(Maybe Int, Maybe String, Maybe Int, Maybe ByteString, ByteString, Maybe ByteString)
                conn "SELECT P.date, P.ghcVersion, P.expire, F.fname, F.value, (SELECT key FROM pastes WHERE id = P.parent) \
                     \FROM pastes AS P, files as F \
                     \WHERE P.id = F.paste AND P.key = ? ORDER BY F.fileorder"
                (Only key)
   case res of
-    (date, ghcVersion, expire, _, _, mparent) : _ ->
+    (date, version, expire, _, _, mparent) : _ ->
       let date' = secondsToNominalDiffTime . fromIntegral <$> date
           expire' = secondsToNominalDiffTime . fromIntegral <$> expire
           files = [(mfname, contents) | (_, _, _, mfname, contents, _) <- res]
-          ghcVersion' = Version ghcVersion
-      in return (Just (date', Paste ghcVersion' files mparent expire'))
+          ghcVersion = Version <$> version
+      in return (Just (date', Paste ghcVersion files mparent expire'))
     [] -> return Nothing
 
 removeExpiredPastes :: Database -> IO ()

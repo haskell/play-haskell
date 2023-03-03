@@ -57,13 +57,13 @@ type ClientAddr = String
 type KeyType = ByteString
 
 data Paste = Paste{
-  pasteVersion :: Version,                            -- ^ Paste Ghc Version
+  pasteVersion :: Maybe Version,                      -- ^ Paste Ghc Version
   pasteContents :: [(Maybe ByteString, ByteString)],  -- ^ Files with optional filenames
   pasteKey :: Maybe KeyType,                          -- ^ Parent paste this was edited from, if any
   pasteExpiration :: Maybe POSIXTime                  -- ^ Expiration date
 } deriving (Show, Eq)
 
-newPaste :: Version -> Maybe ByteString -> ByteString -> Paste
+newPaste :: Maybe Version -> Maybe ByteString -> ByteString -> Paste
 newPaste version fname content = Paste version [(fname, content)] Nothing Nothing
 
 -- | JSON: string; "run", "core", "asm".
@@ -82,8 +82,8 @@ data Optimisation = O0 | O1 | O2
 newtype Version = Version String
   deriving (Show, Eq)
 
-defaultGHCVersion :: Version
-defaultGHCVersion = Version "default"
+defaultGHCVersion :: Maybe Version
+defaultGHCVersion = Nothing
 
 -- | JSON: string; "timeout", "backend".
 data RunError = RETimeOut

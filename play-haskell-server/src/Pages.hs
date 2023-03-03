@@ -35,11 +35,16 @@ renderPlayPage templ = \case
   Just paste -> Enc.encodeUtf8 $ Mustache.substituteValue templ $ pasteToMustacheObject paste
   Nothing -> Enc.encodeUtf8 $ Mustache.substituteValue templ $ Mustache.object [(Text.pack "preload", toMustache False)]
 
+versionToMustache :: Maybe Version -> Mustache.Value
+versionToMustache = \case
+  Just ( Version v) -> toMustache v
+  _ -> toMustache False
+
 pasteToMustacheObject :: Paste -> Mustache.Value
-pasteToMustacheObject (Paste (Version version) contents _ _) = Mustache.object l
+pasteToMustacheObject (Paste mversion contents _ _) = Mustache.object l
   where
     l = [(Text.pack "preload", mixinMaybeNull (jsStringEncode . decodeUtf8) msource),
-        (Text.pack "version", toMustache $ jsStringEncode (Text.pack version))]
+        (Text.pack "version", versionToMustache mversion)]
     msource = case contents of
        ((_, source) : _) -> Just source
        _ -> Nothing

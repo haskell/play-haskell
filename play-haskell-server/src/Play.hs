@@ -220,7 +220,7 @@ handleRequest gctx ctx = \case
                 _ -> do lift (httpError 400 "Invalid JSON")
                         exitEarly ()
               versions <- liftIO (WP.getAvailableVersions (ctxPool ctx))
-              let version' = fromMaybe defaultGHCVersion $ L.find (==version) versions
+              let version' = fromMaybe defaultGHCVersion $ Just <$> L.find (==version) versions
                   code' = Char8.pack $ T.unpack code
                   contents = Paste version' [(Nothing, code')] Nothing Nothing
                   srcip = Char8.unpack (rqClientAddr req)
