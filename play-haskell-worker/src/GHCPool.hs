@@ -27,6 +27,7 @@ import Foreign.C.Error (eFAULT, Errno (Errno))
 import Foreign.Marshal.Alloc (allocaBytes)
 import GHC.IO.Exception (IOException(ioe_errno))
 import qualified System.Clock as Clock
+import System.Directory (listDirectory)
 import System.Exit (ExitCode(..))
 import System.FilePath ((</>))
 import System.IO (hPutStr, hClose, Handle, hGetBufSome, hPutStrLn, stderr)
@@ -59,11 +60,11 @@ maxOutputSizeBytes = 100_000
 
 availableVersions :: IO [String]
 availableVersions = do
-  -- -r: parseable output
-  -- --no-verbose: don't notify me that there is a new ghc version available
-  out <- Pr.readCreateProcess (Pr.proc "ghcup" ["--offline", "list", "-t", "ghc", "-c", "installed", "-r", "--no-verbose"]) []
-  let ghc_versions = [ver | (words -> _ : ver : _) <- lines out]
-  return ghc_versions
+  files <- listDirectory "bwrap-files/builders"
+  return [ver
+         | fname <- files
+         , ("build-", tl) <- [splitAt 6 fname]
+         , (ver, ".sh") <- [splitAt (length tl - 3) tl]]
 
 commandString :: Command -> String
 commandString CRun = "run"
