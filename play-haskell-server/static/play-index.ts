@@ -103,6 +103,7 @@ const ghcReadableVersion: Record<string, string> = {
 	"9.6.0.20230111": "9.6.1-alpha1",
 	"9.6.0.20230128": "9.6.1-alpha2",
 	"9.6.0.20230210": "9.6.1-alpha3",
+	"9.6.0.20230302": "9.6.1-rc1",
 };
 
 // defined in a <script> block in play.mustache
