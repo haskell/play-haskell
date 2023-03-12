@@ -105,10 +105,17 @@ const ghcReadableVersion: Record<string, string> = {
 	"9.6.0.20230210": "9.6.1-alpha3",
 	"9.6.0.20230302": "9.6.1-rc1",
 };
+const defaultGHCversion: string = "9.2.7";
+
 
 // defined in a <script> block in play.mustache
 declare var preload_script: string | null;
+declare var preload_ghc_version: string | null;
 const snippet = preload_script != null ? preload_script : example_snippets[Math.floor(Math.random() * example_snippets.length)];
+if (preload_ghc_version == "default") {
+	preload_ghc_version = defaultGHCversion
+}
+const ghcversion = preload_ghc_version != null ? preload_ghc_version : defaultGHCversion
 
 // defined in ace-files/ace.js with a <script src> block in play.mustache
 declare var ace: any;
@@ -142,8 +149,6 @@ type json =
 type Runner = "run" | "core" | "asm";
 
 let lastRunKind: Runner = "run";
-
-const defaultGHCversion: string = "9.2.7";
 
 
 function performXHR(
@@ -198,7 +203,7 @@ function setWorking(yes: boolean) {
 	}
 }
 
-function getVersions(cb: (response: string) => void) {
+function getVersions(cb: (response) => void) {
 	performXHR("GET", "/versions", "json", cb, function(xhr) {
 		alert("Error getting available compiler versions (status " + xhr.status + "): " + xhr.responseText);
 	});
@@ -268,6 +273,8 @@ function doRun(run: Runner) {
 
 function doSave() {
 	const source: string = editor.getValue();
+	let version = (document.getElementById("ghcversionselect") as any).value;
+	const payload: string = JSON.stringify({code: source, version});
 
 	performXHR(
 		"POST", "/save", "text",
@@ -283,7 +290,7 @@ function doSave() {
 		xhr => {
 			alert("Could not save your code!\nServer returned status code " + xhr.status + ": " + xhr.responseText);
 		},
-		"text/plain", source
+		"application/json", payload
 	);
 }
 
@@ -358,14 +365,21 @@ window.addEventListener("load", function() {
 	document.getElementById("btn-core").setAttribute("title", runTooltip);
 	document.getElementById("btn-asm").setAttribute("title", runTooltip);
 
-	getVersions(function(versions) {
+	getVersions(function(versions: string[]) {
 		const sel: HTMLElement = document.getElementById("ghcversionselect");
+		if (versions.length === 0) {
+			versions.push(defaultGHCversion)
+		}
 		for (let i = 0; i < versions.length; i++) {
 			const opt: HTMLOptionElement = document.createElement("option");
 			opt.value = versions[i];
-			const readable = versions[i] in ghcReadableVersion ? ghcReadableVersion[versions[i]] : versions[i];
-			opt.textContent = "GHC " + readable;
-			if (versions[i] == defaultGHCversion) opt.setAttribute("selected", "");
+			let readable = versions[i] in ghcReadableVersion ? ghcReadableVersion[versions[i]] : versions[i];
+			let verAnnotation = ""
+			if (versions[i] === defaultGHCversion) {
+				verAnnotation = "(Default) "
+			}
+			opt.textContent = verAnnotation + "GHC " + readable;
+			if (versions[i] == ghcversion) opt.setAttribute("selected", "");
 			sel.appendChild(opt);
 		}
 	});
