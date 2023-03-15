@@ -22,7 +22,7 @@ import PlayHaskellTypes (Version(..), Paste(..), KeyType, ClientAddr)
 
 
 instance ToField Version where
-  toField (Version v)= toField v
+  toField (Version v) = toField v
 
 maxDbFileSize :: Int
 maxDbFileSize = 1024 * 1024 * 1024  -- 1 GiB
