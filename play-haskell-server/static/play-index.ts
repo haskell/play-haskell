@@ -340,6 +340,41 @@ function handleSeparatorDragEvents() {
 	});
 }
 
+// Assumes that the element has 'transition: opacity <fadetime>ms'. Assumes
+// .fadeout results in 'opacity: 0' and that .hidden results in
+// 'display: hidden'.
+// Returns a function that hides the element immediately, cancelling the active fadeout.
+function setupButtonFadeout(btn, delayms, fadetimems): () => void {
+	function fullhide() {
+		btn.classList.add("hidden");
+		btn.classList.remove("fadeout");
+	}
+
+	let timeout = setTimeout(() => {
+		btn.classList.add("fadeout");
+		timeout = setTimeout(() => {fullhide(); timeout = null;}, fadetimems + 50);
+	}, delayms);
+
+	return () => {
+		if (timeout != null) clearTimeout(timeout);
+		fullhide();
+	};
+}
+
+// Upon the next user action (mouse move, key press), run the function once.
+function uponUserAction(fun: () => void) {
+	let mouseh = false, keyh = false;
+
+	function run() {
+		fun();
+		if (mouseh) { window.removeEventListener("mousemove", fun); mouseh = false; }
+		if (keyh) { window.removeEventListener("keydown", fun); keyh = false; }
+	}
+
+	window.addEventListener("mousemove", run); mouseh = true;
+	window.addEventListener("keydown", run); keyh = true;
+}
+
 window.addEventListener("load", function() {
 	editor.commands.addCommand({
 		name: "Run",
@@ -377,6 +412,21 @@ window.addEventListener("load", function() {
 		opt.textContent = "-" + o;
 		if (o == "O1") opt.setAttribute("selected", "");
 		sel.appendChild(opt);
+	});
+
+	editor.focus();
+
+	const btnBasicTemplate = document.getElementById("btn-basic-template");
+	let completeFadeout = null;
+	uponUserAction(() => {
+		completeFadeout = setupButtonFadeout(btnBasicTemplate, 2000, 1500);
+	});
+	document.getElementById("btn-basic-template").addEventListener('click', () => {
+		editor.session.setValue("main :: IO ()\nmain = _");
+		if (completeFadeout != null) completeFadeout();
+		else btnBasicTemplate.classList.add("hidden");
+		editor.focus();
+		editor.gotoLine(2, 8);
 	});
 });
 

@@ -189,6 +189,28 @@ html, body {
 	}
 }
 
+#editor-overlay {
+	grid-column: left-start / left-end;
+	grid-row: left-top / left-bottom;
+	z-index: 1;
+	text-align: right;
+	padding: 5px;
+	pointer-events: none;
+}
+#editor-overlay button {
+	opacity: 0.8;
+	pointer-events: auto;
+}
+@media (prefers-color-scheme: dark) {
+	#editor-overlay button {
+		background-color: #aaa;
+	}
+}
+#btn-basic-template.fadeout {
+	opacity: 0;
+	transition: opacity 1.5s;
+}
+
 #main:not(.loading) div#output-overlay, #main:not(.loading) div.lds-roller {
 	display: none;
 }
@@ -196,6 +218,10 @@ html, body {
 .invisible {
 	display: none !important;
 }
+.hidden {
+	display: hidden;
+}
+
 .lds-roller {
   grid-column: right-start / right-end;
   grid-row: right-top / right-bottom;
@@ -348,6 +374,9 @@ preload_script = null;
 	</div>
 	<div id="output-overlay"></div>
 	<div class="lds-roller"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
+	<div id="editor-overlay">
+		<button id="btn-basic-template" class="pure-button">Basic template</button>
+	</div>
 </div>
 <script src="/ace-files/ace.js"></script>
 <script src="/play-index.js"></script>
