@@ -272,13 +272,29 @@ function doSave() {
 	performXHR(
 		"POST", "/save", "text",
 		response => {
-			if (typeof response != "string") {
+			if(typeof response !== "string")
+			{
 				alert("Invalid response returned by server: " + response);
 				return;
 			}
+			
+			const saveUrl = `${location.origin}/saved/${response}`;
+			history.pushState(null,"",saveUrl);
+			
 
-			history.pushState(null, "", location.origin + "/saved/" + response);
-			alert("Saved! You can share the URL of this page.");
+			(document.querySelector('#save-alert') as HTMLDialogElement).showModal();
+			(document.querySelector('#save-link-slot') as HTMLSpanElement).innerText = saveUrl;
+
+			let copyLinkButton: HTMLButtonElement = document.querySelector('#btn-copy-link') as HTMLButtonElement;
+			copyLinkButton.classList.remove('success');
+			copyLinkButton.onclick = (ev) => {
+				navigator.clipboard.writeText(saveUrl)
+					.then(() => {
+						copyLinkButton.classList.add('success');
+					})
+					
+			};
+
 		},
 		xhr => {
 			alert("Could not save your code!\nServer returned status code " + xhr.status + ": " + xhr.responseText);
@@ -434,6 +450,9 @@ document.getElementById("btn-run").addEventListener('click', () => { doRun("run"
 document.getElementById("btn-core").addEventListener('click', () => { doRun("core") });
 document.getElementById("btn-asm").addEventListener('click', () => { doRun("asm") });
 document.getElementById("btn-save").addEventListener('click', () => { doSave() });
+document.getElementById("btn-close-save-alert").addEventListener('click', () => {
+	(document.getElementById("save-alert") as HTMLDialogElement).close();
+});
 handleSeparatorDragEvents();
 addMediaListener("screen and (max-width: 800px)", "resize", function(ql) {
 	if (ql && ql.matches) setSeparatorToWidth(null);

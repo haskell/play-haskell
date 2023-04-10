@@ -327,6 +327,32 @@ html, body {
     content: "Click the Run button to execute the code above.";
   }
 }
+
+dialog {
+	border-radius: 4px;
+	transform: translateY(-30vh);
+	/*
+	z-index:10;
+	top: 80px;
+	*/
+}
+
+#save-link-slot {
+	border-style: solid;
+	border-width: thin;
+	border-radius: 4px;
+	padding-right: 4px;
+}
+
+.flex-row-reverse {
+	display:flex;
+	flex-direction: row-reverse;
+}
+
+button.success {
+	background-color: green;
+}
+
 </style>
 <link rel="stylesheet" href="https://unpkg.com/purecss@2.0.3/build/pure-min.css" integrity="sha384-cg6SkqEOCV1NbJoCu11+bm0NvBRc8IYLRGXkmNrqUBfTjmMYwNKPWBTIKyw9mHNJ" crossorigin="anonymous">
 <script>
@@ -340,6 +366,18 @@ preload_script = null;
 </head>
 <body>
 <div id="main">
+	<dialog id="save-alert">
+		<p>Saved! You can share or revisit your program with this link: </p>
+		<div>
+			<span id="save-link-slot"></span>
+			<button id="btn-copy-link" class="pure-button">Copy Link</button>
+		</div>
+		
+		<div class="flex-row-reverse">
+			<button id="btn-close-save-alert" class="pure-button">Ok</button>
+		</div>
+	</dialog>
+
 	<div id="header">
 		<img id="title" src="/haskell-logo-tw.svg">
 		<div id="toolbar">
