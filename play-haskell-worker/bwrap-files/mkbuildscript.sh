@@ -121,7 +121,6 @@ args=(
   --ro-bind "${ghcup_base}/ghc"   "${ghcup_base}/ghc"
   --ro-bind "${ghcup_base}/cache" "${ghcup_base}/cache"
   --ro-bind "${HOME}/.cabal/bin" "${HOME}/.cabal/bin"
-  --ro-bind "${HOME}/.cabal/share" "${HOME}/.cabal/share"
   --ro-bind "${HOME}/.cabal/store" "${HOME}/.cabal/store"
   --bind "${HOME}/.cabal/packages" "${HOME}/.cabal/packages"  # should be safe to modify this? Just stores downloads
   --dev-bind /dev/null /dev/null
