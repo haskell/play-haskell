@@ -10,7 +10,7 @@ builders:
 
 bwrap-files/ubuntu-base:
 	mkdir '$@'
-	curl -L 'http://cdimage.ubuntu.com/ubuntu-base/releases/20.04/release/ubuntu-base-20.04.1-base-amd64.tar.gz' | tar -C '$@' -xz
+	curl -L 'https://cdimage.ubuntu.com/ubuntu-base/releases/22.04/release/ubuntu-base-22.04-base-amd64.tar.gz' | tar -C '$@' -xz
 
 bwrap-files/systemd-run-shim: bwrap-files/systemd-run-shim.c
 	gcc -Wall -Wextra -std=c11 -O2 -o $@ $<
