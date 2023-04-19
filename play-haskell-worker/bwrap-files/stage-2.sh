@@ -16,14 +16,17 @@ chroot="ubuntu-base"
 # We will connect this fd to the ghc_out_fifo for bwrap
 ghc_out_fd=100
 
+# For the --symlink of /bin and /lib, see mkbuildscript.sh
 args=(
   # Need bwrap >=v0.7.0 for --size
   --size $((100 * 1024 * 1024)) --tmpfs /tmp
-  --ro-bind "${chroot}/bin" /bin
+  # --ro-bind "${chroot}/bin" /bin
+  --symlink /usr/bin /bin
   --ro-bind "${chroot}/usr/bin" /usr/bin
   --ro-bind "${chroot}/usr/lib" /usr/lib
   --ro-bind "${chroot}/usr/include" /usr/include
-  --ro-bind "${chroot}/lib" /lib
+  # --ro-bind "${chroot}/lib" /lib
+  --symlink /usr/lib /lib
   --ro-bind "${chroot}/lib64" /lib64
   --dir "${ghcup_base}"
   --ro-bind "${ghcup_base}/bin"   "${ghcup_base}/bin"

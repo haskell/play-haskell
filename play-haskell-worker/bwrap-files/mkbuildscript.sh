@@ -74,15 +74,43 @@ ghcup_base=$(ghcup whereis basedir)
 
 mkdir -p "${cabaldir}/store" "${cabaldir}/logs"
 
+# These are symlinks to the corresponding folder in /usr in the ubuntu chroot.
+# Just --ro-bind'ing them doesn't work because then the readlink() that gcc
+# does on /bin will fail, and its include path detection will not work
+# correctly (and for example miss c++ include paths, necessary to build
+# simdjson in the Haskell 'text' library). So handle these symlinks correctly.
+#
+# Actually, this should also include /lib64. But if we include that (and remove
+# the corresponding --ro-bind below in args[]), then nothing works: launching
+# /bin/bash says ENOENT, probably referring to the loader not finding some
+# library. I dunno, but it works like this now. Magic.
+chroot_symlinks=( /bin /lib )
+for f in "${chroot_symlinks[@]}"; do
+  if [[ ! -L "${chroot}$f" ]]; then
+    printf >&2 "\x1B[31;1m[mkbuildscript] Expected ${chroot}$f to be a symlink (to usr$f), but it isn't.\x1B[0m\n"
+    exit 1
+  fi
+  if [[ ! "$(readlink "${chroot}$f")" = "usr$f" ]]; then
+    printf >&2 "\x1B[31;1m[mkbuildscript] Expected ${chroot}$f to (be a symlink and) point to usr$f, but it doesn't.\x1B[0m\n"
+    exit 1
+  fi
+done
+
+symlink_bindargs=()
+for f in "${chroot_symlinks[@]}"; do
+  symlink_bindargs[${#symlink_bindargs[@]}]=--symlink
+  symlink_bindargs[${#symlink_bindargs[@]}]=/usr$f
+  symlink_bindargs[${#symlink_bindargs[@]}]=$f
+done
+
 args=(
   # Need bwrap >=v0.7.0 for --size
   --size $((100 * 1024 * 1024)) --tmpfs /tmp
-  --ro-bind "${chroot}/bin" /bin
   --ro-bind "${chroot}/usr/bin" /usr/bin
   --ro-bind "${chroot}/usr/lib" /usr/lib
   --ro-bind "${chroot}/usr/include" /usr/include
-  --ro-bind "${chroot}/lib" /lib
-  --ro-bind "${chroot}/lib64" /lib64
+  --ro-bind "${chroot}/usr/lib64" /lib64  # This is wrong because it's a symlink in the actual image. But if we symlink, nothing works; see above.
+  "${symlink_bindargs[@]}"
   --ro-bind "${chroot}/etc/alternatives" /etc/alternatives
   --ro-bind /etc/resolv.conf /etc/resolv.conf
   --dir "${ghcup_base}"
@@ -110,6 +138,7 @@ args=(
 )
 
 bwrap "${args[@]}" 4<<EOF
+# set -x
 cd /project
 ghcup --no-verbose --offline run --ghc '$ghcversion' -- \\
   cabal --store-dir=/builderprojs/ghc-'$ghcversion'-cabal/store --logs-dir=/builderprojs/ghc-'$ghcversion'-cabal/logs freeze
