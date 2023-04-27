@@ -30,7 +30,11 @@ case "$command" in
 	run)
 		cat >Main.hs
 		/builders/build-"${version}".sh "${opt}" Main.hs >/tmp/null 2>&"$ghc_out_fd"
-		./Main +RTS -M500m -RTS
+		if [[ -f Main ]]; then
+			./Main +RTS -M500m -RTS
+		else
+			echo >&2 "Compilation succeeded, but no executable was produced. Perhaps your module is not called 'Main'?"
+		fi
 		;;
 	core)
 		cat >input.hs
