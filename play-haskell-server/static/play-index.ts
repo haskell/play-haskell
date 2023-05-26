@@ -143,7 +143,7 @@ type Runner = "run" | "core" | "asm";
 
 let lastRunKind: Runner = "run";
 
-const defaultGHCversion: string = "9.2.7";
+const defaultGHCversion: string = "9.2.8";
 
 
 function performXHR(
