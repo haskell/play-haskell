@@ -23,6 +23,11 @@ currently (2022-08), Ubuntu GHCs seem to work fine on Arch Linux, for example.
 
 ### System setup: Ubuntu
 
+Note: the worker needs bubblewrap 0.7.0, which is present in the Ubuntu repos
+only from Ubuntu 23.04. If you're running an older version of Ubuntu (or
+another system without version 0.7.0), build
+[bubblewrap](https://github.com/containers/bubblewrap) yourself.
+
 ```bash
 # Note: earlyoom is only advised if you're deploying; not necessary on your local machine
 sudo apt update && sudo apt install earlyoom bubblewrap make npm jq
