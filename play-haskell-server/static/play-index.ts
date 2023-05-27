@@ -272,29 +272,36 @@ function doSave() {
 	performXHR(
 		"POST", "/save", "text",
 		response => {
-			if(typeof response !== "string")
-			{
+			if (typeof response !== "string") {
 				alert("Invalid response returned by server: " + response);
 				return;
 			}
-			
+
 			const saveUrl = `${location.origin}/saved/${response}`;
-			history.pushState(null,"",saveUrl);
-			
+			history.pushState(null, "", saveUrl);
 
-			(document.querySelector('#save-alert') as HTMLDialogElement).showModal();
-			(document.querySelector('#save-link-slot') as HTMLSpanElement).innerText = saveUrl;
+			const dialog = document.getElementById("save-alert") as HTMLDialogElement;
+			dialog.showModal();
+			document.getElementById("save-link-slot").innerText = saveUrl;
 
-			let copyLinkButton: HTMLButtonElement = document.querySelector('#btn-copy-link') as HTMLButtonElement;
-			copyLinkButton.classList.remove('success');
-			copyLinkButton.onclick = (ev) => {
-				navigator.clipboard.writeText(saveUrl)
-					.then(() => {
-						copyLinkButton.classList.add('success');
-					})
-					
-			};
+			if (!("clipboard" in navigator && navigator.clipboard != undefined)) {
+				dialog.classList.add("no-clipboard-support");
+			} else {
+				dialog.classList.remove("no-clipboard-support");
 
+				const copyLinkButton = document.getElementById("btn-copy-link");
+				copyLinkButton.classList.remove("success");
+				copyLinkButton.onclick = ev => {
+					navigator.clipboard.writeText(saveUrl)
+						.then(() => {
+							copyLinkButton.classList.add("success");
+							// This needs to be in a timeout to work?
+							setTimeout(() => document.getElementById("btn-close-save-alert").focus(), 0);
+						}, () => {
+							alert("Clipboard set failed");
+						});
+				};
+			}
 		},
 		xhr => {
 			alert("Could not save your code!\nServer returned status code " + xhr.status + ": " + xhr.responseText);
@@ -453,6 +460,18 @@ document.getElementById("btn-save").addEventListener('click', () => { doSave() }
 document.getElementById("btn-close-save-alert").addEventListener('click', () => {
 	(document.getElementById("save-alert") as HTMLDialogElement).close();
 });
+if ("getSelection" in window) {
+	document.getElementById("save-link-slot").addEventListener('click', ev => {
+		// Clear any current selection
+		const selection = window.getSelection();
+		selection.removeAllRanges();
+
+		// Select the URL
+		const range = document.createRange();
+		range.selectNodeContents(document.getElementById("save-link-slot"));
+		selection.addRange(range);
+	});
+}
 handleSeparatorDragEvents();
 addMediaListener("screen and (max-width: 800px)", "resize", function(ql) {
 	if (ql && ql.matches) setSeparatorToWidth(null);
