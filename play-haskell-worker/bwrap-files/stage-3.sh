@@ -16,7 +16,7 @@ IFS="" read -r opt
 IFS="" read -r version
 
 # Check that there are only version-like characters
-if [[ "${version//[0-9.]/}" != "" ]]; then
+if [[ "${version//[0-9.alpha-]/}" != "" ]]; then
 	echo >&2 "Invalid version"
 	exit 1
 fi
