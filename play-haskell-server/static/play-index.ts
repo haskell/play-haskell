@@ -222,8 +222,8 @@ function doRun(run: Runner) {
 	lastRunKind = run;
 
 	const source: string = editor.getValue();
-	let version = (document.getElementById("ghcversionselect") as any).value;
-	let opt = (document.getElementById("optselect") as any).value;
+	let version = (document.getElementById("ghcversionselect") as HTMLSelectElement).value;
+	let opt = (document.getElementById("optselect") as HTMLSelectElement).value;
 	if (typeof version != "string" || version == "") version = defaultGHCversion;
 	if (typeof opt != "string" || opt == "") opt = "O1";
 
@@ -398,6 +398,95 @@ function uponUserAction(fun: () => void) {
 	window.addEventListener("keydown", run); keyh = true;
 }
 
+function doToggleCoreDropdown() {
+	document.getElementById("core-dropdown").classList.toggle("hidden");
+}
+
+function fillCoreDropdown() {
+	const misc_options = [
+		"ppr-case-as-let",
+		"suppress-uniques",
+		"no-suppress-stg-reps",
+	];
+	const suppress_options = [
+		"suppress-ticks",
+		"suppress-idinfo",
+		"suppress-unfoldings",
+		"suppress-module-prefixes",
+		"suppress-timestamps",
+		"suppress-type-signatures",
+		"suppress-type-applications",
+		"suppress-coercions",
+		"suppress-coercion-types",
+		"suppress-var-kinds",
+		"suppress-stg-free-vars",
+		"suppress-core-sizes",
+	];
+
+	function addCheck(parent, flag): HTMLInputElement {
+		const input = document.createElement("input");
+		input.id = "core-setting-" + flag;
+		input.name = "core-setting-" + flag;
+		input.setAttribute("type", "checkbox");
+
+		const code = document.createElement("code");
+		code.appendChild(document.createTextNode("-d" + flag));
+
+		const label = document.createElement("label");
+		label.setAttribute("for", "core-setting-" + flag);
+		label.appendChild(input);
+		label.appendChild(document.createTextNode(" "));
+		label.appendChild(code);
+
+		parent.appendChild(label);
+		parent.appendChild(document.createElement("br"));
+
+		return input;
+	}
+
+	const container_top = document.getElementById("core-dropdown-top");
+	const container_pos = document.getElementById("core-dropdown-supp-pos");
+	const container_neg = document.getElementById("core-dropdown-supp-neg");
+
+	for (const flag of misc_options) addCheck(container_top, flag);
+
+	const suppallBox = addCheck(container_top, "suppress-all");
+	suppallBox.addEventListener("change", () => {
+		if (suppallBox.checked) {
+			container_pos.classList.add("hidden");
+			container_neg.classList.remove("hidden");
+		} else {
+			container_pos.classList.remove("hidden");
+			container_neg.classList.add("hidden");
+		}
+	});
+
+	for (const flag of suppress_options) {
+		addCheck(container_pos, flag);
+		addCheck(container_neg, "no-" + flag);
+	}
+}
+
+function collectCoreOptions() {
+	const container_top = document.getElementById("core-dropdown-top");
+	const container_sub =
+		(document.getElementById("core-setting-suppress-all") as HTMLInputElement).checked
+			? document.getElementById("core-dropdown-supp-neg")
+			: document.getElementById("core-dropdown-supp-pos");
+
+	const res = [];
+
+	const elts =
+		Array.from(container_top.getElementsByTagName("input"))
+			.concat(Array.from(container_sub.getElementsByTagName("input")));
+	for (let i = 0; i < elts.length; i++) {
+		const flag = elts[i].name.slice("core-setting-".length);
+		if (elts[i].checked) res.push("-d" + flag);
+	}
+
+	return res;
+}
+
 window.addEventListener("load", function() {
 	editor.commands.addCommand({
 		name: "Run",
@@ -451,10 +540,14 @@ window.addEventListener("load", function() {
 		editor.focus();
 		editor.gotoLine(2, 8);
 	});
+
+	document.getElementById("core-dropdown").setAttribute("style", "top: " + document.getElementById("toolbar").getBoundingClientRect().height + "px");
+	fillCoreDropdown();
 });
 
 document.getElementById("btn-run").addEventListener('click', () => { doRun("run") });
 document.getElementById("btn-core").addEventListener('click', () => { doRun("core") });
+document.getElementById("btn-core-dropdown").addEventListener('click', () => { doToggleCoreDropdown() });
 document.getElementById("btn-asm").addEventListener('click', () => { doRun("asm") });
 document.getElementById("btn-save").addEventListener('click', () => { doSave() });
 document.getElementById("btn-close-save-alert").addEventListener('click', () => {

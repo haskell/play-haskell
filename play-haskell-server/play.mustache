@@ -73,6 +73,20 @@ html, body {
 	background-color: #e6e0e0;
 	margin-right: 8px;
 }
+#toolbar #btn-core {
+	border-top-right-radius: 0;
+	border-bottom-right-radius: 0;
+	margin-right: 0;
+	border-right: 1px #555 solid;
+}
+#toolbar #btn-core-dropdown {
+	border-top-left-radius: 0;
+	border-bottom-left-radius: 0;
+	margin-left: 0;
+	padding-left: 5px;
+	padding-right: 5px;
+	font-size: small;
+}
 #toolbar #btn-save {
 	margin-top: auto;
 	margin-bottom: auto;
@@ -118,6 +132,34 @@ html, body {
 	#ghcversionselect {
 		width: 65px;
 	}
+}
+
+#core-dropdown-container {
+	position: relative;
+	display: inline-block;
+	width: 0;
+	height: 0;
+}
+#core-dropdown {
+	position: relative;
+	display: inline-block;
+	width: max-content;
+	z-index: 1;
+	background-color: #3e3a3f;
+	border: 1px #555 solid;
+	padding: 8px;
+}
+#core-dropdown label {
+	display: inline-block;
+	margin-top: 3px;
+	user-select: none;
+}
+#core-dropdown > label:first-child {
+	margin-top: 0;
+}
+#core-setting-suppress-all {
+	margin-top: 10px;
+	margin-bottom: 6px;
 }
 
 #leftcol {
@@ -403,6 +445,14 @@ preload_script = null;
 		<div id="toolbar">
 			<button id="btn-run" class="pure-button">Run</button>
 			<button id="btn-core" class="pure-button">Core</button>
+			<div id="core-dropdown-container">
+				<div id="core-dropdown" class="hidden">
+					<div id="core-dropdown-top"></div>
+					<div id="core-dropdown-supp-pos"></div>
+					<div id="core-dropdown-supp-neg" class="hidden"></div>
+				</div>
+			</div>
+			<button id="btn-core-dropdown" class="pure-button">&#x1f783;</button>
 			<button id="btn-asm" class="pure-button">Asm</button>
 			<select id="ghcversionselect"></select>
 			<select id="optselect"></select>
