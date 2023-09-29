@@ -26,15 +26,6 @@ if [[ ! -f /builders/build-"${version}".sh ]]; then
 	exit 1
 fi
 
-core_flags=()
-asm_flags=()
-
-# If the GHC version is >=8.10, we have -dno-typeable-binds
-if [[ "${version:0:5}" = "8.10." || "${version:0:2}" = "9." ]]; then
-	core_flags[${#core_flags[@]}]=-dno-typeable-binds
-	asm_flags[${#asm_flags[@]}]=-dno-typeable-binds
-fi
-
 case "$command" in
 	run)
 		cat >Main.hs
@@ -47,12 +38,12 @@ case "$command" in
 		;;
 	core)
 		cat >input.hs
-		/builders/build-"${version}".sh -ddump-simpl -ddump-to-file "${core_flags[@]}" "${opt}" input.hs >/tmp/null 2>&"$ghc_out_fd"
+		/builders/build-"${version}".sh -ddump-simpl -ddump-to-file "${opt}" input.hs >/tmp/null 2>&"$ghc_out_fd"
 		cat input.dump-simpl
 		;;
 	asm)
 		cat >input.hs
-		/builders/build-"${version}".sh -ddump-asm -ddump-to-file "${asm_flags[@]}" "${opt}" input.hs >/tmp/null 2>&"$ghc_out_fd"
+		/builders/build-"${version}".sh -ddump-asm -ddump-to-file "${opt}" input.hs >/tmp/null 2>&"$ghc_out_fd"
 		cat input.dump-asm
 		;;
 
