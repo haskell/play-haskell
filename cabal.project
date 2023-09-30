@@ -4,6 +4,6 @@ packages:
     play-haskell-worker/
     play-haskell-server/
 
-with-compiler: ghc-9.2.5
+with-compiler: ghc-9.4.7
 
 -- vim: set et sw=4 ts=8:
