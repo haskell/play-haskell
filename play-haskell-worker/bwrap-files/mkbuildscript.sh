@@ -18,7 +18,7 @@ projdir="$workdir/ghc-$ghcversion-proj"
 cabaldir="$workdir/ghc-${ghcversion}-cabal"
 outscript="$outdir/build-$ghcversion.sh"
 
-printf "\x1B[1m[mkbuildscript] Setting up cabal project directory in $projdir\x1B[0m\n"
+printf "\x1B[1m[mkbuildscript] Setting up cabal project directory in %s\x1B[0m\n" "$projdir"
 
 mkdir -p "$projdir"
 mkdir -p "$cabaldir"
@@ -93,11 +93,11 @@ mkdir -p "${cabaldir}/store" "${cabaldir}/logs"
 chroot_symlinks=( /bin /lib )
 for f in "${chroot_symlinks[@]}"; do
   if [[ ! -L "${chroot}$f" ]]; then
-    printf >&2 "\x1B[31;1m[mkbuildscript] Expected ${chroot}$f to be a symlink (to usr$f), but it isn't.\x1B[0m\n"
+    printf >&2 "\x1B[31;1m[mkbuildscript] Expected %s to be a symlink (to %s), but it isn't.\x1B[0m\n" "$chroot$f" "usr$f"
     exit 1
   fi
   if [[ ! "$(readlink "${chroot}$f")" = "usr$f" ]]; then
-    printf >&2 "\x1B[31;1m[mkbuildscript] Expected ${chroot}$f to (be a symlink and) point to usr$f, but it doesn't.\x1B[0m\n"
+    printf >&2 "\x1B[31;1m[mkbuildscript] Expected %s to (be a symlink and) point to %s, but it doesn't.\x1B[0m\n" "$chroot$f" "usr$f"
     exit 1
   fi
 done
@@ -158,7 +158,7 @@ depends=( $(
     sed 's/^/-package-id /'
   ) )
 
-printf "\x1B[1m[mkbuildscript] Writing $outscript\x1B[0m\n"
+printf "\x1B[1m[mkbuildscript] Writing %s\x1B[0m\n" "$outscript"
 
 cat >"$outscript" <<EOF
 #!/bin/sh

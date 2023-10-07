@@ -8,6 +8,6 @@ vers=( $(ghcup --no-verbose --offline list -t ghc -c installed -r | cut -d' ' -f
 first=0
 for ver in "${vers[@]}"; do
   [[ first -eq 0 ]] && first=1 || echo
-  printf "\x1B[1m[mkallbuildscripts] === Creating for GHC $ver ===\x1B[0m\n"
+  printf "\x1B[1m[mkallbuildscripts] === Creating for GHC %s ===\x1B[0m\n" "$ver"
   ./mkbuildscript.sh "$ver"
 done
