@@ -32,6 +32,9 @@ function build_depends_for() {
     9.6.*)
       echo "array, base, binary, bytestring, Cabal, containers, deepseq, directory, exceptions, filepath, ghc-boot, ghc-boot-th, ghc-heap, ghci, ghc-prim, haskeline, hpc, integer-gmp, libiserv, mtl, parsec, pretty, prettyprinter, primitive, process, random, rts, semigroups, stm, template-haskell, terminfo, text, time, transformers, transformers-base, unix, vector, xhtml, extra, bitvec, tagged, vector-algorithms, transformers-compat, linear-base, linear-generics, storable-tuple, text-builder-linear, void"
       ;;
+    9.8.*)
+      echo "array, base, binary, bytestring, Cabal, containers, deepseq, directory, exceptions, filepath, ghc-boot, ghc-boot-th, ghc-heap, ghci, ghc-prim, haskeline, hpc, integer-gmp, mtl, parsec, prettyprinter, primitive, process, random, rts, semigroups, stm, template-haskell, terminfo, text, time, transformers, transformers-base, unix, vector, xhtml, extra, bitvec, tagged, vector-algorithms, transformers-compat, storable-tuple, text-builder-linear, void"
+      ;;
     *-alpha*)
       echo "array, base, binary, bytestring, Cabal, containers, deepseq, directory, exceptions, filepath, ghc-boot, ghc-boot-th, ghc-heap, ghci, ghc-prim, haskeline, hpc, integer-gmp, mtl, parsec, pretty, prettyprinter, primitive, process, random, rts, semigroups, stm, template-haskell, terminfo, text, time, transformers, transformers-base, unix, vector, xhtml, extra, bitvec, tagged, vector-algorithms, transformers-compat, void"
       ;;
