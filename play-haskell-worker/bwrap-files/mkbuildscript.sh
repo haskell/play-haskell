@@ -6,16 +6,45 @@ cd "$(dirname "$0")"
 workdir="builderprojs"
 outdir="builders"
 
-if [[ $# -ne 1 ]]; then
-  echo >&2 "Usage: $0 <ghc version>"
+function usage() {
+  echo >&2 "Usage: $0 [-t] <ghc version> [dependencies]"
   echo >&2 "Will create temporary cabal project in $workdir/ghc-<version>/ and"
   echo >&2 "write build script to $outdir/build-<version>.sh"
+  echo >&2 "If [dependencies] is given, these override the dependency list in"
+  echo >&2 "this script."
+  echo >&2 "  -t   Test mode: stop after writing a freeze file"
   exit 1
-fi
+}
 
-ghcversion="$1"
+test_mode=0
+ghcversion=""
+dependencies_override=""
+
+function parse_args() {
+  local num_wordargs_given=0
+
+  for arg; do
+    case "$arg" in
+      -t)
+        test_mode=1; ;;
+      *)
+        case "$num_wordargs_given" in
+          0) ghcversion="$arg"; ;;
+          1) dependencies_override="$arg"; ;;
+          *) usage; ;;
+        esac
+        num_wordargs_given=$((num_wordargs_given + 1))
+        ;;
+    esac
+  done
+
+  if [[ $num_wordargs_given -lt 1 ]]; then usage; fi
+}
+
+parse_args "$@"
+
 projdir="$workdir/ghc-$ghcversion-proj"
-cabaldir="$workdir/ghc-${ghcversion}-cabal"
+cabaldir="$workdir/ghc-$ghcversion-cabal"
 outscript="$outdir/build-$ghcversion.sh"
 
 printf "\x1B[1m[mkbuildscript] Setting up cabal project directory in %s\x1B[0m\n" "$projdir"
@@ -25,6 +54,11 @@ mkdir -p "$cabaldir"
 mkdir -p "$outdir"
 
 function build_depends_for() {
+  if [[ -n $dependencies_override ]]; then
+    echo "$dependencies_override"
+    return
+  fi
+
   case "$1" in
     8.6.5)
       echo "adjunctions, aeson, array, assoc, async, attoparsec, base, base16, base64, bifunctors, bimap, binary, bitvec, bitwise, BoundedChan, bv-sized, bytestring, Cabal, case-insensitive, clock, colour, comonad, concurrent-extra, config-value, constraints, containers, contravariant, copilot >=3, copilot-c99, copilot-core, copilot-interpreter, copilot-language, copilot-libraries, copilot-prettyprinter, copilot-theorem, data-array-byte, data-default, data-default-class, data-default-instances-containers, data-default-instances-dlist, data-default-instances-old-locale, data-fix, data-reify, deepseq, deriving-compat, directory, distributive, dlist, dunai, effectful, exceptions, extra, filepath, fingertree, free, generically, generic-deriving, ghc-boot, ghc-boot-th, ghc-heap, ghci, ghc-prim, hashable, hashtables, haskeline, hpc, ieee754, indexed-traversable, indexed-traversable-instances, integer-gmp, integer-logarithms, invariant, io-streams, kan-extensions, language-c99, language-c99-simple, language-c99-util, lens, libBF, libiserv, megaparsec, monad-control, MonadRandom, mtl, old-locale, OneTuple, optparse-applicative, ordered-containers, parallel, parameterized-utils, parsec, parser-combinators, pretty, prettyprinter, primitive, process, profunctors, QuickCheck, random, reflection, rts, safe-exceptions, s-cargot, scientific, semialign, semigroupoids, semigroups, simple-affine-space, splitmix, StateVar, stm, strict, tagged, template-haskell, temporary, terminfo, text, text-short, th-abstraction, these, th-lift, th-lift-instances, time, time-compat, transformers, transformers-base, transformers-compat, unbounded-delays, unix, unliftio, unliftio-core, unordered-containers, utf8-string, uuid-types, vector, vector-algorithms, vector-stream, versions, void, what4, witherable, xhtml, xml, Yampa, zlib"
@@ -56,14 +90,14 @@ name:          sandbox
 version:       0.1.0.0
 build-type:    Simple
 executable thing
-  main-is:          Main.hs
-  hs-source-dirs:   .
+  main-is: Main.hs
+  hs-source-dirs: .
   default-language: Haskell2010
-  ghc-options:      -Wall -rtsopts
+  ghc-options: -Wall -rtsopts
   build-depends: $(build_depends_for "$ghcversion")
-  -- shorter dep list that only builds splitmix and random:
-  -- build-depends: array, base, binary, bytestring, Cabal, containers, deepseq, directory, exceptions, filepath, ghc-boot, ghc-boot-th, ghc-heap, ghci, ghc-prim, haskeline, hpc, integer-gmp, libiserv, mtl, parsec, pretty, process, random, rts, stm, template-haskell, terminfo, text, time, transformers, unix, xhtml
 EOF
+# shorter dep list that only builds splitmix and random:
+# build-depends: array, base, binary, bytestring, Cabal, containers, deepseq, directory, exceptions, filepath, ghc-boot, ghc-boot-th, ghc-heap, ghci, ghc-prim, haskeline, hpc, integer-gmp, libiserv, mtl, parsec, pretty, process, random, rts, stm, template-haskell, terminfo, text, time, transformers, unix, xhtml
 
 cat >"$projdir/Main.hs" <<EOF
 module Main where
@@ -146,10 +180,11 @@ args=(
 )
 
 bwrap "${args[@]}" 4<<EOF
-# set -x
+set -e
 cd /project
 ghcup --no-verbose --offline run --ghc '$ghcversion' -- \\
-  cabal --store-dir=/builderprojs/ghc-'$ghcversion'-cabal/store --logs-dir=/builderprojs/ghc-'$ghcversion'-cabal/logs freeze
+  cabal --store-dir=/builderprojs/ghc-'$ghcversion'-cabal/store --logs-dir=/builderprojs/ghc-'$ghcversion'-cabal/logs --minimize-conflict-set freeze
+[[ $test_mode -eq 1 ]] && exit
 ghcup --no-verbose --offline run --ghc '$ghcversion' -- \\
   cabal --store-dir=/builderprojs/ghc-'$ghcversion'-cabal/store --logs-dir=/builderprojs/ghc-'$ghcversion'-cabal/logs build
 EOF
