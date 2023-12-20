@@ -96,6 +96,19 @@ moveDrone drone move =
     ToRight -> drone { xPos = xPos drone + 1 }
     Up      -> drone { yPos = yPos drone + 1 }
     Down    -> drone { yPos = yPos drone - 1 }`
+,
+// adapted from @liamzee's https://github.com/haskript/big-book-of-small-haskell-projects/blob/51fd3ac4db30e9df2f14924d66d1469638aed009/35.HexGrid/HexGrid.hs
+`module Main where
+
+main :: IO ()
+main = putStr $ unlines $ hexagons 12 17
+
+hexagons :: Int -> Int -> [String]
+hexagons xRepeat yRepeat =
+  yRepeat \`times\` [xRepeat \`times\` "/ \\\\_"
+                  ,xRepeat \`times\` "\\\\_/ "]
+  where
+    n \`times\` l = concat (replicate n l)`
 ];
 
 // If a version is not present in this dictionary, just display it as-is
