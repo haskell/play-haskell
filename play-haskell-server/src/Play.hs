@@ -23,6 +23,9 @@ import qualified Data.Map.Strict as Map
 import Data.String (fromString)
 import Data.Text (Text)
 import Data.Time (secondsToDiffTime)
+import qualified Data.Time.Format as Time
+import qualified Data.Time.Clock.POSIX as Time
+import qualified Data.Time.LocalTime as Time
 import Data.Word (Word64)
 import GHC.Generics (Generic)
 import Snap.Core hiding (path, method, pass)
@@ -120,10 +123,13 @@ data Context = Context
   , ctxChallengeKey :: ChallengeKey
   , ctxRNG :: TVar StdGen }
 
+data ViewType = VTPlayground | VTRaw
+  deriving (Show)
+
 data WhatRequest
   = Index
   | PostedIndex
-  | FromSaved ByteString
+  | FromSaved ByteString ViewType
   | Save
   | Versions
   | CurrentChallenge
@@ -145,7 +151,8 @@ parseRequest :: Method -> [ByteString] -> Maybe WhatRequest
 parseRequest method comps = case (method, comps) of
   (GET, []) -> Just Index
   (POST, []) -> Just PostedIndex
-  (GET, ["saved", key]) -> Just (FromSaved key)
+  (GET, ["saved", key]) -> Just (FromSaved key VTPlayground)
+  (GET, ["saved", key, "raw"]) -> Just (FromSaved key VTRaw)
   (POST, ["save"]) -> Just Save
   (GET, ["versions"]) -> Just Versions
   (GET, ["challenge"]) -> Just CurrentChallenge
@@ -182,21 +189,35 @@ handleRequest gctx ctx = \case
       _ ->
         httpError 400 "Invalid request"
 
-  FromSaved key -> do
+  FromSaved key vt -> do
     res <- liftIO $ DB.getPaste (gcDb gctx) key
-    let buildPage contents = do
-          renderer <- liftIO $ getPageFromGCtx pPlay gctx
-          writeHTML (renderer (Just contents))
     case res of
       Just (_, Contents [] _ _) -> do
-        modifyResponse (setContentType (Char8.pack "text/plain"))
+        modifyResponse (setContentType (Char8.pack "text/plain")
+                        . setResponseCode 404)
         writeBS (Char8.pack "Save key not found (empty file list?)")
 
-      Just (_, Contents ((_, source) : _) _ _) ->
-        buildPage source
+      Just (mmoddate, Contents ((_, source) : _) _ _) ->
+        case vt of
+          VTPlayground -> do
+            renderer <- liftIO $ getPageFromGCtx pPlay gctx
+            writeHTML (renderer (Just source))
+          VTRaw -> do
+            liftIO $ print mmoddate
+            let gmtTimeZone = Time.TimeZone 0 False "GMT"
+            modifyResponse
+              (setContentType (Char8.pack "text/plain")
+               . (case mmoddate of
+                    Nothing -> id
+                    Just moddate ->
+                      let s = Time.formatTime Time.defaultTimeLocale Time.rfc822DateFormat
+                                (Time.utcToZonedTime gmtTimeZone (Time.posixSecondsToUTCTime moddate))
+                      in setHeader "Last-Modified" (Char8.pack s)))
+            writeBS source
 
       Nothing -> do
-        modifyResponse (setContentType (Char8.pack "text/plain"))
+        modifyResponse (setContentType (Char8.pack "text/plain")
+                        . setResponseCode 404)
         writeBS (Char8.pack "Save key not found")
 
   Save -> do
