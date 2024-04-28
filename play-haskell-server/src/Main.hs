@@ -10,6 +10,7 @@ import Data.Foldable (asum)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (mapMaybe, fromMaybe)
+import Data.String (fromString)
 import Snap.Core hiding (path, method)
 import Snap.Http.Server
 import System.Exit (die)
@@ -80,6 +81,9 @@ server :: Options -> [InstantiatedModule] -> Snap ()
 server options modules = do
   -- If we're proxied, set the source IP from the X-Forwarded-For header.
   when (oProxied options) ipHeaderFilterSupportingIPv6
+
+  -- The default is Snap/version; I don't want you to know the version
+  modifyResponse (setHeader (fromString "Server") (Char8.pack "Snap"))
 
   req <- getRequest
   let path = rqContextPath req `BS.append` rqPathInfo req
