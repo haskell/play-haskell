@@ -422,13 +422,13 @@ preload_script = null;
 			<button id="btn-save" class="pure-button">Save &amp; share code</button>
 			{{#pastedate}}
 			<span id="paste-metadata">
-				Snippet saved on:
-				<script>document.write("<br>" + new Date({{pastedate}} * 1000).toLocaleString());</script>
+				Snippet saved on:<br>
+				<span id="paste-save-time"><script>document.write(new Date({{pastedate}} * 1000).toLocaleString());</script></span>
 				<noscript>{{pastedate-utc}}</noscript>
 			</span>
 			{{/pastedate}}
 			{{#pastekey}}
-			<span id="paste-raw">(<a href="/saved/{{pastekey}}/raw">raw</a>)</span>
+			<span id="paste-raw">(<a id="paste-raw-link" href="/saved/{{pastekey}}/raw">raw</a>)</span>
 			{{/pastekey}}
 			<span id="toolbar-mid-spacer"></span>
 			<span id="github-link">Open source: <a href="https://github.com/haskell/play-haskell" target="_blank">GitHub</a></span>

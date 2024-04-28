@@ -316,6 +316,10 @@ function doSave() {
 			const saveUrl = `${location.origin}/saved/${response}`;
 			history.pushState(null, "", saveUrl);
 
+			let el;
+			if (el = document.getElementById("paste-save-time")) el.innerText = new Date().toLocaleString();
+			if (el = document.getElementById("paste-raw-link") as HTMLAnchorElement) el.href = saveUrl + "/raw";
+
 			try {
 				showSaveDialog(saveUrl);
 			} catch (e) {
