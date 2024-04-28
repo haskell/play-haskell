@@ -31,7 +31,7 @@ executable play-haskell-worker
     unix >= 2.7.2
   hs-source-dirs:      src
   default-language:    Haskell2010
-  ghc-options:         -Wall -O2 -threaded
+  ghc-options:         -Wall -threaded "-with-rtsopts=-qg -N"
 
 test-suite worker-test
   type: exitcode-stdio-1.0
@@ -49,7 +49,7 @@ test-suite worker-test
     utf8-string >= 1.0.2
   default-language:
     Haskell2010
-  ghc-options: -Wall -O -threaded
+  ghc-options: -Wall -threaded
 
 source-repository head
   type: git

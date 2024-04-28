@@ -26,7 +26,7 @@ library
     text
   hs-source-dirs:      src
   default-language:    Haskell2010
-  ghc-options:         -Wall -O2
+  ghc-options:         -Wall
 
 executable gen-secret-key
   main-is: GenSecretKey.hs
@@ -38,7 +38,7 @@ executable gen-secret-key
     unix >= 2.7.2 && < 2.8
   hs-source-dirs:      .
   default-language:    Haskell2010
-  ghc-options:         -Wall -O2
+  ghc-options:         -Wall
 
 source-repository head
   type: git

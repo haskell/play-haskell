@@ -52,7 +52,7 @@ executable play-haskell-server
     zlib >= 0.6.2
   hs-source-dirs:      src
   default-language:    Haskell2010
-  ghc-options:         -Wall -O2 -threaded "-with-rtsopts=-qg -N"
+  ghc-options:         -Wall -threaded
 
 test-suite play-test
   type: exitcode-stdio-1.0
