@@ -277,6 +277,31 @@ function doRun(run: Runner) {
 	});
 }
 
+function showSaveDialog(saveUrl) {
+	const dialog = document.getElementById("save-alert") as HTMLDialogElement;
+	dialog.showModal();
+	document.getElementById("save-link-slot").innerText = saveUrl;
+
+	if (!("clipboard" in navigator && navigator.clipboard != undefined)) {
+		dialog.classList.add("no-clipboard-support");
+	} else {
+		dialog.classList.remove("no-clipboard-support");
+
+		const copyLinkButton = document.getElementById("btn-copy-link");
+		copyLinkButton.classList.remove("success");
+		copyLinkButton.onclick = ev => {
+			navigator.clipboard.writeText(saveUrl)
+				.then(() => {
+					copyLinkButton.classList.add("success");
+					// This needs to be in a timeout to work?
+					setTimeout(() => document.getElementById("btn-close-save-alert").focus(), 0);
+				}, () => {
+					alert("Clipboard set failed");
+				});
+		};
+	}
+}
+
 function doSave() {
 	const source: string = editor.getValue();
 
@@ -291,27 +316,10 @@ function doSave() {
 			const saveUrl = `${location.origin}/saved/${response}`;
 			history.pushState(null, "", saveUrl);
 
-			const dialog = document.getElementById("save-alert") as HTMLDialogElement;
-			dialog.showModal();
-			document.getElementById("save-link-slot").innerText = saveUrl;
-
-			if (!("clipboard" in navigator && navigator.clipboard != undefined)) {
-				dialog.classList.add("no-clipboard-support");
-			} else {
-				dialog.classList.remove("no-clipboard-support");
-
-				const copyLinkButton = document.getElementById("btn-copy-link");
-				copyLinkButton.classList.remove("success");
-				copyLinkButton.onclick = ev => {
-					navigator.clipboard.writeText(saveUrl)
-						.then(() => {
-							copyLinkButton.classList.add("success");
-							// This needs to be in a timeout to work?
-							setTimeout(() => document.getElementById("btn-close-save-alert").focus(), 0);
-						}, () => {
-							alert("Clipboard set failed");
-						});
-				};
+			try {
+				showSaveDialog(saveUrl);
+			} catch (e) {
+				alert(`Saved here:\n${saveUrl}\nCopy this link to share your snippet. Your browser's URL bar was also updated.`);
 			}
 		},
 		xhr => {
