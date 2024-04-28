@@ -17,12 +17,12 @@ library
   other-modules:
     PlayHaskellTypes.UTF8
   build-depends:
-    base >= 4.16 && < 4.17,
+    base >= 4.16,
     snap-server-utils,
-    aeson >= 2.0.3 && < 2.1,
-    bytestring >= 0.11 && < 0.12,
-    cryptonite >= 0.30 && < 0.31,
-    memory >= 0.17 && < 0.18,
+    aeson >= 2.0.3,
+    bytestring >= 0.11,
+    cryptonite >= 0.30,
+    memory >= 0.17,
     text
   hs-source-dirs:      src
   default-language:    Haskell2010

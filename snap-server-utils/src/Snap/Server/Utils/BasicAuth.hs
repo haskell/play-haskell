@@ -33,7 +33,7 @@ getBasicAuthCredentials =
   getHeader (fromString "Authorization") >=> \text -> do
     [basic, b64] <- return (filter (not . BS.null) (BS.split 32 text))
     guard (basic == fromString "Basic")
-    Right dec <- return (Base64.decodeBase64 b64)
+    Right dec <- return (Base64.decodeBase64Untyped b64)
     let (user, passWithColon) = BS.break (== fromIntegral (ord ':')) dec
     Just (_, pass) <- return (BS.uncons passWithColon)
     return (user, pass)
