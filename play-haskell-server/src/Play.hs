@@ -177,15 +177,15 @@ handleRequest gctx ctx = \case
     req <- getRequest
     renderer <- liftIO $ getPageFromGCtx pPlay gctx
     case Map.lookup "code" (rqQueryParams req) of
-      Just (source : _) -> writeHTML (renderer (Just source))
-      _ -> writeHTML (renderer Nothing)
+      Just (source : _) -> writeHTML (renderer Nothing Nothing (Just source))
+      _ -> writeHTML (renderer Nothing Nothing Nothing)
 
   PostedIndex -> do
     req <- getRequest
     case Map.lookup "code" (rqPostParams req) of
       Just [source] -> do
         renderer <- liftIO $ getPageFromGCtx pPlay gctx
-        writeHTML (renderer (Just source))
+        writeHTML (renderer Nothing Nothing (Just source))
       _ ->
         httpError 400 "Invalid request"
 
@@ -201,7 +201,7 @@ handleRequest gctx ctx = \case
         case vt of
           VTPlayground -> do
             renderer <- liftIO $ getPageFromGCtx pPlay gctx
-            writeHTML (renderer (Just source))
+            writeHTML (renderer (Just key) mmoddate (Just source))
           VTRaw -> do
             liftIO $ print mmoddate
             let gmtTimeZone = Time.TimeZone 0 False "GMT"

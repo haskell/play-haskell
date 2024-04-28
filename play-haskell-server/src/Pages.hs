@@ -1,3 +1,4 @@
+{-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TypeApplications #-}
 module Pages (
@@ -6,18 +7,22 @@ module Pages (
 
 import Data.Bits (shiftR)
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Char8 as Char8
 import Data.Char (ord, chr)
 import qualified Data.Text as Text
 import Data.Text (Text)
 import qualified Data.Text.Encoding as Enc
 import qualified Data.Text.Encoding.Error as Enc (lenientDecode)
+import Data.Time.Clock
+import Data.Time.Clock.POSIX
+import Data.Time.Format
 import System.Exit (die)
 import qualified Text.Mustache as Mustache
 import Text.Mustache (toMustache)
 import qualified Text.Mustache.Types as Mustache (Value)
 
 
-data Pages = Pages { pPlay :: Maybe ByteString -> ByteString }
+data Pages = Pages { pPlay :: Maybe ByteString -> Maybe POSIXTime -> Maybe ByteString -> ByteString }
 
 pagesFromDisk :: IO Pages
 pagesFromDisk = Pages <$> (renderPlayPage <$> loadTemplate "play.mustache")
@@ -29,12 +34,15 @@ loadTemplate fp = do
     Right templ -> return templ
     Left err -> die (show err)
 
-renderPlayPage :: Mustache.Template -> Maybe ByteString -> ByteString
-renderPlayPage templ mcontents = Enc.encodeUtf8 $
+renderPlayPage :: Mustache.Template -> Maybe ByteString -> Maybe POSIXTime -> Maybe ByteString -> ByteString
+renderPlayPage templ mkey mdate msource = Enc.encodeUtf8 $
   Mustache.substituteValue templ $ Mustache.object
-    [(Text.pack "preload", mixinMaybeNull (jsStringEncode . decodeUtf8) mcontents)]
+    [(Text.pack "preload", mixinMaybeNull (jsStringEncode . decodeUtf8) msource)
+    ,(Text.pack "pastedate", mixinMaybeNull @Double (realToFrac . nominalDiffTimeToSeconds) mdate)
+    ,(Text.pack "pastedate-utc", toMustache (formatDateUTC <$> mdate))
+    ,(Text.pack "pastekey", toMustache (Char8.unpack <$> mkey))]
 
-mixinMaybeNull :: Mustache.ToMustache b => (a -> b) -> Maybe a -> Mustache.Value
+mixinMaybeNull :: forall b a. Mustache.ToMustache b => (a -> b) -> Maybe a -> Mustache.Value
 mixinMaybeNull _ Nothing = toMustache False
 mixinMaybeNull f (Just x) = toMustache (f x)
 
@@ -60,3 +68,6 @@ jsStringEncode text =
     toHex1 n | n < 10 = chr (ord '0' + n)
              | n < 16 = chr (ord 'a' + n - 10)
              | otherwise = error "Invalid"
+
+formatDateUTC :: POSIXTime -> String
+formatDateUTC = formatTime defaultTimeLocale rfc822DateFormat . posixSecondsToUTCTime
