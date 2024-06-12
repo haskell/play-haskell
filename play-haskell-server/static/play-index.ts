@@ -460,7 +460,17 @@ window.addEventListener("load", function() {
 		sel.appendChild(opt);
 	});
 
-	editor.focus();
+	let currentlyChangingAutomatically = false;
+	let unloadHandlerSetup = false;
+	editor.getSession().on("change", e => {
+		if (currentlyChangingAutomatically) return;  // only user changes are important
+		if (unloadHandlerSetup) return;
+		window.addEventListener("beforeunload", unloadE => {
+			unloadE.preventDefault();  // this triggers the dialog
+			unloadE.returnValue = true;  // same, but for some old browsers
+		});
+		unloadHandlerSetup = true;
+	});
 
 	const btnBasicTemplate = document.getElementById("btn-basic-template");
 	let completeFadeout = null;
@@ -468,12 +478,18 @@ window.addEventListener("load", function() {
 		completeFadeout = setupButtonFadeout(btnBasicTemplate, 2000, 1500);
 	});
 	document.getElementById("btn-basic-template").addEventListener('click', () => {
+		// Ensure that this change does not get picked up as a user change to be saved
+		currentlyChangingAutomatically = true;
 		editor.session.setValue("main :: IO ()\nmain = _");
+		currentlyChangingAutomatically = false;
+
 		if (completeFadeout != null) completeFadeout();
 		else btnBasicTemplate.classList.add("hidden");
 		editor.focus();
 		editor.gotoLine(2, 8);
 	});
+
+	editor.focus();
 });
 
 document.getElementById("btn-run").addEventListener('click', () => { doRun("run") });
