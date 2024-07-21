@@ -157,6 +157,37 @@ let lastRunKind: Runner = "run";
 const defaultGHCversion: string = "9.4.8";
 
 
+class UnloadHandler {
+	ignoreChanges;
+	bufferSaved;
+	_handlerSetup;
+
+	constructor() {
+		this.ignoreChanges = false;  // set to true while making changes that do not dirty the buffer
+		this.bufferSaved = false;  // set to true when saving the buffer so that a dialog is only shown after dirtying the buffer again
+
+		this._handlerSetup = false;
+
+		// We only attach the beforeunload handler once a change is actually
+		// made to ensure that back/forward caching still works if the user
+		// didn't change anythingin the buffer (see MDN on beforeunload).
+		editor.getSession().on("change", e => {
+			if (this.ignoreChanges) return;
+			if (this.bufferSaved) this.bufferSaved = false;
+			if (this._handlerSetup) return;
+			window.addEventListener("beforeunload", unloadE => {
+				if (this.bufferSaved) return;  // if saved, buffer is not dirty
+				unloadE.preventDefault();  // this triggers the dialog
+				unloadE.returnValue = true;  // same, but for some old browsers
+			});
+			this._handlerSetup = true;
+		});
+	}
+}
+
+let gUnloadHandler = null;  // initialised in "load" handler
+
+
 function performXHR(
 	method: string,
 	path: string,
@@ -316,6 +347,10 @@ function doSave() {
 			const saveUrl = `${location.origin}/saved/${response}`;
 			history.pushState(null, "", saveUrl);
 
+			// Mark the buffer as saved so the back button doesn't warn until
+			// the buffer is changed again
+			gUnloadHandler.bufferSaved = true;
+
 			let el;
 			if (el = document.getElementById("paste-save-time")) el.innerText = new Date().toLocaleString();
 			if (el = document.getElementById("paste-raw-link") as HTMLAnchorElement) el.href = saveUrl + "/raw";
@@ -460,17 +495,7 @@ window.addEventListener("load", function() {
 		sel.appendChild(opt);
 	});
 
-	let currentlyChangingAutomatically = false;
-	let unloadHandlerSetup = false;
-	editor.getSession().on("change", e => {
-		if (currentlyChangingAutomatically) return;  // only user changes are important
-		if (unloadHandlerSetup) return;
-		window.addEventListener("beforeunload", unloadE => {
-			unloadE.preventDefault();  // this triggers the dialog
-			unloadE.returnValue = true;  // same, but for some old browsers
-		});
-		unloadHandlerSetup = true;
-	});
+	gUnloadHandler = new UnloadHandler();
 
 	const btnBasicTemplate = document.getElementById("btn-basic-template");
 	let completeFadeout = null;
@@ -479,9 +504,9 @@ window.addEventListener("load", function() {
 	});
 	document.getElementById("btn-basic-template").addEventListener('click', () => {
 		// Ensure that this change does not get picked up as a user change to be saved
-		currentlyChangingAutomatically = true;
+		gUnloadHandler.ignoreChanges = true;
 		editor.session.setValue("main :: IO ()\nmain = _");
-		currentlyChangingAutomatically = false;
+		gUnloadHandler.ignoreChanges = false;
 
 		if (completeFadeout != null) completeFadeout();
 		else btnBasicTemplate.classList.add("hidden");
