@@ -25,6 +25,8 @@ executable play-haskell-server
     Play.WorkerPool
     Play.WorkerPool.WorkerReqs
     ServerModule
+    Statistics
+    Statistics.Stats
   build-depends:
     base >= 4.16,
     play-haskell-types,
