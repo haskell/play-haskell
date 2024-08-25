@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
-{-# OPTIONS -fno-full-laziness -fno-cse #-}
 {-# LANGUAGE TypeApplications #-}
+{-# OPTIONS -fno-full-laziness -fno-cse #-}
 module LinuxStats (
   getUptime,
   getLoad,
