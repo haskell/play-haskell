@@ -9,7 +9,6 @@ import DB (Database)
 import Pages (Pages)
 import PlayHaskellTypes.Sign (SecretKey, PublicKey)
 import Snap.Server.Utils
-import Snap.Server.Utils.SpamDetect
 
 
 -- TODO: Perhaps this can be split out over modules as well
@@ -24,12 +23,8 @@ data Options = Options { oProxied :: Bool
 defaultOptions :: Options
 defaultOptions = Options False 8123 "." "" Nothing Nothing
 
-data SpamAction = PlayRunStart | PlayRunTimeoutFraction Double | PlaySave
-  deriving (Show)
-
 data GlobalContext = GlobalContext
-  { gcSpam :: SpamDetect SpamAction ByteString
-  , gcDb :: Database
+  { gcDb :: Database
   , gcPagesVar :: TVar Pages
   , gcServerSecretKey :: SecretKey
   , gcAdminPassword :: Maybe ByteString

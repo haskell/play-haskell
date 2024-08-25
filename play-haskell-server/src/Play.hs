@@ -42,10 +42,8 @@ import Snap.Server.Utils.BasicAuth
 import Snap.Server.Utils.Challenge
 import Snap.Server.Utils.ExitEarly
 import Snap.Server.Utils.Hex
-import Snap.Server.Utils.SpamDetect
 import qualified Play.WorkerPool as WP
 import PlayHaskellTypes
-import PlayHaskellTypes.Constants
 import qualified PlayHaskellTypes.Sign as Sign
 
 
@@ -222,19 +220,16 @@ handleRequest gctx ctx = \case
 
   Save -> do
     req <- getRequest
-    isSpam <- liftIO $ recordCheckSpam PlaySave (gcSpam gctx) (rqClientAddr req)
-    if isSpam
-      then httpError 429 "Please slow down a bit, you're rate limited"
-      else do body <- readRequestBody (fromIntegral @Int @Word64 maxSaveFileSize)
-              let body' = BSL.toStrict body
-              let contents = Contents [(Nothing, body')] Nothing Nothing
-                  srcip = Char8.unpack (rqClientAddr req)
-              mkey <- liftIO $ genStorePaste gctx (ctxRNG ctx) srcip contents
-              case mkey of
-                Right key -> do
-                  modifyResponse (setContentType (Char8.pack "text/plain"))
-                  writeBS key
-                Left err -> httpError 500 err
+    body <- readRequestBody (fromIntegral @Int @Word64 maxSaveFileSize)
+    let body' = BSL.toStrict body
+    let contents = Contents [(Nothing, body')] Nothing Nothing
+        srcip = Char8.unpack (rqClientAddr req)
+    mkey <- liftIO $ genStorePaste gctx (ctxRNG ctx) srcip contents
+    case mkey of
+      Right key -> do
+        modifyResponse (setContentType (Char8.pack "text/plain"))
+        writeBS key
+      Left err -> httpError 500 err
 
   Versions -> do
     modifyResponse (setContentType (Char8.pack "text/plain"))
@@ -250,12 +245,6 @@ handleRequest gctx ctx = \case
   -- Open a local exit-early block instead of using Snap's early-exit
   -- functionality, because this is more local.
   Submit -> execExitEarlyT $ do
-    req <- lift getRequest
-    isSpam <- liftIO $ recordCheckSpam PlayRunStart (gcSpam gctx) (rqClientAddr req)
-    when isSpam $ do
-      lift (httpError 429 "Please slow down a bit, you're rate limited")
-      exitEarly ()
-
     postdata <- getRequestBodyEarlyExit 1000_000 "Program too large"
 
     csr <-
@@ -264,18 +253,12 @@ handleRequest gctx ctx = \case
         _ -> do lift (httpError 400 "Invalid JSON")
                 exitEarly ()
 
-    handleSubmitRequest req csr
+    handleSubmitRequest csr
 
   -- Open a local exit-early block instead of using Snap's early-exit
   -- functionality, because this is more local.
   -- TODO: remove this. This is present only to let the upgrade to /submit go a bit more smoothly. Then also remove /challenge.
   LegacyRunGHC runner -> execExitEarlyT $ do
-    req <- lift getRequest
-    isSpam <- liftIO $ recordCheckSpam PlayRunStart (gcSpam gctx) (rqClientAddr req)
-    when isSpam $ do
-      lift (httpError 429 "Please slow down a bit, you're rate limited")
-      exitEarly ()
-
     postdata <- getRequestBodyEarlyExit 1000_000 "Program too large"
 
     ClientJobReq {cjrGivenKey=givenKey, cjrSource=source, cjrVersion=version, cjrOpt=opt} <-
@@ -289,7 +272,7 @@ handleRequest gctx ctx = \case
       False -> do lift (httpError 400 "Invalid challenge, request again")
                   exitEarly ()
 
-    handleSubmitRequest req
+    handleSubmitRequest
       ClientSubmitReq { csrCode = source
                       , csrVersion = version
                       , csrOpt = opt
@@ -305,8 +288,8 @@ handleRequest gctx ctx = \case
 
   LegacyRedirect url -> redirect' url 301  -- moved permanently
   where
-    handleSubmitRequest :: Request -> ClientSubmitReq -> ExitEarlyT () Snap ()
-    handleSubmitRequest req ClientSubmitReq {csrCode=source, csrVersion=version, csrOpt=opt, csrOutput=submitType} = do
+    handleSubmitRequest :: ClientSubmitReq -> ExitEarlyT () Snap ()
+    handleSubmitRequest ClientSubmitReq {csrCode=source, csrVersion=version, csrOpt=opt, csrOutput=submitType} = do
       let runreq = RunRequest { runreqCommand = submitType
                               , runreqSource = source
                               , runreqVersion = version
@@ -317,16 +300,6 @@ handleRequest gctx ctx = \case
         Just r -> return r
         Nothing -> do lift (httpError 503 "Service busy, please try again later")
                       exitEarly ()
-
-      -- Record the run as a spam-checking action, but don't actually act
-      -- on the return value yet; that will come on the next user action
-      let timeoutSecs = fromIntegral runTimeoutMicrosecs / 1e6
-          timeTakenSecs = case result of
-            RunResponseErr RETimeOut -> timeoutSecs
-            RunResponseErr REBackend -> timeoutSecs / 6  -- shrug
-            RunResponseOk{} -> runresTimeTakenSecs result
-          timeFraction = timeTakenSecs / timeoutSecs
-      _ <- liftIO $ recordCheckSpam (PlayRunTimeoutFraction timeFraction) (gcSpam gctx) (rqClientAddr req)
 
       lift $ writeJSON result
 

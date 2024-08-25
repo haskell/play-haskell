@@ -27,7 +27,6 @@ import Snap.Server.Utils
 import Snap.Server.Utils.Hex
 import qualified Snap.Server.Utils.Options as Opt
 import Snap.Server.Utils.Shim
-import Snap.Server.Utils.SpamDetect
 
 
 data InstantiatedModule = InstantiatedModule
@@ -104,20 +103,6 @@ config port =
      . setPort port
      $ defaultConfig
 
-actionPenalty :: SpamAction -> Double
-actionPenalty PlayRunStart = 0.2
--- curved increase from 0 at tm=0 to 2 at tm=1
-actionPenalty (PlayRunTimeoutFraction tm) = (1 - 1 / (tm + 1)) * (2 / (1 - (1 / (1 + 1))))
-actionPenalty PlaySave = 1.4
-
-spamConfig :: SpamConfig SpamAction
-spamConfig = SpamConfig
-  { spamActionPenalty = actionPenalty
-  , spamHalfTimeSecs = 10
-  , spamThreshold = 3.0
-  , spamForgetBelowScore = 0.1
-  , spamForgetIntervalSecs = 3600 }
-
 trim :: String -> String
 trim = dropWhile isSpace . reverse . dropWhile isSpace . reverse
 
@@ -153,7 +138,6 @@ main = do
     ,("--help", Opt.Help)
     ,("-h", Opt.Help)]
 
-  spam <- initSpamDetect spamConfig
   pagesvar <- pagesFromDisk >>= newTVarIO
 
   when (oSecKeyFile options == "") $ die "'--secretkey' is required"
@@ -189,8 +173,7 @@ main = do
 
   withDatabase (oDBDir options) $ \db -> do
     let gctx = GlobalContext
-                 { gcSpam = spam
-                 , gcDb = db
+                 { gcDb = db
                  , gcPagesVar = pagesvar
                  , gcServerSecretKey = serverseckey
                  , gcAdminPassword = adminPassword
