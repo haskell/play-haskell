@@ -14,16 +14,26 @@ library
     PlayHaskellTypes
     PlayHaskellTypes.Constants
     PlayHaskellTypes.Sign
+    PlayHaskellTypes.Statistics
+    -- PlayHaskellTypes.Statistics.RunningHist
+    PlayHaskellTypes.Statistics.Stats
+    PlayHaskellTypes.Statistics.Types
   other-modules:
     PlayHaskellTypes.UTF8
   build-depends:
     base >= 4.16,
     snap-server-utils,
     aeson >= 2.0.3,
+    base64 >= 1.0,
     bytestring >= 0.11,
+    containers,
     cryptonite >= 0.30,
+    http-client >= 0.7.11,
+    http-client-tls >= 0.3.6.1,
+    http-types >= 0.12.3,
     memory >= 0.17,
-    text
+    text,
+    time
   hs-source-dirs:      src
   default-language:    Haskell2010
   ghc-options:         -Wall
@@ -39,6 +49,17 @@ executable gen-secret-key
   hs-source-dirs:      .
   default-language:    Haskell2010
   ghc-options:         -Wall
+
+-- test-suite types-test
+--   type: exitcode-stdio-1.0
+--   main-is: Main.hs
+--   build-depends:
+--     base,
+--     play-haskell-types,
+--     hedgehog
+--   hs-source-dirs:      test
+--   default-language:    Haskell2010
+--   ghc-options:         -Wall
 
 source-repository head
   type: git

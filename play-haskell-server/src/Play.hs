@@ -45,6 +45,7 @@ import Snap.Server.Utils.Hex
 import qualified Play.WorkerPool as WP
 import PlayHaskellTypes
 import qualified PlayHaskellTypes.Sign as Sign
+import qualified PlayHaskellTypes.Statistics as Stats
 
 
 data ClientJobReq = ClientJobReq
@@ -295,11 +296,20 @@ handleRequest gctx ctx = \case
                               , runreqVersion = version
                               , runreqOpt = opt }
 
-      mresult <- liftIO $ WP.submitJob (ctxPool ctx) runreq
+      (mresult, numqueued) <- liftIO $ WP.submitJob (ctxPool ctx) runreq
       result <- case mresult of
-        Just r -> return r
-        Nothing -> do lift (httpError 503 "Service busy, please try again later")
-                      exitEarly ()
+        Just r -> do
+          liftIO $ forM_ (gcStatistics gctx) $ \stats -> do
+            let rectime = case r of
+                            RunResponseErr err -> Left err
+                            RunResponseOk {runresTimeTakenSecs = secs} -> Right secs
+            Stats.recordJob stats (Just rectime) numqueued
+          return r
+        Nothing -> do
+          liftIO $ forM_ (gcStatistics gctx) $ \stats -> do
+            Stats.recordJob stats Nothing numqueued
+          lift (httpError 503 "Service busy, please try again later")
+          exitEarly ()
 
       lift $ writeJSON result
 

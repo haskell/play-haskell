@@ -589,19 +589,22 @@ getPoolStatus wpool = do
 
 -- | If this returns 'Nothing', the backlog was full and the client should try
 -- again later.
-submitJob :: WPool -> RunRequest -> IO (Maybe RunResponse)
+-- Also returns the number of jobs in the queue (not yet sent to a worker) just
+-- before this job was submitted.
+submitJob :: WPool -> RunRequest -> IO (Maybe RunResponse, Int)
 submitJob wpool req = do
   chan <- newTChanIO
-  submitted <- atomically $ do
+  (numqueued, submitted) <- atomically $ do
     numqueued <- readTVar (wpNumQueuedJobs wpool)
     if numqueued >= wpMaxQueuedJobs wpool
-      then return False
+      then return (numqueued, False)
       else do modifyTVar' (wpNumQueuedJobs wpool) succ
               submitEvent wpool 0 (ENewJob (Job req (atomically . writeTChan chan)))
-              return True
+              return (numqueued, True)
   if submitted
-    then Just <$> atomically (readTChan chan)
-    else return Nothing
+    then do response <- atomically (readTChan chan)
+            return (Just response, numqueued)
+    else return (Nothing, numqueued)
 
 -- | If a worker with that host is already in the pool, no action is taken.
 -- (That is to say: different workers must have different hostnames, but may

@@ -8,6 +8,7 @@ import Snap.Core hiding (path)
 import DB (Database)
 import Pages (Pages)
 import PlayHaskellTypes.Sign (SecretKey, PublicKey)
+import qualified PlayHaskellTypes.Statistics as Stats
 import Snap.Server.Utils
 
 
@@ -17,18 +18,20 @@ data Options = Options { oProxied :: Bool
                        , oDBDir :: FilePath
                        , oSecKeyFile :: FilePath
                        , oAdminPassFile :: Maybe FilePath
-                       , oPreloadFile :: Maybe FilePath }
+                       , oPreloadFile :: Maybe FilePath
+                       , oStatusBotPassFile :: Maybe FilePath }
   deriving (Show)
 
 defaultOptions :: Options
-defaultOptions = Options False 8123 "." "" Nothing Nothing
+defaultOptions = Options False 8123 "." "" Nothing Nothing Nothing
 
 data GlobalContext = GlobalContext
   { gcDb :: Database
   , gcPagesVar :: TVar Pages
   , gcServerSecretKey :: SecretKey
   , gcAdminPassword :: Maybe ByteString
-  , gcPreloadWorkers :: [(ByteString, PublicKey)]}
+  , gcPreloadWorkers :: [(ByteString, PublicKey)]
+  , gcStatistics :: Maybe Stats.Statistics }
 
 type MimeType = String
 

@@ -22,6 +22,7 @@ import DB (withDatabase)
 import Pages
 import Play
 import qualified PlayHaskellTypes.Sign as Sign
+import qualified PlayHaskellTypes.Statistics as Stats
 import ServerModule
 import Snap.Server.Utils
 import Snap.Server.Utils.Hex
@@ -132,6 +133,11 @@ main = do
         \accepted in the admin interface. These workers will be added on \
         \startup of the server, to aid automatic installations."
         (\o s -> o { oPreloadFile = Just s }))
+    ,("--statusbotpassfile", Opt.Setter
+        "Path to file that contains the password for statusbot. If not \
+        \given, statistics notifications are disabled. See \
+        \tomsmeding/webserver/modules/statusbot."
+        (\o s -> o { oStatusBotPassFile = Just s }))
     ,("--port", Opt.Setter
         "Port to listen on for http connections."
         (\o s -> o { oPort = case readMaybe s of Just n -> n ; Nothing -> error "Invalid --port value" }))
@@ -169,6 +175,15 @@ main = do
   let Sign.PublicKey serverpubkey = Sign.publicKey serverseckey
   putStrLn $ "My public key: " ++ hexEncode serverpubkey
 
+  statusbotPassword <- case oStatusBotPassFile options of
+    Nothing -> return Nothing
+    Just fname -> do
+      contents <- BS.readFile fname
+      let isCRLF c = c `elem` [10, 13]
+      return (Just (BS.dropWhile isCRLF (BS.dropWhileEnd isCRLF contents)))
+
+  mstatistics <- traverse Stats.startStatistics statusbotPassword
+
   _ <- Signal.installHandler Signal.sigUSR1 (Signal.Catch (refreshPages pagesvar)) Nothing
 
   withDatabase (oDBDir options) $ \db -> do
@@ -177,7 +192,8 @@ main = do
                  , gcPagesVar = pagesvar
                  , gcServerSecretKey = serverseckey
                  , gcAdminPassword = adminPassword
-                 , gcPreloadWorkers = preloadWorkers }
+                 , gcPreloadWorkers = preloadWorkers
+                 , gcStatistics = mstatistics }
 
     modules <- sequence [playModule]
     instantiates gctx options modules $ \modules' -> do

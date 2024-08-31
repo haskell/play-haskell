@@ -64,7 +64,7 @@ newtype Version = Version String
 -- | JSON: string; "timeout", "backend".
 data RunError = RETimeOut
               | REBackend
-  deriving (Show)
+  deriving (Show, Eq, Ord)
 
 -- | A signed message. The bytes being signed are the 'signingBytes' of the content.
 --
