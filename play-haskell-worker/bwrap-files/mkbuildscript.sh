@@ -209,7 +209,7 @@ ghcup --no-verbose --offline run --ghc '$ghcversion' -- ghc \\
   -hide-all-packages \\
   -Wmissing-home-modules \\
   -no-user-package-db \\
-  -package-db /builderprojs/ghc-'$ghcversion'-cabal/store/ghc-'$ghcversion'/package.db \\
+  -package-db /builderprojs/ghc-'$ghcversion'-cabal/store/ghc-'$ghcversion'*/package.db \\
   ${depends[@]} \\
   -rtsopts \\
   "\$@"
