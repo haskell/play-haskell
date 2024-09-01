@@ -260,6 +260,32 @@ function sendRun(source: string, version: string, opt: string, run: Runner, cb: 
 	);
 }
 
+function renderGHCout(elem: Node, out: string) {
+	elem.textContent = "";
+
+	const re = /^(.*: [^ ]*: \[)(GHC-[0-9]+)\]/m;
+	let cursor = 0;
+	let m;
+	while ((m = out.substr(cursor).match(re)) != null) {
+		const prelen = m.index + m[1].length;
+		elem.appendChild(document.createTextNode(out.substr(cursor, prelen)));
+
+		const anchor = document.createElement("a");
+		anchor.href = "https://errors.haskell.org/messages/" + m[2];
+		anchor.target = "_blank";
+		anchor.appendChild(document.createTextNode(m[2]));
+		elem.appendChild(anchor);
+
+		cursor += prelen + m[2].length;
+		// Note that we haven't added the closing ']' yet. That's fine; the
+		// next iteration (or the final part below the loop) will do that.
+	}
+
+	if (cursor < out.length) {
+		elem.appendChild(document.createTextNode(out.substr(cursor)));
+	}
+}
+
 function doRun(run: Runner) {
 	lastRunKind = run;
 
@@ -302,7 +328,7 @@ function doRun(run: Runner) {
 		setInvisible(document.getElementById("out-container-stdout"), (response.sout as string).length == 0);
 		setInvisible(document.getElementById("out-container-stderr"), (response.serr as string).length == 0);
 
-		if (response.ghcout) document.getElementById("out-ghcout").textContent = response.ghcout as string;
+		if (response.ghcout) renderGHCout(document.getElementById("out-ghcout"), response.ghcout as string);
 		if (response.sout) document.getElementById("out-stdout").textContent = response.sout as string;
 		if (response.serr) document.getElementById("out-stderr").textContent = response.serr as string;
 	});
