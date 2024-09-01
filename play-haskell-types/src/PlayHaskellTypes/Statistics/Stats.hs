@@ -148,12 +148,14 @@ histPretty h =
       -- The zero value is not a space so that a bar graph still makes some
       -- sense in a non-monospace setting.
       -- The 9 is to ensure 1/8th of the range actually goes to the largest bar.
-      char n = "▏▁▂▃▄▅▆▇█" !! (min 8 (n * 9 `div` most))
-  in showAt3 lo
+      char n = "▏▁▂▃▄▅▆▇█" !! (min 8 (n * 9 `div` max 1 most))
+      bound x | fromIntegral (round x :: Integer) == x = show (round x :: Integer)
+              | otherwise = showGFloat Nothing x ""
+  in bound lo
      ++ (if statsCount bstat > 0 then "(" ++ prettyStats bstat ++ ")" else "")
      ++ "[" ++ map char hist ++ "]" 
      ++ (if statsCount astat > 0 then "(" ++ prettyStats astat ++ ")" else "")
-     ++ showAt3 hi
+     ++ bound hi
 
 
 showAt3 :: RealFloat a => a -> String

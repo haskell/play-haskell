@@ -81,14 +81,17 @@ rotateStats :: Statistics -> IO ()
 rotateStats (Statistics mgr statusbotpass ref) = do
   stda <- atomicModifyIORef' ref (\stda -> (emptyStData, stda))
   let msgPart label (stats, hist) = label ++ ": " ++ prettyStats stats ++ " (" ++ histPretty hist ++ ")"
-      message = msgPart "Job time" (stdaJobTime stda) ++ " | " ++
-                msgPart "Queue len" (stdaQueueLength stda) ++
-                (case stdaBusyRejects stda of
-                   0 -> ""
-                   n -> " (" ++ show n ++ " rejects)") ++
-                (case Map.assocs (stdaErrors stda) of
-                   [] -> ""
-                   l -> " (errs: " ++ intercalate ", " [show e ++ ": " ++ show n | (e, n) <- l] ++ ")")
+      message =
+        -- QueueLength gets an entry for every job, JobTime only for successful jobs.
+        show (statsCount (fst (stdaQueueLength stda))) ++ ", " ++
+        msgPart "wTime" (stdaJobTime stda) ++ " | " ++  -- "worker time"
+        msgPart "Queue len" (stdaQueueLength stda) ++
+        (case stdaBusyRejects stda of
+           0 -> ""
+           n -> " (" ++ show n ++ " rejects)") ++
+        (case Map.assocs (stdaErrors stda) of
+           [] -> ""
+           l -> " (errs: " ++ intercalate ", " [show e ++ ": " ++ show n | (e, n) <- l] ++ ")")
   hPutStrLn stderr message
   _ <- forkIO $
     let body = J.object [(fromString "sender", J.String (fromString "play-haskell stats"))
