@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 from PIL import Image, ImageDraw, ImageFont
-import json, time, sys
+import json, time, sys, os.path, gzip
 
-if len(sys.argv) != 3:
-    print("Usage: {} <caddy/access.log> <out.png>".format(sys.argv[0]), file=sys.stderr)
+if len(sys.argv) < 3:
+    print("Usage: {} <out.png> [caddy/access.log...]".format(sys.argv[0]), file=sys.stderr)
     sys.exit(1)
 
-logfilename = sys.argv[1]
-destfname = sys.argv[2]
+destfname = sys.argv[1]
+logfilenames = sys.argv[2:]
 
 font = ImageFont.truetype("/var/lib/caddy/DejaVuSans.ttf", 10)
 # font = ImageFont.load_default()
@@ -18,14 +18,16 @@ imgheight = 200
 ymultiplier = 1
 
 requests = []
-with open(logfilename) as f:
-    for line in f:
-        obj = json.loads(line)
-        uri = obj["request"]["uri"]
-        if uri in ["/play/run", "/play/core", "/play/asm"
-                  ,"/compile/run", "/compile/core", "/compile/asm"
-                  ,"/submit"]:
-            requests.append((obj["ts"], obj["duration"]))
+for logfilename in logfilenames:
+    iszip = os.path.splitext(logfilename)[1] == ".gz"
+    with (gzip.open(logfilename) if iszip else open(logfilename)) as f:
+        for line in f:
+            obj = json.loads(line)
+            uri = obj["request"]["uri"]
+            if uri in ["/play/run", "/play/core", "/play/asm"
+                      ,"/compile/run", "/compile/core", "/compile/asm"
+                      ,"/submit"]:
+                requests.append((obj["ts"], obj["duration"]))
 
 requests.sort(key=lambda r: r[0])
 
