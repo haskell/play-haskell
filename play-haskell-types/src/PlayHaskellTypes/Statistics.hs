@@ -22,7 +22,6 @@ import qualified Data.Map.Strict as Map
 import Data.Maybe (isNothing)
 import Data.String (fromString)
 import qualified Data.Time as DT
-import qualified Data.Time.Clock.POSIX as DT
 import qualified Network.HTTP.Client as N
 import qualified Network.HTTP.Client.TLS as N
 import qualified Network.HTTP.Types.Header as N
@@ -34,6 +33,11 @@ import PlayHaskellTypes
 import PlayHaskellTypes.Statistics.Stats
 
 
+-- | Rotate every nth day...
+rotateDayInterval :: Int
+rotateDayInterval = 10
+
+-- | ... at this time.
 rotateTime :: DT.TimeOfDay
 rotateTime = DT.TimeOfDay 5 0 0
 
@@ -117,15 +121,15 @@ workerThread :: Statistics -> IO ()
 workerThread statistics = do
   now <- DT.getCurrentTime
   zone <- DT.getTimeZone now
-  let DT.LocalTime day _timeofday = DT.utcToLocalTime zone now
-  let waitTill =
-        let candidate@(DT.UTCTime utcday utctime) =
-              DT.localTimeToUTC zone (DT.LocalTime day rotateTime)
-        in if candidate <= now then DT.UTCTime (succ utcday) utctime
-                               else candidate
+  let local = DT.utcToLocalTime zone now
+  let approx = DT.addLocalTime (fromIntegral rotateDayInterval * DT.nominalDay) local
+  let targetTime =
+        let candidate = roundToNearestTime approx rotateTime
+        in if candidate < local then DT.addLocalTime DT.nominalDay local else candidate
+  let targetTimeUTC = DT.localTimeToUTC zone targetTime
 
-  -- converting to posix time here is not quite correct, but I don't care
-  let waitTime = realToFrac (DT.utcTimeToPOSIXSeconds waitTill) - realToFrac (DT.utcTimeToPOSIXSeconds now) :: Double
+  -- converting to UTCTime here is not quite correct (because leap seconds), but I don't care
+  let waitTime = realToFrac (DT.nominalDiffTimeToSeconds (DT.diffUTCTime targetTimeUTC now)) :: Double
 
   hPutStrLn stderr $ "[statistics] waiting " ++ show waitTime ++ " seconds before rotate"
 
@@ -135,3 +139,11 @@ workerThread statistics = do
   rotateStats statistics
 
   workerThread statistics
+  where
+    roundToNearestTime :: DT.LocalTime -> DT.TimeOfDay -> DT.LocalTime
+    roundToNearestTime point@(DT.LocalTime day _) target =
+      let cand1 = DT.LocalTime day target
+          cand2 | cand1 < point = DT.addLocalTime DT.nominalDay cand1
+                | otherwise     = DT.addLocalTime (-DT.nominalDay) cand1
+      in if abs (DT.diffLocalTime point cand1) < abs (DT.diffLocalTime point cand2)
+           then cand1 else cand2
