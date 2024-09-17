@@ -142,10 +142,6 @@ addMediaListener("(prefers-color-scheme: dark)", null, function(ql) {
 	else editor.setTheme("ace/theme/github");
 });
 
-let editorIsFocused: boolean = true;
-editor.on("blur", () => editorIsFocused = false);
-editor.on("focus", () => editorIsFocused = true);
-
 type json =
 	| string
 	| number
@@ -336,6 +332,14 @@ function doRun(run: Runner) {
 		if (response.sout) document.getElementById("out-stdout").textContent = response.sout as string;
 		if (response.serr) document.getElementById("out-stderr").textContent = response.serr as string;
 	});
+
+	// Immediately refocus the editor.
+	// One might think it's best to only focus the editor here if it was
+	// previously focused before clicking the Run button. However, that doesn't
+	// help for Tridactyl users, because they need to unfocus the editor before
+	// being able to click the Run button. Thus let's just focus the editor
+	// unconditionally. I can't think of a downside.
+	editor.focus();
 }
 
 function showSaveDialog(saveUrl) {
@@ -547,21 +551,9 @@ window.addEventListener("load", function() {
 	editor.focus();
 });
 
-let editorWasFocusedOnMouseDown: boolean = true;
-
-function configureRunButton(id, name) {
-	document.getElementById(id).addEventListener('mousedown', () => {
-		editorWasFocusedOnMouseDown = editorIsFocused;
-	});
-	document.getElementById(id).addEventListener('click', () => {
-		doRun(name);
-		if (editorWasFocusedOnMouseDown) editor.focus();
-	});
-}
-
-configureRunButton("btn-run", "run");
-configureRunButton("btn-core", "core");
-configureRunButton("btn-asm", "asm");
+document.getElementById("btn-run").addEventListener('click', () => { doRun("run") });
+document.getElementById("btn-core").addEventListener('click', () => { doRun("core") });
+document.getElementById("btn-asm").addEventListener('click', () => { doRun("asm") });
 document.getElementById("btn-save").addEventListener('click', () => { doSave() });
 document.getElementById("btn-close-save-alert").addEventListener('click', () => {
 	(document.getElementById("save-alert") as HTMLDialogElement).close();
