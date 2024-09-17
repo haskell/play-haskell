@@ -333,13 +333,13 @@ function doRun(run: Runner) {
 		if (response.serr) document.getElementById("out-stderr").textContent = response.serr as string;
 	});
 
-	// Immediately refocus the editor.
+	// Immediately refocus the editor (after synchronous JS has finished).
 	// One might think it's best to only focus the editor here if it was
 	// previously focused before clicking the Run button. However, that doesn't
 	// help for Tridactyl users, because they need to unfocus the editor before
 	// being able to click the Run button. Thus let's just focus the editor
 	// unconditionally. I can't think of a downside.
-	editor.focus();
+	setTimeout(() => editor.focus(), 0);
 }
 
 function showSaveDialog(saveUrl) {
