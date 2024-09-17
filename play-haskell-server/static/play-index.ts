@@ -402,6 +402,16 @@ function doSave() {
 	);
 }
 
+function doShowHelpDialog() {
+	try {
+		const dialog = document.getElementById("help-alert") as HTMLDialogElement;
+		dialog.showModal();
+		document.getElementById("btn-close-help-alert").focus();
+	} catch (e) {
+		alert("Cannot show help, your browser is old");
+	}
+}
+
 function setSeparatorToWidth(wid: number | null) {
 	const containerelem = document.getElementById("main");
 	if (wid == null) containerelem.style.gridTemplateColumns = "";
@@ -501,12 +511,17 @@ window.addEventListener("load", function() {
 	});
 
 	let runTooltip =
-			editor.commands.platform == "win"
-				? "Press Ctrl-Enter to run again"
-				: "Press Cmd-Enter to run again";
+			editor.commands.platform == "mac"
+				? "Press Cmd-Enter to run again"
+				: "Press Ctrl-Enter to run again";
 	document.getElementById("btn-run").setAttribute("title", runTooltip);
 	document.getElementById("btn-core").setAttribute("title", runTooltip);
 	document.getElementById("btn-asm").setAttribute("title", runTooltip);
+
+	if (editor.commands.platform == "mac") {
+		const l = document.getElementsByClassName("ui-ctrl-cmd");
+		for (let i = 0; i < l.length; i++) l[i].innerHTML = "Cmd";
+	}
 
 	getVersions(function(versions) {
 		const sel: HTMLElement = document.getElementById("ghcversionselect");
@@ -570,6 +585,9 @@ if ("getSelection" in window) {
 		selection.addRange(range);
 	});
 }
+document.getElementById("btn-close-help-alert").addEventListener('click', () => {
+	(document.getElementById("help-alert") as HTMLDialogElement).close();
+});
 handleSeparatorDragEvents();
 addMediaListener("screen and (max-width: 800px)", "resize", function(ql) {
 	if (ql && ql.matches) setSeparatorToWidth(null);

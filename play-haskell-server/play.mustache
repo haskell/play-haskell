@@ -100,7 +100,7 @@ html, body {
 	margin-left: 15px;
 	color: #ccc;
 }
-#github-link {
+.toolbar-link {
 	margin-top: auto;
 	margin-bottom: auto;
 	margin-right: 20px;
@@ -123,7 +123,7 @@ html, body {
 	#toolbar #btn-save {
 		background-color: #999;
 	}
-	a {
+	#header a, #rightcol a {
 		color: #bbf;
 	}
 }
@@ -367,6 +367,20 @@ dialog {
 	display: none;
 }
 
+#help-alert {
+	max-width: 900px;
+	position: fixed;
+	top: auto;
+}
+#help-alert li {
+	line-height: 1.6em;
+}
+#help-alert code {
+	background-color: #eee;
+	border-radius: 2px;
+	padding: 1px 2px;
+}
+
 .flex-row-reverse {
 	display: flex;
 	flex-direction: row-reverse;
@@ -379,6 +393,14 @@ button.success:after {
 	content: " ✔";
 }
 
+kbd {
+	background-color: #eee;
+	border-radius: 6px;
+	box-shadow: #aaa 0px 2px;
+	padding: 1px 3px;
+	font-size: smaller;
+	font-family: monospace;
+}
 </style>
 <link rel="stylesheet" href="https://unpkg.com/purecss@2.0.3/build/pure-min.css" integrity="sha384-cg6SkqEOCV1NbJoCu11+bm0NvBRc8IYLRGXkmNrqUBfTjmMYwNKPWBTIKyw9mHNJ" crossorigin="anonymous">
 <script>
@@ -408,6 +430,38 @@ preload_script = null;
 		</div>
 	</dialog>
 
+	<dialog id="help-alert">
+		<p>Toolbar controls:</p>
+		<ul>
+			<li><b>Run</b>: Compile and execute your program. It must have a <code>main</code> function for this to work.</li>
+			<li><b>Core</b>: Show GHC's intermediate representation for your module. To avoid having to define <code>main</code>, put e.g. <code>module M where</code> before the first <code>import</code>.</li>
+			<li><b>Asm</b>: Show compiled x86_64 assembly.</li>
+		</ul>
+
+		<p>Drop-down menus:</p>
+		<ul>
+			<li>GHC version selection.</li>
+			<li>Optimisation flags: a higher number means more optimisations. <code>-O2</code> is rarely helpful.</li>
+		</ul>
+
+		<p>Tips and tricks:</p>
+		<ul>
+			<li><kbd class="ui-ctrl-cmd">Ctrl</kbd>+<kbd>Enter</kbd> re-runs your code using the most recent configuration.</li>
+			<li>
+				For keyboard shortcuts in the editor (<a href="https://ace.c9.io/" target="_blank">Ace</a>), see <a href="https://github.com/ajaxorg/ace/wiki/Default-Keyboard-Shortcuts" target="_blank">this list</a>.
+				Some highlights:
+				<ul>
+					<li><kbd class="ui-ctrl-cmd">Ctrl</kbd>+<kbd>/</kbd>: Comment-out a line of code.</li>
+					<li><kbd class="ui-ctrl-cmd">Ctrl</kbd>+<kbd>,</kbd>: Open a settings panel.</li>
+				</ul>
+			</li>
+		</ul>
+
+		<div class="flex-row-reverse">
+			<button id="btn-close-help-alert" class="pure-button">Close</button>
+		</div>
+	</dialog>
+
 	<div id="header">
 		<img id="title" src="/haskell-logo-tw.svg">
 		<div id="toolbar">
@@ -428,7 +482,8 @@ preload_script = null;
 			<span id="paste-raw">(<a id="paste-raw-link" href="/saved/{{pastekey}}/raw">raw</a>)</span>
 			{{/pastekey}}
 			<span id="toolbar-mid-spacer"></span>
-			<span id="github-link">Open source: <a href="https://github.com/haskell/play-haskell" target="_blank">GitHub</a></span>
+			<span class="toolbar-link"><a href="javascript:doShowHelpDialog()">Help</a></span>
+			<span class="toolbar-link">Open source: <a href="https://github.com/haskell/play-haskell" target="_blank">GitHub</a></span>
 		</div>
 	</div id="header">
 	<div id="leftcol"></div>
