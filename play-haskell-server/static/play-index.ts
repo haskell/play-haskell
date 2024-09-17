@@ -142,6 +142,10 @@ addMediaListener("(prefers-color-scheme: dark)", null, function(ql) {
 	else editor.setTheme("ace/theme/github");
 });
 
+let editorIsFocused: boolean = true;
+editor.on("blur", () => editorIsFocused = false);
+editor.on("focus", () => editorIsFocused = true);
+
 type json =
 	| string
 	| number
@@ -543,9 +547,21 @@ window.addEventListener("load", function() {
 	editor.focus();
 });
 
-document.getElementById("btn-run").addEventListener('click', () => { doRun("run") });
-document.getElementById("btn-core").addEventListener('click', () => { doRun("core") });
-document.getElementById("btn-asm").addEventListener('click', () => { doRun("asm") });
+let editorWasFocusedOnMouseDown: boolean = true;
+
+function configureRunButton(id, name) {
+	document.getElementById(id).addEventListener('mousedown', () => {
+		editorWasFocusedOnMouseDown = editorIsFocused;
+	});
+	document.getElementById(id).addEventListener('click', () => {
+		doRun(name);
+		if (editorWasFocusedOnMouseDown) editor.focus();
+	});
+}
+
+configureRunButton("btn-run", "run");
+configureRunButton("btn-core", "core");
+configureRunButton("btn-asm", "asm");
 document.getElementById("btn-save").addEventListener('click', () => { doSave() });
 document.getElementById("btn-close-save-alert").addEventListener('click', () => {
 	(document.getElementById("save-alert") as HTMLDialogElement).close();
