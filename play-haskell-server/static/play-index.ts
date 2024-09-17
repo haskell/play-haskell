@@ -408,7 +408,7 @@ function doShowHelpDialog() {
 		dialog.showModal();
 		document.getElementById("btn-close-help-alert").focus();
 	} catch (e) {
-		alert("Cannot show help, your browser is old");
+		alert("https://github.com/haskell/play-haskell/blob/9b2355fe740a7cfb87bfad013800a7b5a0c912ea/play-haskell-server/play.mustache#L434-L458");
 	}
 }
 
