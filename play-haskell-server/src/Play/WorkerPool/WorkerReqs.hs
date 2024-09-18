@@ -115,7 +115,8 @@ sendMessage' mgr addr@(Addr _ pkey) method path mpair =
                 (secure, BS.init (BS.dropWhileEnd (/= colon) rest), port)
             | otherwise -> (secure, rest, if secure then 443 else 80)
 
--- The max output size in the worker is 100_000 bytes, so allow twice that
+-- The max output size in the worker is 100_000 bytes, and in the worst case a
+-- single byte ('\0') can be blown up 6x ("\u0000"). So allow 2 * 6 times that
 -- (stdout + stderr) plus some overhead.
 responseSizeLimitBytes :: Int
-responseSizeLimitBytes = 220_000
+responseSizeLimitBytes = 2 * 6 * 100_000 + 20_000
