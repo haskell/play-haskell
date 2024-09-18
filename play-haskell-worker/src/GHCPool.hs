@@ -121,11 +121,11 @@ makeWorker = do
         BS.hPutStr inh (TE.encodeUtf8 source)
         hClose inh
       ghcoutmvar <- newEmptyMVar
-      readTh1 <- forkIO $ hGetContentsUTF8Bounded maxOutputSizeBytes ghcOutReadHandle >>= putMVar ghcoutmvar
+      readTh1 <- forkIO $ hGetContentsBounded maxOutputSizeBytes ghcOutReadHandle >>= putMVar ghcoutmvar
       stdoutmvar <- newEmptyMVar
-      readTh2 <- forkIO $ hGetContentsUTF8Bounded maxOutputSizeBytes outh >>= putMVar stdoutmvar
+      readTh2 <- forkIO $ hGetContentsBounded maxOutputSizeBytes outh >>= putMVar stdoutmvar
       stderrmvar <- newEmptyMVar
-      readTh3 <- forkIO $ hGetContentsUTF8Bounded maxOutputSizeBytes errh >>= putMVar stderrmvar
+      readTh3 <- forkIO $ hGetContentsBounded maxOutputSizeBytes errh >>= putMVar stderrmvar
       -- debug $ "[pool] Waiting for process"
       (dur, mec) <- duration $ timeout runTimeoutMicrosecs $ Pr.waitForProcess proch
       -- debug $ "[pool] done with " ++ show (dur, mec)
@@ -216,8 +216,8 @@ duration action = do
 
 -- | The passed 'Int' is the maximum number of bytes read. The rest of the
 -- handle is consumed but not stored.
-hGetContentsUTF8Bounded :: Int -> Handle -> IO Lazy.ByteString
-hGetContentsUTF8Bounded bound h = do
+hGetContentsBounded :: Int -> Handle -> IO Lazy.ByteString
+hGetContentsBounded bound h = do
   let bufsize = 16 * 1024
   builder <- allocaBytes bufsize $ \ptr -> do
     let loop numleft
