@@ -92,14 +92,14 @@ sendMessage' mgr addr@(Addr _ pkey) method path mpair =
        body <- lift $ N.brReadSome (N.responseBody response) responseSizeLimitBytes
        case J.decode' body of
          Just (Message signature pkey' content)
-           | pkey == pkey'
-           , Sign.verify pkey (signingBytes content) signature
-           -> return (Just content)
-           | otherwise
-           -> do if pkey == pkey'
-                   then liftIO $ hPutStrLn stderr $ "Invalid signature from " ++ show addr
-                   else liftIO $ hPutStrLn stderr $ "Unexpected pkey from " ++ show addr ++ ": " ++ show pkey'
-                 return Nothing  -- invalid signature or unexpected public key
+           | pkey /= pkey' -> do
+               liftIO $ hPutStrLn stderr $ "Unexpected pkey from " ++ show addr ++ ": " ++ show pkey'
+               return Nothing
+           | Sign.verify pkey (signingBytes content) signature ->
+               return (Just content)
+           | otherwise -> do
+               liftIO $ hPutStrLn stderr $ "Invalid signature from " ++ show addr
+               return Nothing
          Nothing -> do
            liftIO $ hPutStrLn stderr $ "Failed to decode JSON body from worker"
            return Nothing
