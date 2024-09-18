@@ -42,7 +42,6 @@ import System.Exit
 
 import PlayHaskellTypes.Sign (PublicKey, SecretKey, Signature)
 import qualified PlayHaskellTypes.Sign as Sign
-import PlayHaskellTypes.UTF8
 
 
 -- | JSON: string; "run", "core", "asm".
@@ -94,9 +93,9 @@ data RunResponse
   = RunResponseErr RunError
   | RunResponseOk
       { runresExitCode :: ExitCode
-      , runresGhcOut :: Lazy.ByteString
-      , runresStdout :: Lazy.ByteString
-      , runresStderr :: Lazy.ByteString
+      , runresGhcOut :: T.Text
+      , runresStdout :: T.Text
+      , runresStderr :: T.Text
       , runresTimeTakenSecs :: Double }
   deriving (Show)
 
@@ -211,9 +210,9 @@ instance J.FromJSON RunResponse where
   parseJSON (J.Object v) =
     (RunResponseErr <$> v J..: fromString "err")
     <|> (RunResponseOk <$> (toExitCode <$> (v J..: fromString "ec"))
-                       <*> (getJSONUTF8LBS <$> v J..: fromString "ghcout")
-                       <*> (getJSONUTF8LBS <$> v J..: fromString "sout")
-                       <*> (getJSONUTF8LBS <$> v J..: fromString "serr")
+                       <*> (v J..: fromString "ghcout")
+                       <*> (v J..: fromString "sout")
+                       <*> (v J..: fromString "serr")
                        <*> v J..: fromString "timesecs")
     where toExitCode 0 = ExitSuccess
           toExitCode n = ExitFailure n
@@ -223,16 +222,16 @@ instance J.ToJSON RunResponse where
   toJSON (RunResponseErr err) = J.object [fromString "err" J..= err]
   toJSON (RunResponseOk ec ghcout sout serr timesecs) =
     J.object [fromString "ec" J..= (case ec of ExitSuccess -> 0 ; ExitFailure n -> n)
-             ,fromString "ghcout" J..= JSONUTF8LBS ghcout
-             ,fromString "sout" J..= JSONUTF8LBS sout
-             ,fromString "serr" J..= JSONUTF8LBS serr
+             ,fromString "ghcout" J..= ghcout
+             ,fromString "sout" J..= sout
+             ,fromString "serr" J..= serr
              ,fromString "timesecs" J..= timesecs]
   toEncoding (RunResponseErr err) = JE.pairs (fromString "err" J..= err)
   toEncoding (RunResponseOk ec ghcout sout serr timesecs) =
     JE.pairs (fromString "ec" J..= (case ec of ExitSuccess -> 0 ; ExitFailure n -> n)
-           <> fromString "ghcout" J..= JSONUTF8LBS ghcout
-           <> fromString "sout" J..= JSONUTF8LBS sout
-           <> fromString "serr" J..= JSONUTF8LBS serr
+           <> fromString "ghcout" J..= ghcout
+           <> fromString "sout" J..= sout
+           <> fromString "serr" J..= serr
            <> fromString "timesecs" J..= timesecs)
 
 instance J.FromJSON HealthResponse where
@@ -272,6 +271,9 @@ instance SigningBytes ByteString where
 
 instance SigningBytes Lazy.ByteString where
   signingBytesB bs = BSB.word64LE (fromIntegral @Int64 @Word64 (Lazy.length bs)) <> BSB.lazyByteString bs
+
+instance SigningBytes T.Text where
+  signingBytesB txt = BSB.byteString (TE.encodeUtf8 txt)
 
 newtype SigningBytesUTF8String = SigningBytesUTF8String String
 

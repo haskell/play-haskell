@@ -18,8 +18,6 @@ library
     -- PlayHaskellTypes.Statistics.RunningHist
     PlayHaskellTypes.Statistics.Stats
     PlayHaskellTypes.Statistics.Types
-  other-modules:
-    PlayHaskellTypes.UTF8
   build-depends:
     base >= 4.16,
     snap-server-utils,

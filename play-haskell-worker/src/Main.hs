@@ -11,6 +11,9 @@ import qualified Data.ByteString.Char8 as Char8
 import Data.ByteString (ByteString)
 import Data.Char (ord, isSpace)
 import qualified Data.Map.Strict as Map
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.Encoding as TLE
+import qualified Data.Text.Encoding.Error as TEE
 import Text.Read (readMaybe)
 import Snap.Core hiding (path, method)
 import Snap.Http.Server
@@ -71,9 +74,9 @@ handleRequest ctx = \case
           Left err -> RunResponseErr err
           Right res -> RunResponseOk
                          { runresExitCode = resExitCode res
-                         , runresGhcOut = resGhcOut res
-                         , runresStdout = resStdout res
-                         , runresStderr = resStderr res
+                         , runresGhcOut = TL.toStrict $ TLE.decodeUtf8With TEE.lenientDecode $ resGhcOut res
+                         , runresStdout = TL.toStrict $ TLE.decodeUtf8With TEE.lenientDecode $ resStdout res
+                         , runresStderr = TL.toStrict $ TLE.decodeUtf8With TEE.lenientDecode $ resStderr res
                          , runresTimeTakenSecs = resTimeTaken res }
     
     lift $ writeJSON (signMessage (ctxSecretKey ctx) response)
