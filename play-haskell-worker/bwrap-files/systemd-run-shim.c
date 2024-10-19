@@ -6,8 +6,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <unistd.h>
-
-#define UNIT_NAME_PREFIX "play-haskell-sandbox-u"
+#include "systemd-shim-inc.h"
 
 static char* xstrdup(const char *str) {
   char *res = strdup(str);
@@ -31,17 +30,6 @@ static char* xasprintf(const char *str, ...) {
     exit(1);
   }
   return dest;
-}
-
-static bool unit_name_valid(const char *unit_name) {
-  const size_t prefix_len = strlen(UNIT_NAME_PREFIX);
-
-  const size_t len = strlen(unit_name);
-  if (len < prefix_len || memcmp(unit_name, UNIT_NAME_PREFIX, prefix_len) != 0) return false;
-  for (size_t i = prefix_len; i < len; i++) {
-    if (!isalnum(unit_name[i]) && unit_name[i] != '-') return false;
-  }
-  return true;
 }
 
 int main(int argc, char **argv) {
