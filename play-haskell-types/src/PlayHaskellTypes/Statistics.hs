@@ -35,7 +35,7 @@ import PlayHaskellTypes.Statistics.Stats
 
 -- | Rotate every nth day...
 rotateDayInterval :: Int
-rotateDayInterval = 10
+rotateDayInterval = 6
 
 -- | ... at this time.
 rotateTime :: DT.TimeOfDay
