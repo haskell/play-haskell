@@ -10,7 +10,7 @@ build-type:          Simple
 homepage:            https://github.com/haskell/play-haskell
 extra-source-files:  index.mustache read.mustache highlight-light.pack.css highlight-dark.pack.css
                      migrate_db_1_2.sh migrate_db_2_3.sh migrate_db_3_4.sh migrate_db_4_5.sh
-                     static/highlight.pack.js static/robots.txt
+                     static/highlight.pack.js static/robots.txt example-snippets.txt
 
 executable play-haskell-server
   main-is:
@@ -22,6 +22,7 @@ executable play-haskell-server
     DB
     LinuxStats
     Play
+    Play.Examples
     Play.WorkerPool
     Play.WorkerPool.WorkerReqs
     ServerModule
@@ -34,6 +35,7 @@ executable play-haskell-server
     containers >= 0.6.3.1,
     clock >= 0.8,
     directory >= 1.3.6.0,
+    file-embed >= 0.0.16.0,
     filepath >= 1.4.2.1,
     http-client >= 0.7.11,
     http-client-tls >= 0.3.6.1,
@@ -49,6 +51,7 @@ executable play-haskell-server
     text,
     time >= 1.9.3,
     unix >= 2.7.2,
+    vector,
     zlib >= 0.6.2
   hs-source-dirs:      src
   default-language:    Haskell2010

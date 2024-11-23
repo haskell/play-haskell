@@ -13,102 +13,6 @@ function addMediaListener(querystr: string, fallbackevent: string | null, cb: (q
 	}
 }
 
-const example_snippets: string[] = [
-`import Data.List (partition)
-
-main :: IO ()
-main = do
-  let unsorted = [10,9..1]
-  putStrLn $ show $ quicksort unsorted
-
-quicksort :: Ord a => [a] -> [a]
-quicksort []     = []
-quicksort (x:xs) = let (lesser, greater) = partition (<= x) xs
-                   in quicksort lesser ++ [x] ++ quicksort greater`
-,
-`{-# LANGUAGE OverloadedStrings #-}
-
-import qualified Data.Text as T
-import qualified Data.Time as Time
-
-data Visitor
-  = Member Profile
-  | NonMember (Maybe T.Text)
-  deriving Show
-
-data Profile =
-  Profile
-    { name :: T.Text
-    , birthday :: Time.Day
-    } deriving Show
-
-main :: IO ()
-main = do
-  let haskell = Member Profile
-        { name = "Haskell Curry"
-        , birthday = read "1900-09-12"
-        }
-  greeting <- makeGreeting haskell
-  putStrLn $ T.unpack greeting
-
-makeGreeting :: Visitor -> IO T.Text
-makeGreeting visitor =
-  case visitor of
-    NonMember maybeName ->
-      pure $ case maybeName of
-        Just name -> "Hello, " <> name <> "!"
-        Nothing   -> "Hello, mysterious visitor!"
-    Member profile -> do
-      today <- Time.utctDay <$> Time.getCurrentTime
-      let monthAndDay = (\\(_y, m, d) -> (m, d)) . Time.toGregorian
-      if monthAndDay today == monthAndDay (birthday profile)
-      then pure $ "Happy birthday, " <> name profile <> "!"
-      else pure $ "Welcome back, " <> name profile <> "!"`
-,
-`import Control.Monad (replicateM)
-import Data.Foldable (foldl')
-import qualified System.Random.Stateful as Rand
-
-data Drone = Drone
-  { xPos :: Int
-  , yPos :: Int
-  , zPos :: Int
-  } deriving Show
-
-data Movement
-  = Forward | Back | ToLeft | ToRight | Up | Down
-  deriving (Show, Enum, Bounded)
-
-main :: IO ()
-main = do
-  let initDrone = Drone { xPos = 0, yPos = 100, zPos = 0 }
-  -- Generate 15 moves randomly
-  randomMoves <- replicateM 15 $ Rand.uniformEnumM Rand.globalStdGen
-  let resultDrone = foldl' moveDrone initDrone randomMoves
-  print resultDrone
-
-moveDrone :: Drone -> Movement -> Drone
-moveDrone drone move =
-  case move of
-    Forward -> drone { zPos = zPos drone + 1 }
-    Back    -> drone { zPos = zPos drone - 1 }
-    ToLeft  -> drone { xPos = xPos drone - 1 }
-    ToRight -> drone { xPos = xPos drone + 1 }
-    Up      -> drone { yPos = yPos drone + 1 }
-    Down    -> drone { yPos = yPos drone - 1 }`
-,
-// adapted from @liamzee's https://github.com/haskript/big-book-of-small-haskell-projects/blob/51fd3ac4db30e9df2f14924d66d1469638aed009/35.HexGrid/HexGrid.hs
-`main :: IO ()
-main = putStr $ unlines $ hexagons 12 17
-
-hexagons :: Int -> Int -> [String]
-hexagons xRepeat yRepeat =
-  yRepeat \`times\` [xRepeat \`times\` "/ \\\\_"
-                  ,xRepeat \`times\` "\\\\_/ "]
-  where
-    n \`times\` l = concat (replicate n l)`
-];
-
 // If a version is not present in this dictionary, just display it as-is
 const ghcReadableVersion: Record<string, string> = {
 	"9.6.0.20230111": "9.6.1-alpha1",
@@ -118,8 +22,7 @@ const ghcReadableVersion: Record<string, string> = {
 };
 
 // defined in a <script> block in play.mustache
-declare var preload_script: string | null;
-const snippet = preload_script != null ? preload_script : example_snippets[Math.floor(Math.random() * example_snippets.length)];
+declare var preload_script: string;
 
 // defined in ace-files/ace.js with a <script src> block in play.mustache
 declare var ace: any;
@@ -132,7 +35,7 @@ editor.setOptions({
 	useSoftTabs: true,
 	mode: "ace/mode/haskell",
 });
-editor.session.setValue(snippet);
+editor.session.setValue(preload_script);
 editor.session.setOptions({
 	tabSize: 2,
 })

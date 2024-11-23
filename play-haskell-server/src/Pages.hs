@@ -22,7 +22,7 @@ import Text.Mustache (toMustache)
 import qualified Text.Mustache.Types as Mustache (Value)
 
 
-data Pages = Pages { pPlay :: Maybe ByteString -> Maybe POSIXTime -> Maybe ByteString -> ByteString }
+data Pages = Pages { pPlay :: Maybe ByteString -> Maybe POSIXTime -> ByteString -> ByteString }
 
 pagesFromDisk :: IO Pages
 pagesFromDisk = Pages <$> (renderPlayPage <$> loadTemplate "play.mustache")
@@ -34,10 +34,10 @@ loadTemplate fp = do
     Right templ -> return templ
     Left err -> die (show err)
 
-renderPlayPage :: Mustache.Template -> Maybe ByteString -> Maybe POSIXTime -> Maybe ByteString -> ByteString
+renderPlayPage :: Mustache.Template -> Maybe ByteString -> Maybe POSIXTime -> ByteString -> ByteString
 renderPlayPage templ mkey mdate msource = Enc.encodeUtf8 $
   Mustache.substituteValue templ $ Mustache.object
-    [(Text.pack "preload", mixinMaybeNull (jsStringEncode . decodeUtf8) msource)
+    [(Text.pack "preload", toMustache (jsStringEncode (decodeUtf8 msource)))
     ,(Text.pack "pastedate", mixinMaybeNull @Double (realToFrac . nominalDiffTimeToSeconds) mdate)
     ,(Text.pack "pastedate-utc", toMustache (formatDateUTC <$> mdate))
     ,(Text.pack "pastekey", toMustache (Char8.unpack <$> mkey))]

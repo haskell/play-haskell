@@ -42,6 +42,7 @@ import Snap.Server.Utils.BasicAuth
 import Snap.Server.Utils.Challenge
 import Snap.Server.Utils.ExitEarly
 import Snap.Server.Utils.Hex
+import Play.Examples
 import qualified Play.WorkerPool as WP
 import PlayHaskellTypes
 import qualified PlayHaskellTypes.Sign as Sign
@@ -176,15 +177,17 @@ handleRequest gctx ctx = \case
     req <- getRequest
     renderer <- liftIO $ getPageFromGCtx pPlay gctx
     case Map.lookup "code" (rqQueryParams req) of
-      Just (source : _) -> writeHTML (renderer Nothing Nothing (Just source))
-      _ -> writeHTML (renderer Nothing Nothing Nothing)
+      Just (source : _) -> writeHTML (renderer Nothing Nothing source)
+      _ -> do
+        snippet <- liftIO randomExampleSnippet
+        writeHTML (renderer Nothing Nothing snippet)
 
   PostedIndex -> do
     req <- getRequest
     case Map.lookup "code" (rqPostParams req) of
       Just [source] -> do
         renderer <- liftIO $ getPageFromGCtx pPlay gctx
-        writeHTML (renderer Nothing Nothing (Just source))
+        writeHTML (renderer Nothing Nothing source)
       _ ->
         httpError 400 "Invalid request"
 
@@ -200,7 +203,7 @@ handleRequest gctx ctx = \case
         case vt of
           VTPlayground -> do
             renderer <- liftIO $ getPageFromGCtx pPlay gctx
-            writeHTML (renderer (Just key) mmoddate (Just source))
+            writeHTML (renderer (Just key) mmoddate source)
           VTRaw -> do
             liftIO $ print mmoddate
             let gmtTimeZone = Time.TimeZone 0 False "GMT"
