@@ -67,9 +67,9 @@ test-suite play-test
     test
   build-depends:
     base,
-    clock >= 0.8 && < 0.9,
-    json >= 0.10 && < 0.11,
-    HTTP >= 4000.4.0 && < 4000.5
+    clock >= 0.8,
+    json >= 0.10,
+    HTTP >= 4000.4.0
   default-language:
     Haskell2010
   ghc-options:
