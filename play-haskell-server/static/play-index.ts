@@ -417,15 +417,14 @@ window.addEventListener("load", function() {
 			editor.commands.platform == "mac"
 				? "Press Cmd-Enter to run again"
 				: "Press Ctrl-Enter to run again";
-	document.getElementById("btn-run").setAttribute("title", runTooltip);
-	document.getElementById("btn-core").setAttribute("title", runTooltip);
-	document.getElementById("btn-asm").setAttribute("title", runTooltip);
+	// document.getElementById("btn-run").setAttribute("title", runTooltip);
+	// document.getElementById("btn-core").setAttribute("title", runTooltip);
+	// document.getElementById("btn-asm").setAttribute("title", runTooltip);
 
 	if (editor.commands.platform == "mac") {
 		const l = document.getElementsByClassName("ui-ctrl-cmd");
 		for (let i = 0; i < l.length; i++) l[i].innerHTML = "Cmd";
 	}
-
 	getVersions(function(versions) {
 		const sel: HTMLElement = document.getElementById("ghcversionselect");
 		for (let i = versions.length - 1; i >= 0; i--) {
@@ -469,9 +468,10 @@ window.addEventListener("load", function() {
 	editor.focus();
 });
 
-document.getElementById("btn-run").addEventListener('click', () => { doRun("run") });
-document.getElementById("btn-core").addEventListener('click', () => { doRun("core") });
-document.getElementById("btn-asm").addEventListener('click', () => { doRun("asm") });
+document.getElementById("btn-yolc").addEventListener('click', () => { doRun("run") });
+// document.getElementById("btn-run").addEventListener('click', () => { doRun("run") });
+// document.getElementById("btn-core").addEventListener('click', () => { doRun("core") });
+// document.getElementById("btn-asm").addEventListener('click', () => { doRun("asm") });
 document.getElementById("btn-save").addEventListener('click', () => { doSave() });
 document.getElementById("btn-close-save-alert").addEventListener('click', () => {
 	(document.getElementById("save-alert") as HTMLDialogElement).close();
