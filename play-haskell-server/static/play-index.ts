@@ -23,6 +23,8 @@ const ghcReadableVersion: Record<string, string> = {
 
 // defined in a <script> block in play.mustache
 declare var preload_script: string;
+declare var preload_ghcver: string;
+declare var preload_ghcopt: string;
 
 // defined in ace-files/ace.js with a <script src> block in play.mustache
 declare var ace: any;
@@ -159,7 +161,7 @@ function sendRun(source: string, version: string, opt: string, run: Runner, cb: 
 		}, function(xhr) {
 			setWorking(false);
 			alert("Failed to submit run job (status " + xhr.status + "): " + xhr.responseText);
-		}, "text/plain", payload
+		}, "application/json", payload
 	);
 }
 
@@ -189,14 +191,24 @@ function renderGHCout(elem: Node, out: string) {
 	}
 }
 
+function selectedGHCversion(): string {
+	let version = (document.getElementById("ghcversionselect") as any).value;
+	if (typeof version != "string" || version == "") version = defaultGHCversion;
+	return version;
+}
+
+function selectedOpt(): string {
+	let opt = (document.getElementById("optselect") as any).value;
+	if (typeof opt != "string" || opt == "") opt = "O1";
+	return opt;
+}
+
 function doRun(run: Runner) {
 	lastRunKind = run;
 
 	const source: string = editor.getValue();
-	let version = (document.getElementById("ghcversionselect") as any).value;
-	let opt = (document.getElementById("optselect") as any).value;
-	if (typeof version != "string" || version == "") version = defaultGHCversion;
-	if (typeof opt != "string" || opt == "") opt = "O1";
+	const version = selectedGHCversion();
+	const opt = selectedOpt();
 
 	sendRun(source, version, opt, run, function(response: {[key: string]: json}) {
 		function setInvisible(elem, yes) {
@@ -272,6 +284,7 @@ function showSaveDialog(saveUrl) {
 
 function doSave() {
 	const source: string = editor.getValue();
+	const payload: string = JSON.stringify({code: source, version: selectedGHCversion(), opt: selectedOpt()});
 
 	performXHR(
 		"POST", "/save", "text",
@@ -301,7 +314,7 @@ function doSave() {
 		xhr => {
 			alert("Could not save your code!\nServer returned status code " + xhr.status + ": " + xhr.responseText);
 		},
-		"text/plain", source
+		"application/json", payload
 	);
 }
 
@@ -427,13 +440,17 @@ window.addEventListener("load", function() {
 	}
 
 	getVersions(function(versions) {
+		let selIdx = versions.indexOf(preload_ghcver);
+		if (selIdx == -1) selIdx = versions.indexOf(defaultGHCversion);
+		if (selIdx == -1) selIdx = versions.length - 1;
+
 		const sel: HTMLElement = document.getElementById("ghcversionselect");
 		for (let i = versions.length - 1; i >= 0; i--) {
 			const opt: HTMLOptionElement = document.createElement("option");
 			opt.value = versions[i];
 			const readable = versions[i] in ghcReadableVersion ? ghcReadableVersion[versions[i]] : versions[i];
 			opt.textContent = "GHC " + readable;
-			if (versions[i] == defaultGHCversion) opt.setAttribute("selected", "");
+			if (i == selIdx) opt.setAttribute("selected", "");
 			sel.appendChild(opt);
 		}
 	});
@@ -443,7 +460,7 @@ window.addEventListener("load", function() {
 		const opt: HTMLOptionElement = document.createElement("option");
 		opt.value = o;
 		opt.textContent = "-" + o;
-		if (o == "O1") opt.setAttribute("selected", "");
+		if (o == (preload_ghcopt ?? "O1")) opt.setAttribute("selected", "");
 		sel.appendChild(opt);
 	});
 

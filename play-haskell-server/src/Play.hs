@@ -15,7 +15,6 @@ import qualified Data.Aeson.Types as J
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as Char8
-import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Short as BSS
 import Data.Char (chr)
 import Data.Maybe (fromMaybe)
@@ -23,10 +22,10 @@ import qualified Data.Map.Strict as Map
 import Data.String (fromString)
 import Data.Text (Text)
 import Data.Time (secondsToDiffTime)
+import qualified Data.Text.Encoding as Enc
 import qualified Data.Time.Format as Time
 import qualified Data.Time.Clock.POSIX as Time
 import qualified Data.Time.LocalTime as Time
-import Data.Word (Word64)
 import GHC.Generics (Generic)
 import Snap.Core hiding (path, method, pass)
 import System.Directory (listDirectory)
@@ -79,6 +78,20 @@ instance J.FromJSON ClientSubmitReq where
       <*> (fromMaybe O1 <$> (v J..:? fromString "opt"))
       <*> v J..: fromString "output"
   parseJSON val = J.prependFailure "parsing ClientSubmitReq failed, " (J.typeMismatch "Object" val)
+
+data ClientSaveReq = ClientSaveReq
+  { cvrCode :: Text
+  , cvrVersion :: Maybe Version
+  , cvrOpt :: Maybe Optimisation }
+  deriving (Show)
+
+instance J.FromJSON ClientSaveReq where
+  parseJSON (J.Object v) =
+    ClientSaveReq
+      <$> v J..: fromString "code"
+      <*> v J..:? fromString "version"
+      <*> v J..:? fromString "opt"
+  parseJSON val = J.prependFailure "parsing ClientSaveReq failed, " (J.typeMismatch "Object" val)
 
 
 saveKeyLength :: Int
@@ -177,33 +190,33 @@ handleRequest gctx ctx = \case
     req <- getRequest
     renderer <- liftIO $ getPageFromGCtx pPlay gctx
     case Map.lookup "code" (rqQueryParams req) of
-      Just (source : _) -> writeHTML (renderer Nothing Nothing source)
+      Just (source : _) -> writeHTML (renderer Nothing Nothing source Nothing Nothing)
       _ -> do
         snippet <- liftIO randomExampleSnippet
-        writeHTML (renderer Nothing Nothing snippet)
+        writeHTML (renderer Nothing Nothing snippet Nothing Nothing)
 
   PostedIndex -> do
     req <- getRequest
     case Map.lookup "code" (rqPostParams req) of
       Just [source] -> do
         renderer <- liftIO $ getPageFromGCtx pPlay gctx
-        writeHTML (renderer Nothing Nothing source)
+        writeHTML (renderer Nothing Nothing source Nothing Nothing)
       _ ->
         httpError 400 "Invalid request"
 
   FromSaved key vt -> do
     res <- liftIO $ DB.getPaste (gcDb gctx) key
     case res of
-      Just (_, Contents [] _ _) -> do
+      Just (_, Contents [] _ _ _ _) -> do
         modifyResponse (setContentType (Char8.pack "text/plain")
                         . setResponseCode 404)
         writeBS (Char8.pack "Save key not found (empty file list?)")
 
-      Just (mmoddate, Contents ((_, source) : _) _ _) ->
+      Just (mmoddate, Contents ((_, source) : _) _ _ mghcver mghcopt) ->
         case vt of
           VTPlayground -> do
             renderer <- liftIO $ getPageFromGCtx pPlay gctx
-            writeHTML (renderer (Just key) mmoddate source)
+            writeHTML (renderer (Just key) mmoddate source mghcver mghcopt)
           VTRaw -> do
             liftIO $ print mmoddate
             let gmtTimeZone = Time.TimeZone 0 False "GMT"
@@ -222,14 +235,26 @@ handleRequest gctx ctx = \case
                         . setResponseCode 404)
         writeBS (Char8.pack "Save key not found")
 
-  Save -> do
-    req <- getRequest
-    body <- readRequestBody (fromIntegral @Int @Word64 maxSaveFileSize)
-    let body' = BSL.toStrict body
-    let contents = Contents [(Nothing, body')] Nothing Nothing
-        srcip = Char8.unpack (rqClientAddr req)
+  Save -> execExitEarlyT $ do
+    postdata <- getRequestBodyEarlyExit 1000_000 "Program too large"
+    cvr <-
+      case J.decodeStrict' postdata of
+        Just request -> return request
+        _ -> do lift (httpError 400 "Invalid JSON")
+                exitEarly ()
+
+    let code = Enc.encodeUtf8 (cvrCode cvr)
+    when (BS.length code > maxSaveFileSize) $ do
+      lift (httpError 400 "File too large")
+      exitEarly ()
+
+    let contents = Contents [(Nothing, code)] Nothing Nothing (cvrVersion cvr) (cvrOpt cvr)
+
+    req <- lift getRequest
+    let srcip = Char8.unpack (rqClientAddr req)
+
     mkey <- liftIO $ genStorePaste gctx (ctxRNG ctx) srcip contents
-    case mkey of
+    lift $ case mkey of
       Right key -> do
         modifyResponse (setContentType (Char8.pack "text/plain"))
         writeBS key

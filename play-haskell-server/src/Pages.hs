@@ -21,8 +21,17 @@ import qualified Text.Mustache as Mustache
 import Text.Mustache (toMustache)
 import qualified Text.Mustache.Types as Mustache (Value)
 
+import PlayHaskellTypes
 
-data Pages = Pages { pPlay :: Maybe ByteString -> Maybe POSIXTime -> ByteString -> ByteString }
+
+data Pages = Pages
+  { pPlay :: Maybe ByteString  -- ^ save key (if applicable)
+          -> Maybe POSIXTime  -- ^ modification time (if applicable)
+          -> ByteString  -- ^ source code
+          -> Maybe Version  -- ^ GHC version
+          -> Maybe Optimisation -- ^ GHC optimisation level
+          -> ByteString
+  }
 
 pagesFromDisk :: IO Pages
 pagesFromDisk = Pages <$> (renderPlayPage <$> loadTemplate "play.mustache")
@@ -34,13 +43,18 @@ loadTemplate fp = do
     Right templ -> return templ
     Left err -> die (show err)
 
-renderPlayPage :: Mustache.Template -> Maybe ByteString -> Maybe POSIXTime -> ByteString -> ByteString
-renderPlayPage templ mkey mdate msource = Enc.encodeUtf8 $
+renderPlayPage :: Mustache.Template -> Maybe ByteString -> Maybe POSIXTime -> ByteString -> Maybe Version -> Maybe Optimisation -> ByteString
+renderPlayPage templ mkey mdate msource mghcver mghcopt = Enc.encodeUtf8 $
+  let mghcver' = (\(Version v) -> v) <$> mghcver
+      mghcopt' = (\opt -> '"' : show opt ++ ['"']) <$> mghcopt
+  in
   Mustache.substituteValue templ $ Mustache.object
     [(Text.pack "preload", toMustache (jsStringEncode (decodeUtf8 msource)))
     ,(Text.pack "pastedate", mixinMaybeNull @Double (realToFrac . nominalDiffTimeToSeconds) mdate)
     ,(Text.pack "pastedate-utc", toMustache (formatDateUTC <$> mdate))
-    ,(Text.pack "pastekey", toMustache (Char8.unpack <$> mkey))]
+    ,(Text.pack "pastekey", toMustache (Char8.unpack <$> mkey))
+    ,(Text.pack "preload_ghcver", toMustache (jsStringEncode <$> mghcver'))
+    ,(Text.pack "preload_ghcopt", toMustache mghcopt')]
 
 mixinMaybeNull :: forall b a. Mustache.ToMustache b => (a -> b) -> Maybe a -> Mustache.Value
 mixinMaybeNull _ Nothing = toMustache False

@@ -82,7 +82,7 @@ handleRequest ctx = \case
     lift $ writeJSON (signMessage (ctxSecretKey ctx) response)
 
   Health -> do
-    response <- HealthResponse <$> (map Version <$> liftIO availableVersions)
+    response <- HealthResponse <$> liftIO availableVersions
                                <*> pure (poolParallelism (ctxPool ctx))
     writeJSON (signMessage (ctxSecretKey ctx) response)
 

@@ -22,6 +22,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Builder as BSB
 import qualified Data.ByteString.Lazy as Lazy
 import Data.Text (Text)
+import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import Foreign.C.Error (eFAULT, Errno (Errno))
 import Foreign.Marshal.Alloc (allocaBytes)
@@ -58,10 +59,10 @@ debug str = do
 maxOutputSizeBytes :: Int
 maxOutputSizeBytes = 100_000
 
-availableVersions :: IO [String]
+availableVersions :: IO [Version]
 availableVersions = do
   files <- listDirectory "bwrap-files/builders"
-  return [ver
+  return [Version (T.pack ver)
          | fname <- files
          , ("build-", tl) <- [splitAt 6 fname]
          , (ver, ".sh") <- [splitAt (length tl - 3) tl]]
@@ -117,7 +118,7 @@ makeWorker = do
       closeFd ghcOutWriteFD
       (cmd, opt, Version ver, source) <- readMVar mvar
       _ <- forkIO $ do
-        hPutStr inh (commandString cmd ++ "\n" ++ optimisationString opt ++ "\n" ++ ver ++ "\n")
+        hPutStr inh (commandString cmd ++ "\n" ++ optimisationString opt ++ "\n" ++ T.unpack ver ++ "\n")
         BS.hPutStr inh (TE.encodeUtf8 source)
         hClose inh
       ghcoutmvar <- newEmptyMVar
