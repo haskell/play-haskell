@@ -145,7 +145,7 @@ function setWorking(yes: boolean) {
 	}
 }
 
-function getVersions(cb: (response: string) => void) {
+function getVersions(cb: (response: string[]) => void) {
 	performXHR("GET", "/versions", "json", cb, function(xhr) {
 		alert("Error getting available compiler versions (status " + xhr.status + "): " + xhr.responseText);
 	});
@@ -416,6 +416,38 @@ function uponUserAction(fun: () => void) {
 	window.addEventListener("keydown", run); keyh = true;
 }
 
+type SplitVersion = (string | number)[];
+
+function splitGHCversion(ver: string): SplitVersion {
+	return ver.match(/[0-9]+|[^0-9]+/g).map(s => s.charCodeAt(0) >= 48 && s.charCodeAt(0) < 58 ? +s : s);
+}
+
+function ghcVersionLeq(v1: SplitVersion, v2: SplitVersion): boolean {
+	// No, simple '<=' does not do the right thing on the numbers inside.
+	for (let i = 0; i < v1.length && i < v2.length; i++) {
+		if (v1[i] < v2[i]) return true;
+		if (v1[i] > v2[i]) return false;
+	}
+	return v1.length <= v2.length;
+}
+
+function matchPreloadedGHCversion(ver: string, available: string[]): string {
+	if (available.indexOf(ver) != -1) return ver;
+
+	// Take the oldest version that has at least the major.minor of the desired
+	// version.
+	// Note: This assumes that the first three components of a version are
+	// <digits>, ".", <digits> so that taking that prefix makes sense.
+	const spl = splitGHCversion(ver).slice(0, 3);
+	for (let i = 0; i < available.length; i++) {
+		if (ghcVersionLeq(spl, splitGHCversion(available[i]))) return available[i];
+	}
+
+	if (available.indexOf(defaultGHCversion) != -1) return defaultGHCversion;
+	if (available.length > 0) available[available.length - 1];
+	return "";  // no versions, whatever?
+}
+
 window.addEventListener("load", function() {
 	editor.commands.addCommand({
 		name: "Run",
@@ -440,9 +472,10 @@ window.addEventListener("load", function() {
 	}
 
 	getVersions(function(versions) {
-		let selIdx = versions.indexOf(preload_ghcver);
-		if (selIdx == -1) selIdx = versions.indexOf(defaultGHCversion);
-		if (selIdx == -1) selIdx = versions.length - 1;
+		const initialGHCver =
+			preload_ghcver == null
+				? defaultGHCversion
+				: matchPreloadedGHCversion(preload_ghcver, versions);
 
 		const sel: HTMLElement = document.getElementById("ghcversionselect");
 		for (let i = versions.length - 1; i >= 0; i--) {
@@ -450,7 +483,7 @@ window.addEventListener("load", function() {
 			opt.value = versions[i];
 			const readable = versions[i] in ghcReadableVersion ? ghcReadableVersion[versions[i]] : versions[i];
 			opt.textContent = "GHC " + readable;
-			if (i == selIdx) opt.setAttribute("selected", "");
+			if (versions[i] == initialGHCver) opt.setAttribute("selected", "");
 			sel.appendChild(opt);
 		}
 	});
