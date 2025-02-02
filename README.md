@@ -134,7 +134,7 @@ The API is as follows: `POST` to `/submit` on the playground server with the fol
   "code": "main :: IO ()\nmain = print 42",
   "version": "9.2.4",  // or "8.10.7", or "9.6.0.20230210", etc.
   "opt": "O1",  // "O0", "O1" or "O2"
-  "output: "run"  // "run", "core" or "asm"
+  "output": "run"  // "run", "core" or "asm"
 }
 ```
 
