@@ -8,9 +8,18 @@ author:              Tom Smeding
 maintainer:          tom@tomsmeding.com
 build-type:          Simple
 homepage:            https://github.com/haskell/play-haskell
-extra-source-files:  index.mustache read.mustache highlight-light.pack.css highlight-dark.pack.css
-                     migrate_db_1_2.sh migrate_db_2_3.sh migrate_db_3_4.sh migrate_db_4_5.sh
-                     static/highlight.pack.js static/robots.txt example-snippets.txt
+extra-source-files:
+  play.mustache
+  migrate_db_1_2.sh migrate_db_2_3.sh migrate_db_3_4.sh migrate_db_4_5.sh migrate_db_5_6.sh
+  static/ace-builds/src-min-noconflict/*.js
+  static/admin_dashboard.html
+  static/haskell-logo-tw.svg
+  static/haskell-play-logo.png
+  static/Makefile
+  static/play-index.js
+  static/play-index.ts
+  static/robots.txt
+  example-snippets.txt
 
 executable play-haskell-server
   main-is:
