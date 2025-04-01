@@ -507,7 +507,7 @@ window.addEventListener("load", function() {
 	document.getElementById("btn-basic-template").addEventListener('click', () => {
 		// Ensure that this change does not get picked up as a user change to be saved
 		gUnloadHandler.ignoreChanges = true;
-		editor.session.setValue("main :: IO ()\nmain = _");
+		editor.session.doc.setValue("main :: IO ()\nmain = _");
 		gUnloadHandler.ignoreChanges = false;
 
 		if (completeFadeout != null) completeFadeout();
