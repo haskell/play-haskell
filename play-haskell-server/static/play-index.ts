@@ -59,7 +59,7 @@ type Runner = "run" | "core" | "asm";
 
 let lastRunKind: Runner = "run";
 
-const defaultGHCversion: string = "9.4.8";
+const defaultGHCversion: string = "9.6.7";
 
 
 class UnloadHandler {
