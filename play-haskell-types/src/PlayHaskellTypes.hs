@@ -57,7 +57,7 @@ data Optimisation = O0 | O1 | O2
 -- | The GHC version to use for a job.
 --
 -- JSON: string.
-newtype Version = Version String
+newtype Version = Version Text
   deriving (Show, Eq)
 
 -- | JSON: string; "timeout", "backend".
@@ -107,19 +107,20 @@ data HealthResponse = HealthResponse
   , hlresCapabilities :: Int }
   deriving (Show)
 
-newtype ParsedVersion = ParsedVersion [Either Natural String]
+newtype ParsedVersion = ParsedVersion [Either Natural Text]
   deriving (Eq, Ord)
 
-parseVersion :: String -> ParsedVersion
-parseVersion [] = ParsedVersion []
-parseVersion s = case span isDigit s of
-  (nums@(_:_), rest) ->
-    let ParsedVersion l = parseVersion rest
-    in ParsedVersion (Left (read nums) : l)
-  _ ->
-    let (nonnums, rest) = break isDigit s
-        ParsedVersion l = parseVersion rest
-    in ParsedVersion (Right nonnums : l)
+parseVersion :: Text -> ParsedVersion
+parseVersion s
+  | T.null s = ParsedVersion []
+  | otherwise =
+      let (nums, rest) = T.span isDigit s
+      in if not (T.null nums)
+           then let ParsedVersion l = parseVersion rest
+                in ParsedVersion (Left (read (T.unpack nums)) : l)
+           else let (nonnums, rest2) = T.break isDigit s
+                    ParsedVersion l = parseVersion rest2
+                in ParsedVersion (Right nonnums : l)
 
 -- | Versions compare components in numeric order, by deferring to 'ParsedVersion'.
 instance Ord Version where
@@ -150,12 +151,12 @@ instance J.ToJSON Optimisation where
     O0 -> JE.string "O0" ; O1 -> JE.string "O1" ; O2 -> JE.string "O2"
 
 instance J.FromJSON Version where
-  parseJSON (J.String s) = return (Version (T.unpack s))
+  parseJSON (J.String s) = return (Version s)
   parseJSON val = J.prependFailure "parsing Version failed, " (J.typeMismatch "String" val)
 
 instance J.ToJSON Version where
-  toJSON (Version s) = J.String (T.pack s)
-  toEncoding (Version s) = JE.string s
+  toJSON (Version s) = J.String s
+  toEncoding (Version s) = JE.text s
 
 instance J.FromJSON RunError where
   parseJSON (J.String s) = case T.unpack s of
@@ -275,11 +276,11 @@ instance SigningBytes Lazy.ByteString where
 instance SigningBytes T.Text where
   signingBytesB txt = BSB.byteString (TE.encodeUtf8 txt)
 
-newtype SigningBytesUTF8String = SigningBytesUTF8String String
+newtype SigningBytesUTF8String = SigningBytesUTF8String Text
 
 instance SigningBytes SigningBytesUTF8String where
   signingBytesB (SigningBytesUTF8String s) =
-    BSB.word64LE (fromIntegral @Int @Word64 (length s)) <> BSB.stringUtf8 s
+    BSB.word64LE (fromIntegral @Int @Word64 (T.length s)) <> TE.encodeUtf8Builder s
 
 newtype SigningBytesUTF8Text = SigningBytesUTF8Text Text
 

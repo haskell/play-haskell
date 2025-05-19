@@ -38,7 +38,7 @@ def check(ghcversion, dependencies):
             print(output, file=sys.stderr)
             sys.exit(1)
 
-        lines = lines[i+1:]
+        lines = lines[i:]
         lines[0] = lines[0][lines[0].index(":")+1 :]
         conflicts = [s.strip() for s in " ".join(lines).split(",")]
         return (output.strip(), conflicts)

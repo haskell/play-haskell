@@ -5,7 +5,7 @@ newfname='pastes.migrate_4_5.db'
 [[ -f $newfname ]] && { echo >&2 "Destination '$newfname' already exists!"; exit 1; }
 
 echo "Copying database to '$newfname'..."
-sqlite3 pastes.db "VACUUM INTO \"$newfname\""
+sqlite3 pastes.db "VACUUM INTO '$newfname'"
 
 oldversion=$(sqlite3 "$newfname" 'SELECT version FROM meta')
 [[ $oldversion -ne 4 ]] && { echo >&2 "Database is not currently at version 4!"; exit 1; }

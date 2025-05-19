@@ -23,6 +23,8 @@ const ghcReadableVersion: Record<string, string> = {
 
 // defined in a <script> block in play.mustache
 declare var preload_script: string;
+declare var preload_ghcver: string;
+declare var preload_ghcopt: string;
 
 // defined in ace-files/ace.js with a <script src> block in play.mustache
 declare var ace: any;
@@ -57,7 +59,7 @@ type Runner = "run" | "core" | "asm";
 
 let lastRunKind: Runner = "run";
 
-const defaultGHCversion: string = "9.4.8";
+const defaultGHCversion: string = "9.6.7";
 
 
 class UnloadHandler {
@@ -143,7 +145,7 @@ function setWorking(yes: boolean) {
 	}
 }
 
-function getVersions(cb: (response: string) => void) {
+function getVersions(cb: (response: string[]) => void) {
 	performXHR("GET", "/versions", "json", cb, function(xhr) {
 		alert("Error getting available compiler versions (status " + xhr.status + "): " + xhr.responseText);
 	});
@@ -159,7 +161,7 @@ function sendRun(source: string, version: string, opt: string, run: Runner, cb: 
 		}, function(xhr) {
 			setWorking(false);
 			alert("Failed to submit run job (status " + xhr.status + "): " + xhr.responseText);
-		}, "text/plain", payload
+		}, "application/json", payload
 	);
 }
 
@@ -189,14 +191,24 @@ function renderGHCout(elem: Node, out: string) {
 	}
 }
 
+function selectedGHCversion(): string {
+	let version = (document.getElementById("ghcversionselect") as any).value;
+	if (typeof version != "string" || version == "") version = defaultGHCversion;
+	return version;
+}
+
+function selectedOpt(): string {
+	let opt = (document.getElementById("optselect") as any).value;
+	if (typeof opt != "string" || opt == "") opt = "O1";
+	return opt;
+}
+
 function doRun(run: Runner) {
 	lastRunKind = run;
 
 	const source: string = editor.getValue();
-	let version = (document.getElementById("ghcversionselect") as any).value;
-	let opt = (document.getElementById("optselect") as any).value;
-	if (typeof version != "string" || version == "") version = defaultGHCversion;
-	if (typeof opt != "string" || opt == "") opt = "O1";
+	const version = selectedGHCversion();
+	const opt = selectedOpt();
 
 	sendRun(source, version, opt, run, function(response: {[key: string]: json}) {
 		function setInvisible(elem, yes) {
@@ -272,6 +284,7 @@ function showSaveDialog(saveUrl) {
 
 function doSave() {
 	const source: string = editor.getValue();
+	const payload: string = JSON.stringify({code: source, version: selectedGHCversion(), opt: selectedOpt()});
 
 	performXHR(
 		"POST", "/save", "text",
@@ -301,7 +314,7 @@ function doSave() {
 		xhr => {
 			alert("Could not save your code!\nServer returned status code " + xhr.status + ": " + xhr.responseText);
 		},
-		"text/plain", source
+		"application/json", payload
 	);
 }
 
@@ -403,6 +416,38 @@ function uponUserAction(fun: () => void) {
 	window.addEventListener("keydown", run); keyh = true;
 }
 
+type SplitVersion = (string | number)[];
+
+function splitGHCversion(ver: string): SplitVersion {
+	return ver.match(/[0-9]+|[^0-9]+/g).map(s => s.charCodeAt(0) >= 48 && s.charCodeAt(0) < 58 ? +s : s);
+}
+
+function ghcVersionLeq(v1: SplitVersion, v2: SplitVersion): boolean {
+	// No, simple '<=' does not do the right thing on the numbers inside.
+	for (let i = 0; i < v1.length && i < v2.length; i++) {
+		if (v1[i] < v2[i]) return true;
+		if (v1[i] > v2[i]) return false;
+	}
+	return v1.length <= v2.length;
+}
+
+function matchPreloadedGHCversion(ver: string, available: string[]): string {
+	if (available.indexOf(ver) != -1) return ver;
+
+	// Take the oldest version that has at least the major.minor of the desired
+	// version.
+	// Note: This assumes that the first three components of a version are
+	// <digits>, ".", <digits> so that taking that prefix makes sense.
+	const spl = splitGHCversion(ver).slice(0, 3);
+	for (let i = 0; i < available.length; i++) {
+		if (ghcVersionLeq(spl, splitGHCversion(available[i]))) return available[i];
+	}
+
+	if (available.indexOf(defaultGHCversion) != -1) return defaultGHCversion;
+	if (available.length > 0) available[available.length - 1];
+	return "";  // no versions, whatever?
+}
+
 window.addEventListener("load", function() {
 	editor.commands.addCommand({
 		name: "Run",
@@ -426,13 +471,18 @@ window.addEventListener("load", function() {
 		for (let i = 0; i < l.length; i++) l[i].innerHTML = "Cmd";
 	}
 	getVersions(function(versions) {
+		const initialGHCver =
+			preload_ghcver == null
+				? defaultGHCversion
+				: matchPreloadedGHCversion(preload_ghcver, versions);
+
 		const sel: HTMLElement = document.getElementById("ghcversionselect");
 		for (let i = versions.length - 1; i >= 0; i--) {
 			const opt: HTMLOptionElement = document.createElement("option");
 			opt.value = versions[i];
 			const readable = versions[i] in ghcReadableVersion ? ghcReadableVersion[versions[i]] : versions[i];
 			opt.textContent = "GHC " + readable;
-			if (versions[i] == defaultGHCversion) opt.setAttribute("selected", "");
+			if (versions[i] == initialGHCver) opt.setAttribute("selected", "");
 			sel.appendChild(opt);
 		}
 	});
@@ -442,7 +492,7 @@ window.addEventListener("load", function() {
 		const opt: HTMLOptionElement = document.createElement("option");
 		opt.value = o;
 		opt.textContent = "-" + o;
-		if (o == "O1") opt.setAttribute("selected", "");
+		if (o == (preload_ghcopt ?? "O1")) opt.setAttribute("selected", "");
 		sel.appendChild(opt);
 	});
 
@@ -456,7 +506,7 @@ window.addEventListener("load", function() {
 	document.getElementById("btn-basic-template").addEventListener('click', () => {
 		// Ensure that this change does not get picked up as a user change to be saved
 		gUnloadHandler.ignoreChanges = true;
-		editor.session.setValue("main :: IO ()\nmain = _");
+		editor.session.doc.setValue("main :: IO ()\nmain = _");
 		gUnloadHandler.ignoreChanges = false;
 
 		if (completeFadeout != null) completeFadeout();

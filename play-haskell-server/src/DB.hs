@@ -11,12 +11,15 @@ module DB (
 import Control.Exception (tryJust, handleJust)
 import Control.Monad (forM_, when)
 import Data.ByteString (ByteString)
+import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Time.Clock (secondsToNominalDiffTime)
 import Data.Time.Clock.POSIX (POSIXTime, getPOSIXTime)
 import Database.SQLite.Simple
 import System.Exit (die)
 import System.IO (hPutStrLn, stderr)
+
+import PlayHaskellTypes
 
 
 maxDbFileSize :: Int
@@ -34,6 +37,8 @@ data Contents =
   Contents [(Maybe ByteString, ByteString)]  -- ^ Files with optional filenames
            (Maybe KeyType)                   -- ^ Parent paste this was edited from, if any
            (Maybe POSIXTime)                 -- ^ Expiration date
+           (Maybe Version)                   -- ^ GHC version for the paste
+           (Maybe Optimisation)              -- ^ Optimisation setting for the paste
 
 data ErrCode = ErrExists  -- ^ Key already exists in database
              | ErrFull    -- ^ Database disk quota has been reached
@@ -74,6 +79,8 @@ schemaVersion :: Int
     \    date INTEGER NULL, \n\
     \    expire INTEGER NULL, \n\
     \    srcip TEXT NULL, \n\
+    \    ghcver TEXT NULL, \n\
+    \    ghcopt TEXT NULL, \n\
     \    parent INTEGER REFERENCES pastes (id) ON DELETE SET NULL,\n\
     \    UNIQUE (key)\n\
     \)"
@@ -86,7 +93,7 @@ schemaVersion :: Int
     \    FOREIGN KEY (paste) REFERENCES pastes (id) ON DELETE CASCADE\n\
     \)"
    ,"CREATE INDEX files_paste ON files (paste)"]
-  ,5)
+  ,6)
 
 databaseVersion :: Database -> IO (Maybe Int)
 databaseVersion (Database conn) = do
@@ -105,9 +112,11 @@ applySchema (Database conn) = do
   execute conn "INSERT INTO meta (version) VALUES (?)" (Only schemaVersion)
 
 storePaste :: Database -> ClientAddr -> KeyType -> Contents -> IO (Maybe ErrCode)
-storePaste (Database conn) clientaddr key (Contents files mparent mexpire) = do
+storePaste (Database conn) clientaddr key (Contents files mparent mexpire mghcver mghcopt) = do
   now <- truncate <$> getPOSIXTime :: IO Int
   let mexpire' = truncate <$> mexpire :: Maybe Int
+      mghcver' = (\(Version v) -> v) <$> mghcver
+      mghcopt' = show <$> mghcopt
   let predicate (SQLError { sqlError = ErrorError }) = Just ()
       predicate _ = Nothing
   handleJust predicate (const (return (Just ErrFull))) $
@@ -118,13 +127,13 @@ storePaste (Database conn) clientaddr key (Contents files mparent mexpire) = do
         then do
           case mparent of
             Just parent ->
-              execute conn "INSERT INTO pastes (key, date, expire, srcip, parent) \
-                           \VALUES (?, ?, ?, ?, (SELECT id FROM pastes WHERE key = ?))"
-                           (key, now, mexpire', clientaddr, parent)
+              execute conn "INSERT INTO pastes (key, date, expire, srcip, ghcver, ghcopt, parent) \
+                           \VALUES (?, ?, ?, ?, ?, ?, (SELECT id FROM pastes WHERE key = ?))"
+                           (key, now, mexpire', clientaddr, mghcver', mghcopt', parent)
             Nothing ->
-              execute conn "INSERT INTO pastes (key, date, expire, srcip) \
-                           \VALUES (?, ?, ?, ?)"
-                           (key, now, mexpire', clientaddr)
+              execute conn "INSERT INTO pastes (key, date, expire, srcip, ghcver, ghcopt) \
+                           \VALUES (?, ?, ?, ?, ?, ?)"
+                           (key, now, mexpire', clientaddr, mghcver', mghcopt')
           pasteid <- lastInsertRowId conn
           forM_ (zip files [1::Int ..]) $ \((mfname, contents), idx) ->
             execute conn "INSERT INTO files (paste, fname, value, fileorder) \
@@ -135,20 +144,29 @@ storePaste (Database conn) clientaddr key (Contents files mparent mexpire) = do
 
 getPaste :: Database -> KeyType -> IO (Maybe (Maybe POSIXTime, Contents))
 getPaste (Database conn) key = do
-  res <- query @_ @(Maybe Int, Maybe Int, Maybe ByteString, ByteString, Maybe ByteString)
-               conn "SELECT P.date, P.expire, F.fname, F.value, (SELECT key FROM pastes WHERE id = P.parent) \
+  res <- query @_ @(Maybe Int, Maybe Int, Maybe Text, Maybe String, Maybe ByteString, ByteString, Maybe ByteString)
+               conn "SELECT P.date, P.expire, P.ghcver, P.ghcopt, F.fname, F.value, (SELECT key FROM pastes WHERE id = P.parent) \
                     \FROM pastes AS P, files as F \
                     \WHERE P.id = F.paste AND P.key = ? ORDER BY F.fileorder"
                (Only key)
   case res of
-    (date, expire, _, _, mparent) : _ ->
+    (date, expire, mghcver, mghcopt, _, _, mparent) : _ ->
       let date' = secondsToNominalDiffTime . fromIntegral <$> date
           expire' = secondsToNominalDiffTime . fromIntegral <$> expire
-          files = [(mfname, contents) | (_, _, mfname, contents, _) <- res]
-      in return (Just (date', Contents files mparent expire'))
+          mghcver' = Version <$> mghcver
+          mghcopt' = parseOptimisation <$> mghcopt
+          files = [(mfname, contents) | (_, _, _, _, mfname, contents, _) <- res]
+      in return (Just (date', Contents files mparent expire' mghcver' mghcopt'))
     [] -> return Nothing
 
 removeExpiredPastes :: Database -> IO ()
 removeExpiredPastes (Database conn) = do
   now <- truncate <$> getPOSIXTime :: IO Int
   execute conn "DELETE FROM pastes WHERE ? >= expire" (Only now)
+
+-- | Lenient parsing: parse errors become O1.
+parseOptimisation :: String -> Optimisation
+parseOptimisation "O0" = O0
+parseOptimisation "O1" = O1
+parseOptimisation "O2" = O2
+parseOptimisation _ = O1
