@@ -3,7 +3,6 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-workdir="builderprojs"
 outdir="builders"
 
 function usage() {
@@ -17,7 +16,7 @@ function usage() {
 }
 
 test_mode=0
-ghcversion="9.10.1"
+ghcversion="9.12.2"
 
 function parse_args() {
   local num_wordargs_given=0
@@ -41,10 +40,13 @@ function parse_args() {
 
 parse_args "$@"
 
+yolc_ver=$(cd "$yuldsldir" && git rev-parse --short HEAD)
+
+outscript="$outdir/build-Yolc-${yolc_ver}.sh"
+
+workdir="builderprojs/yolc-${yolc_ver}"
 projdir="$workdir/yul-dsl-proj"
-outscript="$outdir/build-Yolc-dev.sh"
-#cabaldir_name="yul-dsl-cabal"
-#cabaldir="${workdir}/${cabaldir_name}"
+mkdir -p "${workdir}"
 
 printf "\x1B[1m[mkyolcscript] Setting up cabal project directory in %s\x1B[0m\n" "$projdir"
 
@@ -104,7 +106,7 @@ args=(
   --ro-bind "${HOME}/.cabal/store" "${HOME}/.cabal/store"
   --bind "${HOME}/.cabal/packages" "${HOME}/.cabal/packages"  # should be safe to modify this? Just stores downloads
   --dev-bind /dev/null /dev/null
-  --bind "${workdir}" /builderprojs
+  --bind "builderprojs" /builderprojs
   --bind "${projdir}" /project
   --setenv PATH "/bin:/usr/bin:${ghcup_base}/bin"
   --setenv GHCUP_INSTALL_BASE_PREFIX "$(dirname "${ghcup_base}")"
@@ -128,19 +130,19 @@ rm -rf ~/.ghc
 test -f cabal.project.freeze && rm cabal.project.freeze
 [[ $test_mode -eq 1 ]] && exit
 ${GHCUP_RUN[@]} cabal \\
-  --store-dir=/builderprojs/ghc-'$ghcversion'-cabal/store \\
-  --logs-dir=/builderprojs/ghc-'$ghcversion'-cabal/logs \\
+  --store-dir=/${workdir}/ghc-'$ghcversion'-cabal/store \\
+  --logs-dir=/${workdir}/ghc-'$ghcversion'-cabal/logs \\
   build all --enable-tests -j2
 
 # keep the latest yolc libraries
-rm -rf /builderprojs/ghc-'$ghcversion'-cabal/store/{yul-dsl-*,yol-*,eth-abi-*}
-rm -rf /builderprojs/ghc-'$ghcversion'-cabal/store/*/{yul-dsl-*,yol-*,eth-abi-*}
-rm -rf /builderprojs/ghc-'$ghcversion'-cabal/store/*/package.db/{yul-dsl-*,yol-*,eth-abi-*}
-${GHCUP_RUN[@]} ghc-pkg --package-db /builderprojs/ghc-'$ghcversion'-cabal/store/*/package.db recache
+rm -rf /${workdir}/ghc-'$ghcversion'-cabal/store/{yul-dsl-*,yol-*,eth-abi-*}
+rm -rf /${workdir}/ghc-'$ghcversion'-cabal/store/*/{yul-dsl-*,yol-*,eth-abi-*}
+rm -rf /${workdir}/ghc-'$ghcversion'-cabal/store/*/package.db/{yul-dsl-*,yol-*,eth-abi-*}
+${GHCUP_RUN[@]} ghc-pkg --package-db /${workdir}/ghc-'$ghcversion'-cabal/store/*/package.db recache
 
 ${GHCUP_RUN[@]} cabal \\
-  --store-dir=/builderprojs/ghc-'$ghcversion'-cabal/store \\
-  --logs-dir=/builderprojs/ghc-'$ghcversion'-cabal/logs \\
+  --store-dir=/${workdir}/ghc-'$ghcversion'-cabal/store \\
+  --logs-dir=/${workdir}/ghc-'$ghcversion'-cabal/logs \\
   install all --lib
 EOF
 
@@ -151,7 +153,7 @@ printf "\x1B[1m[mkyolcscript] Collecting dependencies from cabal plan.json\x1B[0
 depends=( $(
   for i in $(
     "${GHCUP_RUN[@]}" ghc-pkg --global list --show-unit-ids --simple-output 2>/dev/null
-    "${GHCUP_RUN[@]}" ghc-pkg --package-db builderprojs/ghc-${ghcversion}-cabal/store/ghc-${ghcversion}-*/package.db list --show-unit-ids --simple-output 2>/dev/null
+    "${GHCUP_RUN[@]}" ghc-pkg --package-db ${workdir}/ghc-${ghcversion}-cabal/store/ghc-${ghcversion}-*/package.db list --show-unit-ids --simple-output 2>/dev/null
   ); do echo "-package-id " "$i"; done) )
 
 printf "\x1B[1m[mkyolcscript] Writing %s\x1B[0m\n" "$outscript"
@@ -164,7 +166,7 @@ ghcup --no-verbose --offline run --ghc '$ghcversion' -- ghc \\
   -Wmissing-home-modules \\
   -no-user-package-db \\
   -XGHC2024 -XBlockArguments -XQualifiedDo -XOverloadedStrings -XUnicodeSyntax -XRebindableSyntax -XImpredicativeTypes -XLinearTypes -XTemplateHaskell \\
-  -package-db /builderprojs/ghc-'$ghcversion'-cabal/store/ghc-'$ghcversion'-*/package.db \\
+  -package-db /${workdir}/ghc-'$ghcversion'-cabal/store/ghc-'$ghcversion'-*/package.db \\
   ${depends[@]} \\
   -rtsopts \\
   "\$@"
