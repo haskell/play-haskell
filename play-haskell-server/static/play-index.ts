@@ -44,7 +44,7 @@ editor.session.setOptions({
 
 addMediaListener("(prefers-color-scheme: dark)", null, function(ql) {
 	if (ql.matches) editor.setTheme("ace/theme/monokai");
-	else editor.setTheme("ace/theme/github");
+	else editor.setTheme("ace/theme/github_light_default");
 });
 
 type json =
