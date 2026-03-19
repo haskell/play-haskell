@@ -82,7 +82,7 @@ int main(int argc, char **argv) {
   // Limit memory to 600 MiB. Note that the compiled program gets a 500 MiB memory
   // limit via the GHC RTS, so this limit is 1. to constrain GHC itself (including
   // any TH code), and 2. as a second-layer defense.
-  run_args[13] = xstrdup("--property=MemoryMax=600M");
+  run_args[13] = xstrdup("--property=MemoryMax=2000M");
   run_args[14] = xstrdup("--property=TasksMax=50");
   run_args[15] = xstrdup("--property=LimitCORE=0");
   run_args[16] = xstrdup("--");

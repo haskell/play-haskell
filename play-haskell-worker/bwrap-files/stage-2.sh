@@ -19,7 +19,7 @@ ghc_out_fd=100
 # For the --symlink of /bin and /lib, see mkbuildscript.sh
 args=(
   # Need bwrap >=v0.7.0 for --size
-  --size $((100 * 1024 * 1024)) --tmpfs /tmp
+  --size $((500 * 1024 * 1024)) --tmpfs /tmp
   # --ro-bind "${chroot}/bin" /bin
   --symlink /usr/bin /bin
   --ro-bind "${chroot}/usr/bin" /usr/bin

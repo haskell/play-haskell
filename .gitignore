@@ -2,3 +2,8 @@ dist-newstyle/
 node_modules/
 .stack-work/
 .ccls-cache/
+
+adminpass.txt
+secretkey.txt
+pubkey.txt
+trustedkeys.txt
