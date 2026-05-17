@@ -29,7 +29,7 @@ fi
 case "$command" in
   run)
     cat >Main.hs
-    /builders/build-"${version}".sh "${opt}" Main.hs >/tmp/null 2>&"$ghc_out_fd"
+    /builders/build-"${version}".sh -threaded "${opt}" Main.hs >/tmp/null 2>&"$ghc_out_fd"
     if [[ -f Main ]]; then
       ./Main +RTS -M500m -RTS
     else
