@@ -27,6 +27,6 @@ apt install -y build-essential curl libffi-dev libffi8ubuntu1 libgmp-dev libgmp1
 # 9.12.2                           x  x  x  x  x  x  x   
 # 9.14.1                           x  x  x  x  x  x  x  x
 
-apt install -y llvm-15
+apt install -y llvm-15 clang-15
 
 PATH="$PATH:/usr/sbin" dpkg-reconfigure locales
