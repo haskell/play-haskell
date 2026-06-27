@@ -48,21 +48,8 @@ import qualified PlayHaskellTypes.Sign as Sign
 import qualified PlayHaskellTypes.Statistics as Stats
 
 
-data ClientJobReq = ClientJobReq
-  { cjrGivenKey :: Text
-  , cjrSource :: Text
-  , cjrVersion :: Version
-  , cjrOpt :: Optimisation }
-  deriving (Show)
-
-instance J.FromJSON ClientJobReq where
-  parseJSON (J.Object v) =
-    ClientJobReq <$> v J..: fromString "challenge"
-                 <*> v J..: fromString "source"
-                 <*> v J..: fromString "version"
-                 <*> (fromMaybe O1 <$> (v J..:? fromString "opt"))
-  parseJSON val = J.prependFailure "parsing ClientJobReq failed, " (J.typeMismatch "Object" val)
-
+-- This is isomorphic to 'RunRequest'. Merge? The JSON key names are different
+-- though...
 data ClientSubmitReq = ClientSubmitReq
   { csrCode :: Text
   , csrVersion :: Version
@@ -145,10 +132,8 @@ data WhatRequest
   | FromSaved ByteString ViewType
   | Save
   | Versions
-  | CurrentChallenge
   | Submit
   | AdminReq AdminReq
-  | LegacyRunGHC Command
   | LegacyRedirect ByteString  -- ^ to destination URL
   deriving (Show)
 
@@ -168,7 +153,6 @@ parseRequest method comps = case (method, comps) of
   (GET, ["saved", key, "raw"]) -> Just (FromSaved key VTRaw)
   (POST, ["save"]) -> Just Save
   (GET, ["versions"]) -> Just Versions
-  (GET, ["challenge"]) -> Just CurrentChallenge
   (POST, ["submit"]) -> Just Submit
   (GET, ["admin"]) -> Just (AdminReq ARDashboard)
   (GET, ["admin", "status"]) -> Just (AdminReq ARStatus)
@@ -176,9 +160,6 @@ parseRequest method comps = case (method, comps) of
   (DELETE, ["admin", "worker"]) -> Just (AdminReq ARRemoveWorker)
   (POST, ["admin", "worker", "refresh"]) -> Just (AdminReq ARRefreshWorker)
 
-  (POST, ["compile", "run"]) -> Just (LegacyRunGHC CRun)
-  (POST, ["compile", "core"]) -> Just (LegacyRunGHC CCore)
-  (POST, ["compile", "asm"]) -> Just (LegacyRunGHC CAsm)
   (GET, ["play"]) -> Just (LegacyRedirect "/")
   (GET, ["play", "paste", key]) -> Just (LegacyRedirect ("/saved/" <> key))
   (GET, ["play", "paste", key, _]) -> Just (LegacyRedirect ("/saved/" <> key))
@@ -265,12 +246,6 @@ handleRequest gctx ctx = \case
     versions <- liftIO (WP.getAvailableVersions (ctxPool ctx))
     writeJSON versions
 
-  -- TODO: remove this. This is present only to let the upgrade to /submit go a bit more smoothly.
-  CurrentChallenge -> do
-    modifyResponse (setContentType (Char8.pack "text/plain"))
-    key <- liftIO $ servingChallenge (ctxChallengeKey ctx)
-    writeText key
-
   -- Open a local exit-early block instead of using Snap's early-exit
   -- functionality, because this is more local.
   Submit -> execExitEarlyT $ do
@@ -282,30 +257,27 @@ handleRequest gctx ctx = \case
         _ -> do lift (httpError 400 "Invalid JSON")
                 exitEarly ()
 
-    handleSubmitRequest csr
+    let runreq = RunRequest { runreqCommand = csrOutput csr
+                            , runreqSource = csrCode csr
+                            , runreqVersion = csrVersion csr
+                            , runreqOpt = csrOpt csr }
 
-  -- Open a local exit-early block instead of using Snap's early-exit
-  -- functionality, because this is more local.
-  -- TODO: remove this. This is present only to let the upgrade to /submit go a bit more smoothly. Then also remove /challenge.
-  LegacyRunGHC runner -> execExitEarlyT $ do
-    postdata <- getRequestBodyEarlyExit 1000_000 "Program too large"
+    (mresult, numqueued) <- liftIO $ WP.submitJob (ctxPool ctx) runreq
+    result <- case mresult of
+      Just r -> do
+        liftIO $ forM_ (gcStatistics gctx) $ \stats -> do
+          let rectime = case r of
+                          RunResponseErr err -> Left err
+                          RunResponseOk {runresTimeTakenSecs = secs} -> Right secs
+          Stats.recordJob stats (Just rectime) numqueued
+        return r
+      Nothing -> do
+        liftIO $ forM_ (gcStatistics gctx) $ \stats -> do
+          Stats.recordJob stats Nothing numqueued
+        lift (httpError 503 "Service busy, please try again later")
+        exitEarly ()
 
-    ClientJobReq {cjrGivenKey=givenKey, cjrSource=source, cjrVersion=version, cjrOpt=opt} <-
-      case J.decodeStrict' postdata of
-        Just request -> return request
-        _ -> do lift (httpError 400 "Invalid JSON")
-                exitEarly ()
-
-    liftIO (checkChallenge (ctxChallengeKey ctx) givenKey) >>= \case
-      True -> return ()
-      False -> do lift (httpError 400 "Invalid challenge, request again")
-                  exitEarly ()
-
-    handleSubmitRequest
-      ClientSubmitReq { csrCode = source
-                      , csrVersion = version
-                      , csrOpt = opt
-                      , csrOutput = runner }
+    lift $ writeJSON result
 
   AdminReq adminreq -> do
     getBasicAuthCredentials <$> getRequest >>= \case
@@ -316,30 +288,6 @@ handleRequest gctx ctx = \case
       _ -> modifyResponse (requireBasicAuth "admin")
 
   LegacyRedirect url -> redirect' url 301  -- moved permanently
-  where
-    handleSubmitRequest :: ClientSubmitReq -> ExitEarlyT () Snap ()
-    handleSubmitRequest ClientSubmitReq {csrCode=source, csrVersion=version, csrOpt=opt, csrOutput=submitType} = do
-      let runreq = RunRequest { runreqCommand = submitType
-                              , runreqSource = source
-                              , runreqVersion = version
-                              , runreqOpt = opt }
-
-      (mresult, numqueued) <- liftIO $ WP.submitJob (ctxPool ctx) runreq
-      result <- case mresult of
-        Just r -> do
-          liftIO $ forM_ (gcStatistics gctx) $ \stats -> do
-            let rectime = case r of
-                            RunResponseErr err -> Left err
-                            RunResponseOk {runresTimeTakenSecs = secs} -> Right secs
-            Stats.recordJob stats (Just rectime) numqueued
-          return r
-        Nothing -> do
-          liftIO $ forM_ (gcStatistics gctx) $ \stats -> do
-            Stats.recordJob stats Nothing numqueued
-          lift (httpError 503 "Service busy, please try again later")
-          exitEarly ()
-
-      lift $ writeJSON result
 
 data AddWorkerRequest = AddWorkerRequest
   { awreqHostname :: String
