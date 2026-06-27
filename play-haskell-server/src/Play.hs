@@ -277,7 +277,9 @@ handleRequest gctx ctx = \case
         lift (httpError 503 "Service busy, please try again later")
         exitEarly ()
 
-    lift $ writeJSON result
+    lift $ do
+      modifyResponse (setHeader "Access-Control-Allow-Origin" "*")
+      writeJSON result
 
   AdminReq adminreq -> do
     getBasicAuthCredentials <$> getRequest >>= \case
