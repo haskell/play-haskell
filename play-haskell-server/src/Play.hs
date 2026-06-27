@@ -244,6 +244,7 @@ handleRequest gctx ctx = \case
   Versions -> do
     modifyResponse (setContentType (Char8.pack "text/plain"))
     versions <- liftIO (WP.getAvailableVersions (ctxPool ctx))
+    modifyResponse (setHeader "Access-Control-Allow-Origin" "*")
     writeJSON versions
 
   -- Open a local exit-early block instead of using Snap's early-exit
