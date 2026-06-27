@@ -30,7 +30,7 @@ import GHC.Generics (Generic)
 import Snap.Core hiding (path, method, pass)
 import System.Directory (listDirectory)
 import System.FilePath (takeExtension, takeFileName, (</>))
-import System.Random (StdGen, genByteString, newStdGen)
+import System.Random (StdGen, uniformByteString, newStdGen)
 
 import DB (KeyType, Contents(..), ClientAddr)
 import qualified DB
@@ -102,7 +102,7 @@ maxSaveFileSize = 128 * 1024
 
 genKey :: StdGen -> (KeyType, StdGen)
 genKey gen =
-  let (bs, gen') = genByteString saveKeyLength gen
+  let (bs, gen') = uniformByteString saveKeyLength gen
       intoAlphabet n = BS.index alphabet (fromIntegral n `rem` BS.length alphabet)
   in (BS.map intoAlphabet bs, gen')
   where
