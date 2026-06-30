@@ -305,7 +305,7 @@ handleRequest gctx ctx = \case
       putResponse $ setResponseCode 200 emptyResponse
       modifyResponse $
         setHeader "Access-Control-Allow-Origin" "*" .
-        setHeader "Access-Control-Allow-Methods" "POST, DELETE" .
+        setHeader "Access-Control-Allow-Methods" "POST, OPTIONS" .
         allowHeadersSetter .
         setHeader "Access-Control-Max-Age" "86400"
 
