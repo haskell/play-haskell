@@ -133,6 +133,7 @@ data WhatRequest
   | Save
   | Versions
   | Submit
+  | OPTIONS_Submit
   | AdminReq AdminReq
   | LegacyRedirect ByteString  -- ^ to destination URL
   deriving (Show)
@@ -159,6 +160,8 @@ parseRequest method comps = case (method, comps) of
   (PUT, ["admin", "worker"]) -> Just (AdminReq ARAddWorker)
   (DELETE, ["admin", "worker"]) -> Just (AdminReq ARRemoveWorker)
   (POST, ["admin", "worker", "refresh"]) -> Just (AdminReq ARRefreshWorker)
+
+  (OPTIONS, ["submit"]) -> Just OPTIONS_Submit
 
   (GET, ["play"]) -> Just (LegacyRedirect "/")
   (GET, ["play", "paste", key]) -> Just (LegacyRedirect ("/saved/" <> key))
@@ -281,6 +284,30 @@ handleRequest gctx ctx = \case
     lift $ do
       modifyResponse (setHeader "Access-Control-Allow-Origin" "*")
       writeJSON result
+
+  -- Browsers will send a preflight request for a cross-origin /submit request
+  -- to check if CORS is understood and the request will be handled
+  -- appropriately. That's this OPTIONS request.
+  OPTIONS_Submit -> execExitEarlyT $ do
+    req <- lift getRequest
+    case getHeader "Access-Control-Request-Method" req of
+      Just "POST" -> return ()
+      Just "OPTIONS" -> return ()
+      Just _ -> do lift (httpError 403 "Method disallowed for CORS")
+                   exitEarly ()
+      Nothing -> do lift (httpError 400 "Missing Access-Control-Request-Method")
+                    exitEarly ()
+    let allowHeadersSetter =
+          case getHeader "Access-Control-Request-Headers" req of
+            Just val -> setHeader "Access-Control-Allow-Headers" val
+            Nothing -> id
+    lift $ do
+      putResponse $ setResponseCode 200 emptyResponse
+      modifyResponse $
+        setHeader "Access-Control-Allow-Origin" "*" .
+        setHeader "Access-Control-Allow-Methods" "POST, DELETE" .
+        allowHeadersSetter .
+        setHeader "Access-Control-Max-Age" "86400"
 
   AdminReq adminreq -> do
     getBasicAuthCredentials <$> getRequest >>= \case
