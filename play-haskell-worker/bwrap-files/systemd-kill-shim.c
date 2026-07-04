@@ -38,7 +38,7 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  execlp("systemctl", "systemctl", "kill", unit_name, (char*)NULL);
+  execlp("/usr/bin/systemctl", "systemctl", "kill", unit_name, (char*)NULL);
   perror("execvp systemctl");
   return 1;
 }

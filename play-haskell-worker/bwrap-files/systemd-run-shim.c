@@ -92,7 +92,7 @@ int main(int argc, char **argv) {
   }
   run_args[num_pre_args + num_given_args] = NULL;
 
-  execvp("systemd-run", run_args);
-  perror("execvp systemd-run");
+  execvp("/usr/bin/systemd-run", run_args);
+  perror("execvp /usr/bin/systemd-run");
   return 1;
 }
