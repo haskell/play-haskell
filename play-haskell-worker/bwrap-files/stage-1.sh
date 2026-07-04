@@ -43,7 +43,8 @@ unit_name="play-haskell-sandbox-u$(date +%s-%N)-$SRANDOM"
 # already, so no need to kill it manually.
 we_were_killed=1
 
-trap "[[ \$we_were_killed = 1 ]] && ./systemd-kill-shim '$unit_name'" EXIT
+# The 'trap -P': add this trap command to the existing one so both are executed
+trap "$(trap -P EXIT); [[ \$we_were_killed = 1 ]] && ./systemd-kill-shim '$unit_name'" EXIT
 
 # Don't exit the script on error here!
 set +e
