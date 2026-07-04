@@ -63,7 +63,7 @@ int main(int argc, char **argv) {
 
   // Note: the allocation size here must be increased if the number of
   // arguments to systemd-run increases.
-  const size_t num_pre_args = 17;
+  const size_t num_pre_args = 20;
   char ** const run_args = malloc((num_pre_args + num_given_args + 1) * sizeof(*run_args));
 
   run_args[0] = xstrdup("systemd-run");
@@ -85,7 +85,10 @@ int main(int argc, char **argv) {
   run_args[13] = xstrdup("--property=MemoryMax=600M");
   run_args[14] = xstrdup("--property=TasksMax=50");
   run_args[15] = xstrdup("--property=LimitCORE=0");
-  run_args[16] = xstrdup("--");
+  run_args[16] = xstrdup("--property=TimeoutStopSec=0.05");
+  run_args[17] = xstrdup("--property=KillMode=control-group");  // already default, but just in case
+  run_args[18] = xstrdup("--property=SendSIGKILL=yes");  // already default, but just in case
+  run_args[19] = xstrdup("--");
   // If more arguments are added above, please modify the run_args allocation above!
   for (int i = 0; i < num_given_args; i++) {
     run_args[num_pre_args + i] = xstrdup(given_args[i]);
