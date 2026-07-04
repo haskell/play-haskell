@@ -35,6 +35,8 @@ args=(
   --ro-bind "${ghcup_base}/cache" "${ghcup_base}/cache"
   --ro-bind "${PWD}/builderprojs" "/builderprojs"
   --ro-bind "${PWD}/builders" "/builders"
+  --clearenv --setenv HOME /tmp
+             --setenv LANG en_US.UTF-8
   # The order of /usr/bin before /bin is important for gcc to properly find cc1
   --setenv PATH "/usr/lib/llvm-15/bin:/usr/bin:/bin:${ghcup_base}/bin"
   --setenv GHCUP_INSTALL_BASE_PREFIX "$(dirname "${ghcup_base}")"
