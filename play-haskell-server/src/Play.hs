@@ -21,8 +21,8 @@ import Data.Maybe (fromMaybe)
 import qualified Data.Map.Strict as Map
 import Data.String (fromString)
 import Data.Text (Text)
-import Data.Time (secondsToDiffTime)
 import qualified Data.Text.Encoding as Enc
+import Data.Time (secondsToDiffTime)
 import qualified Data.Time.Format as Time
 import qualified Data.Time.Clock.POSIX as Time
 import qualified Data.Time.LocalTime as Time
@@ -173,11 +173,20 @@ handleRequest gctx ctx = \case
   Index -> do
     req <- getRequest
     renderer <- liftIO $ getPageFromGCtx pPlay gctx
-    case Map.lookup "code" (rqQueryParams req) of
-      Just (source : _) -> writeHTML (renderer Nothing Nothing source Nothing Nothing)
-      _ -> do
-        snippet <- liftIO randomExampleSnippet
-        writeHTML (renderer Nothing Nothing snippet Nothing Nothing)
+    source    <- case Map.lookup "code" (rqQueryParams req) of
+                   Just (src : _) -> return src
+                   _ -> liftIO randomExampleSnippet
+    let ghcver = case Map.lookup "cp" (rqQueryParams req) of
+                   Just (compiler : _)
+                     | BS.take 3 compiler == "ghc" ->
+                         Just (Version (Enc.decodeUtf8Lenient (BS.drop 3 compiler)))
+                   _ -> Nothing
+    let opt    = case Map.lookup "opt" (rqQueryParams req) of
+                   Just ((Char8.unpack -> ['O',dig]) : _) -> case dig of
+                     '0' -> Just O0 ; '1' -> Just O1 ; '2' -> Just O2
+                     _ -> Nothing
+                   _ -> Nothing
+    writeHTML (renderer Nothing Nothing source ghcver opt)
 
   PostedIndex -> do
     req <- getRequest
