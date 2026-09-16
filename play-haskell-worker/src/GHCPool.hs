@@ -113,10 +113,13 @@ makeWorker = do
                   , Pr.std_out = Pr.CreatePipe
                   , Pr.std_err = Pr.CreatePipe }
     withCreateProcessRetry spec $ \(Just inh) (Just outh) (Just errh) proch -> do
+      mpid <- Pr.getPid proch
+      debug $ "[pool] New stage-1 process with pid " ++ show mpid
       -- debug $ "Created new stage-1 process: inh=" ++ show inh ++ " outh=" ++ show outh ++ " errh=" ++ show errh ++ " ghcoutread=" ++ show ghcOutReadHandle
       -- Make sure our copy of the writing end of the pipe is closed, so that the pipe gets closed when the process is done
       closeFd ghcOutWriteFD
       (cmd, opt, Version ver, source) <- readMVar mvar
+      debug $ "[pool] got program for " ++ show mpid
       _ <- forkIO $ do
         hPutStr inh (commandString cmd ++ "\n" ++ optimisationString opt ++ "\n" ++ T.unpack ver ++ "\n")
         BS.hPutStr inh (TE.encodeUtf8 source)
@@ -152,7 +155,7 @@ makeWorker = do
           -- known/trusted code. And we know that stage-1 will kill the systemd unit as it
           -- should upon SIGTERM, and it won't if we SIGKILL it. Hence we unfortunately
           -- cannot SIGKILL as a second-layer defense.
-          -- debug $ "[pool] terminateParanoid: terminating " ++ show mpid
+          debug $ "[pool] terminating " ++ show mpid
           Pr.terminateProcess proch
           putMVar resultvar (Left RETimeOut)
   return (Worker thread mvar resultvar)
