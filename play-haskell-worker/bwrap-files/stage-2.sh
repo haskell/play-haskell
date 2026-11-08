@@ -44,7 +44,8 @@ args=(
   --proc /proc
   --chdir "/tmp"
   --new-session
-  --unshare-all
+  # unshare-all only _tries_ to unshare cgroup and user
+  --unshare-all --unshare-cgroup --unshare-user
   --die-with-parent
   --file 4 "/tmp/stage-3.sh"
   /bin/bash "/tmp/stage-3.sh" "$ghc_out_fd"
